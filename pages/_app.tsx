@@ -2,12 +2,12 @@
 
 import type { AppProps } from "next/app"
 import { useState, useEffect } from "react"
-import { createPagesClient } from "../lib/auth/pages-auth"
+import { createClient } from "@supabase/supabase-js"
 import type { Session } from "@supabase/supabase-js"
-
-// Create a context for auth
 import React from "react"
+import "../app/globals.css"
 
+// Create a context for auth that doesn't depend on next/headers
 export const AuthContext = React.createContext<{
   session: Session | null
   loading: boolean
@@ -16,12 +16,25 @@ export const AuthContext = React.createContext<{
   loading: true,
 })
 
+// Create a Supabase client for the browser
+const createBrowserClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  })
+}
+
 function MyApp({ Component, pageProps }: AppProps) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const supabase = createPagesClient()
+    const supabase = createBrowserClient()
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {

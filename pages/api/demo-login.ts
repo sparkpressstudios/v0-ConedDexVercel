@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import { demoLoginPages } from "@/lib/auth/pages-auth"
+import { demoLoginPages } from "../../lib/auth/pages-auth"
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -14,8 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const data = await demoLoginPages(role)
-
-    return res.status(200).json({ success: true, data })
+    return res.status(200).json(data)
   } catch (error: any) {
     console.error("Demo login error:", error.message)
     return res.status(500).json({ error: error.message || "An error occurred during login" })
