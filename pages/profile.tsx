@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useEffect, useContext, useState } from "react"
 import { useRouter } from "next/router"
+import Head from "next/head"
 import { AuthContext } from "./_app"
 import { createPagesClient } from "../lib/auth/pages-auth"
 
@@ -18,7 +19,7 @@ export default function Profile() {
 
   useEffect(() => {
     if (!loading && !session) {
-      router.push("/login")
+      router.push("/")
     }
 
     if (session) {
@@ -71,8 +72,11 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
+        <Head>
+          <title>Loading... | ConeDex</title>
+        </Head>
         <div className="text-center">
-          <div className="spinner"></div>
+          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="mt-4">Loading...</p>
         </div>
       </div>
@@ -85,6 +89,9 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen bg-gray-100">
+      <Head>
+        <title>Profile | ConeDex</title>
+      </Head>
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
