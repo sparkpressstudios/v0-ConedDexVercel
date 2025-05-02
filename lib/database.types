@@ -1,0 +1,27 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export interface Database {
+  public: {
+    Tables: {
+      [_ in string]: any
+    }
+    Views: {
+      [_ in string]: never
+    }
+    Functions: {
+      [_ in string]: any
+    }
+    Enums: {
+      [_ in string]: never
+    }
+    CompositeTypes: {
+      [_ in string]: never
+    }
+  }
+}
