@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client"
 import { createServerClient } from "@/lib/supabase/server"
+import { createPagesServerClient } from "@/lib/supabase/pages-server"
 
 export type SubscriptionTier = {
   id: string
@@ -184,7 +185,16 @@ export class SubscriptionService {
    * Server-side function to check feature access
    */
   static async serverHasFeatureAccess(businessId: string, featureKey: string): Promise<boolean> {
-    const supabase = createServerClient()
+    // Use the appropriate server client based on the environment
+    let supabase
+
+    try {
+      // Try to use App Router server client
+      supabase = createServerClient()
+    } catch (e) {
+      // Fall back to Pages Router server client if App Router client fails
+      supabase = createPagesServerClient()
+    }
 
     // First check if the business has an active subscription
     const { data: subscription, error: subError } = await supabase

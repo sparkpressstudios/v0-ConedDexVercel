@@ -1,20 +1,13 @@
 import { createClient } from "@supabase/supabase-js"
+import type { Database } from "@/lib/database.types"
 
-// Create a Supabase client for use in the Pages Router
-export const createPagesClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  })
+// Export the createPagesClient function
+export function createPagesClient() {
+  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 }
 
-// Standard sign in function for Pages Router
-export const pagesSignIn = async (email: string, password: string) => {
+// Export the pagesSignIn function
+export async function pagesSignIn(email: string, password: string) {
   const supabase = createPagesClient()
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -23,7 +16,7 @@ export const pagesSignIn = async (email: string, password: string) => {
   })
 
   if (error) {
-    throw error
+    throw new Error(error.message)
   }
 
   return data
@@ -65,8 +58,13 @@ export const demoLoginPages = async (role: string) => {
   return data
 }
 
-// Get user session for Pages Router
-export const getUserSessionPages = async () => {
+// Add other auth-related functions as needed
+export async function pagesSignOut() {
+  const supabase = createPagesClient()
+  return await supabase.auth.signOut()
+}
+
+export async function pagesGetSession() {
   const supabase = createPagesClient()
   const { data } = await supabase.auth.getSession()
   return data.session
