@@ -1,32 +1,73 @@
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "../database.types"
+import { createClient } from "@supabase/supabase-js"
 
-// This is a Pages Router specific auth utility that doesn't use next/headers
-export async function getPagesAuthUser() {
-  const supabase = createClientComponentClient<Database>()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session?.user || null
-}
+// Create a Supabase client for use in the Pages Router
+export const createPagesClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-export async function pagesSignOut() {
-  const supabase = createClientComponentClient<Database>()
-  await supabase.auth.signOut()
-}
-
-export async function pagesSignIn(email: string, password: string) {
-  const supabase = createClientComponentClient<Database>()
-  return supabase.auth.signInWithPassword({
-    email,
-    password,
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
   })
 }
 
-export async function pagesSignUp(email: string, password: string) {
-  const supabase = createClientComponentClient<Database>()
-  return supabase.auth.signUp({
+// Standard sign in function for Pages Router
+export const pagesSignIn = async (email: string, password: string) => {
+  const supabase = createPagesClient()
+
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+// Demo login function for Pages Router
+export const demoLoginPages = async (role: string) => {
+  const supabase = createPagesClient()
+
+  let email = ""
+  let password = ""
+
+  switch (role) {
+    case "admin":
+      email = "admin@conedex.com"
+      password = process.env.DEMO_ADMIN_PASSWORD || "demo-password"
+      break
+    case "explorer":
+      email = "explorer@conedex.com"
+      password = process.env.DEMO_EXPLORER_PASSWORD || "demo-password"
+      break
+    case "shopowner":
+      email = "shopowner@conedex.com"
+      password = process.env.DEMO_SHOPOWNER_PASSWORD || "demo-password"
+      break
+    default:
+      throw new Error("Invalid role")
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (error) {
+    throw error
+  }
+
+  return data
+}
+
+// Get user session for Pages Router
+export const getUserSessionPages = async () => {
+  const supabase = createPagesClient()
+  const { data } = await supabase.auth.getSession()
+  return data.session
 }

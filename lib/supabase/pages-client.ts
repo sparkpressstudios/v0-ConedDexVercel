@@ -1,22 +1,11 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
+import type { Database } from "@/lib/database.types"
 
-// This client is safe to use in the Pages Router
+// Create a standalone Supabase client for Pages Router
+// This doesn't use next/headers at all
 export function createPagesClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey)
-}
-
-// Helper function to get the current session in Pages Router
-export async function getPagesSession() {
-  const supabase = createPagesClient()
-  return await supabase.auth.getSession()
-}
-
-// Helper function to get the current user in Pages Router
-export async function getPagesUser() {
-  const supabase = createPagesClient()
-  const { data } = await supabase.auth.getUser()
-  return data.user
+  return createClient<Database>(supabaseUrl, supabaseAnonKey)
 }
