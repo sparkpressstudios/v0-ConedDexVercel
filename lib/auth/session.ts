@@ -1,10 +1,12 @@
-import { cookies } from "next/headers"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
 import type { Database } from "@/lib/database.types"
 
 export async function getSession() {
-  const supabase = createServerComponentClient<Database>({ cookies })
   try {
+    const cookieStore = cookies()
+    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore })
+
     const {
       data: { session },
     } = await supabase.auth.getSession()
@@ -16,8 +18,10 @@ export async function getSession() {
 }
 
 export async function getUserDetails() {
-  const supabase = createServerComponentClient<Database>({ cookies })
   try {
+    const cookieStore = cookies()
+    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore })
+
     const { data: user } = await supabase.auth.getUser()
 
     if (!user.user) {
@@ -37,8 +41,10 @@ export async function getUserDetails() {
 }
 
 export async function getUserRole() {
-  const supabase = createServerComponentClient<Database>({ cookies })
   try {
+    const cookieStore = cookies()
+    const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore })
+
     const { data: user } = await supabase.auth.getUser()
 
     if (!user.user) {

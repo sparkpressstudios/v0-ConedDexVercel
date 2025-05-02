@@ -20,16 +20,34 @@ type AnalyticsEvent = {
 
 export async function trackEvent(event: AnalyticsEvent) {
   try {
+    // Create Supabase client
     const supabase = createServerActionClient({ cookies })
 
     // Get the current user if available
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    const userId = session?.user?.id || event.user_id || null
+    const { data: sessionData } = await supabase.auth.getSession()
+    const userId = sessionData?.session?.user?.id || event.user_id || null
 
-    // Insert the event into the analytics_events table
-    const { error } = await supabase.from("analytics_events").insert({
+    // Safely check if analytics_events table exists
+    try {
+      // First, check if the table exists by trying a simple query
+      const { error: tableCheckError } = await supabase.from("analytics_events").select("id").limit(1).single()
+
+      // If there's a 400 error with "relation does not exist", the table is missing
+      if (
+        tableCheckError &&
+        (tableCheckError.code === "42P01" ||
+          (tableCheckError.message?.includes("relation") && tableCheckError.message?.includes("does not exist")))
+      ) {
+        console.log("Analytics table doesn't exist - skipping analytics")
+        return { success: false, error: "Analytics table not available" }
+      }
+    } catch (checkError) {
+      console.log("Error checking analytics table:", checkError)
+      return { success: false, error: "Error checking analytics table" }
+    }
+
+    // Prepare the event data
+    const eventData = {
       id: uuidv4(),
       event_type: event.event_type,
       event_data: event.event_data || {},
@@ -43,17 +61,36 @@ export async function trackEvent(event: AnalyticsEvent) {
       page_url: event.page_url || null,
       app_version: event.app_version || null,
       created_at: new Date().toISOString(),
-    })
+    }
+
+    // Insert the event into the analytics_events table
+    const { error } = await supabase.from("analytics_events").insert(eventData)
 
     if (error) {
-      console.error("Error tracking event:", error)
-      return { success: false, error }
+      // Safely log error details
+      const errorMessage = error.message || "Unknown error"
+      const errorDetails = error.details || "No details"
+      const errorHint = error.hint || "No hint"
+
+      console.error(`Error tracking event: ${errorMessage} - Details: ${errorDetails} - Hint: ${errorHint}`)
+      return { success: false, error: errorMessage }
     }
 
     return { success: true }
   } catch (error) {
-    console.error("Error in trackEvent:", error)
-    return { success: false, error }
+    // Safely handle any type of error
+    let errorMessage = "Unknown error"
+
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === "string") {
+      errorMessage = error
+    } else if (error && typeof error === "object") {
+      errorMessage = JSON.stringify(error)
+    }
+
+    console.error(`Error in trackEvent: ${errorMessage}`)
+    return { success: false, error: errorMessage }
   }
 }
 
@@ -71,7 +108,10 @@ export async function getAnalyticsData(metric: string, timeframe = "30d") {
           .gte("created_at", getTimeframeDate(timeframe))
           .order("created_at", { ascending: true })
 
-        if (installError) throw installError
+        if (installError) {
+          console.error("Error fetching installation data:", installError.message)
+          throw installError
+        }
         return { success: true, data: installData }
 
       case "active_users":
@@ -81,7 +121,10 @@ export async function getAnalyticsData(metric: string, timeframe = "30d") {
           .gte("created_at", getTimeframeDate(timeframe))
           .order("created_at", { ascending: true })
 
-        if (userError) throw userError
+        if (userError) {
+          console.error("Error fetching user data:", userError.message)
+          throw userError
+        }
 
         // Count unique users per day
         const uniqueUsers = countUniqueUsersByDay(userData)
@@ -93,8 +136,18 @@ export async function getAnalyticsData(metric: string, timeframe = "30d") {
         return { success: false, error: "Invalid metric" }
     }
   } catch (error) {
-    console.error("Error in getAnalyticsData:", error)
-    return { success: false, error }
+    let errorMessage = "Unknown error"
+
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === "string") {
+      errorMessage = error
+    } else if (error && typeof error === "object") {
+      errorMessage = JSON.stringify(error)
+    }
+
+    console.error(`Error in getAnalyticsData: ${errorMessage}`)
+    return { success: false, error: errorMessage }
   }
 }
 

@@ -1,9 +1,12 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/lib/database.types"
 
-// This client is safe to use in the Pages Router
+// Create a singleton instance for the Pages Router
+let pagesClient: ReturnType<typeof createClientComponentClient<Database>> | null = null
+
 export function createPagesClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-
-  return createSupabaseClient(supabaseUrl, supabaseAnonKey)
+  if (!pagesClient) {
+    pagesClient = createClientComponentClient<Database>()
+  }
+  return pagesClient
 }
