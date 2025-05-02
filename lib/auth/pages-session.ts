@@ -1,11 +1,9 @@
-// This file is for server-side usage in the App Router ONLY
-// DO NOT import this file in the Pages Router or client components
+// This file is for server-side usage in the Pages Router ONLY
+import { createPagesClient } from "@/lib/supabase/pages-client"
 
-import { createServerClient } from "@/lib/supabase/server"
-
-export async function getSession() {
+export async function getPagesSession() {
   try {
-    const supabase = createServerClient()
+    const supabase = createPagesClient()
 
     const {
       data: { session },
@@ -17,9 +15,9 @@ export async function getSession() {
   }
 }
 
-export async function getUserDetails() {
+export async function getPagesUserDetails() {
   try {
-    const supabase = createServerClient()
+    const supabase = createPagesClient()
 
     const { data: user } = await supabase.auth.getUser()
 
@@ -39,9 +37,9 @@ export async function getUserDetails() {
   }
 }
 
-export async function getUserRole() {
+export async function getPagesUserRole() {
   try {
-    const supabase = createServerClient()
+    const supabase = createPagesClient()
 
     const { data: user } = await supabase.auth.getUser()
 

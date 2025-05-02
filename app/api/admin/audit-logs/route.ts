@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { cookies } from "next/headers"
+import { createServerClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request) {
   try {
-    const cookieStore = cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createServerClient()
 
     // Check if user is admin
     const {
@@ -93,8 +91,7 @@ export async function GET(request: Request) {
 // Add a new audit log entry
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies()
-    const supabase = createClient(cookieStore)
+    const supabase = createServerClient()
 
     // Check if user is admin
     const {

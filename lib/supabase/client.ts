@@ -1,3 +1,4 @@
+// This file is for client-side usage in both App Router and Pages Router
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/lib/database.types"
 

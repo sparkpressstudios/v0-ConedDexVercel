@@ -78,8 +78,8 @@
     "ai": "latest",
     "@ai-sdk/openai": "latest",
     "csv-parse": "latest",
-    "@vercel/analytics": "latest",
-    "uuid": "latest"
+    "uuid": "latest",
+    "@vercel/analytics": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
