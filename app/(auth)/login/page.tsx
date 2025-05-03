@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { loginAsAdmin, loginAsExplorer, loginAsShopOwner } from "@/lib/auth/demo-auth"
 import { getAuthUser } from "@/lib/auth/auth-compat"
+import LoginButtons from "./login-buttons"
 
 export const metadata: Metadata = {
   title: "Login | ConeDex",
@@ -45,23 +45,7 @@ export default async function LoginPage() {
 
           <div className="mt-6">
             <p className="text-center text-sm text-muted-foreground mb-4">Or use a demo account</p>
-            <div className="grid gap-2">
-              <form action={loginAsAdmin}>
-                <Button type="submit" variant="outline" className="w-full">
-                  Login as Admin
-                </Button>
-              </form>
-              <form action={loginAsExplorer}>
-                <Button type="submit" variant="outline" className="w-full">
-                  Login as Ice Cream Explorer
-                </Button>
-              </form>
-              <form action={loginAsShopOwner}>
-                <Button type="submit" variant="outline" className="w-full">
-                  Login as Shop Owner
-                </Button>
-              </form>
-            </div>
+            <LoginButtons />
           </div>
         </CardContent>
         <CardFooter className="flex justify-center">
