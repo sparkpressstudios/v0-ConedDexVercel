@@ -111,7 +111,6 @@ export default function NewsletterList({ newsletters }: NewsletterListProps) {
       {newsletters.length === 0 ? (
         <div className="text-center py-10 border rounded-md">
           <p className="text-muted-foreground">No newsletters created yet</p>
-          <Button variant="outline" className="" />
         </div>
       ) : (
         <div className="space-y-4">

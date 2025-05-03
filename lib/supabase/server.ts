@@ -1,5 +1,5 @@
 // This file is for server-side usage in the App Router ONLY
-// DO NOT import this file in the Pages Router or client components
+// DO NOT import this file in the pages/ directory
 
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"

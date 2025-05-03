@@ -42,6 +42,16 @@ const nextConfig = {
       },
     ]
   },
+  env: {
+    NEXT_PUBLIC_RUNTIME: 'app', // Set to 'pages' in pages/_app.tsx
+  },
+  webpack: (config, { isServer, dev }) => {
+    // Add our runtime detection plugin
+    const RuntimeDetectionPlugin = require('./lib/webpack/runtime-detection-plugin');
+    config.plugins.push(new RuntimeDetectionPlugin());
+    
+    return config;
+  },
 }
 
 export default nextConfig
