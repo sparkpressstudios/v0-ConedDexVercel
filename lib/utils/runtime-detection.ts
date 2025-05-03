@@ -1,41 +1,37 @@
 /**
  * Runtime detection utilities for Next.js
  * Automatically detects whether code is running in App Router or Pages Router
+ * without requiring environment variables
  */
 
-// Detect at runtime if we're in the Pages Router
-export function isPagesRouter(): boolean {
-  // Check if window is defined (client-side)
-  if (typeof window !== "undefined") {
-    // Client-side detection based on URL patterns
-    const pathname = window.location.pathname
+// Safe way to detect if we're in a browser environment
+export const isBrowser = typeof window !== "undefined"
 
-    // Check for known Pages Router paths
-    if (pathname.startsWith("/_next/")) {
-      return true
-    }
-
-    // Check for __PAGES_ROUTER__ global (set by webpack)
-    if (typeof (window as any).__PAGES_ROUTER__ !== "undefined") {
-      return (window as any).__PAGES_ROUTER__
-    }
-
-    // Default to App Router for client-side
-    return false
-  }
-
-  // Server-side detection
+// Detect at build time if we're in the Pages Router
+export function isPagesRouterBuild(): boolean {
   try {
-    // Try to access headers() function which only exists in App Router
+    // Try to require next/headers as a test
+    // This will throw in Pages Router
     require("next/headers")
-    return false // App Router
+    return false // We're in the App Router
   } catch (e) {
-    // If we get here, we're in the Pages Router
-    return true
+    return true // We're in the Pages Router
   }
 }
 
-// Safe import function that won't break the build
+// Runtime detection for client components
+export function isPagesRouter(): boolean {
+  if (isBrowser) {
+    // Client-side detection
+    // Check for Next.js Pages Router specific elements
+    return document.querySelector("div#__next") !== null || window.location.pathname.startsWith("/_next/data/")
+  }
+
+  // Server-side detection
+  return isPagesRouterBuild()
+}
+
+// Safe import function that won't break in either router
 export function safeRequire(modulePath: string, fallbackValue: any = null): any {
   try {
     return require(modulePath)
@@ -44,18 +40,29 @@ export function safeRequire(modulePath: string, fallbackValue: any = null): any 
   }
 }
 
-// Create a safe cookies function that works in both routers
+// Safe cookies function that works in both routers
 export function getSafeCookies() {
-  try {
-    const { cookies } = require("next/headers")
-    return cookies()
-  } catch (e) {
-    // Fallback implementation
+  if (isPagesRouterBuild()) {
+    // Pages Router implementation
     return {
       get: (name: string) => null,
       getAll: () => [],
       set: () => {},
       delete: () => {},
+    }
+  } else {
+    // App Router implementation
+    try {
+      const { cookies } = require("next/headers")
+      return cookies()
+    } catch (e) {
+      // Fallback implementation
+      return {
+        get: (name: string) => null,
+        getAll: () => [],
+        set: () => {},
+        delete: () => {},
+      }
     }
   }
 }

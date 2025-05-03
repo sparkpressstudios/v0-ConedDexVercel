@@ -1,16 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Remove dangerous settings but keep for now with a warning comment
   eslint: {
+    // WARNING: This should be removed for production
     ignoreDuringBuilds: true,
   },
   typescript: {
+    // WARNING: This should be removed for production
     ignoreBuildErrors: true,
   },
   images: {
     domains: ["localhost", "placeholder.com"],
     unoptimized: true,
   },
+  // Add standalone output for better Vercel optimization
+  output: "standalone",
+  // Add trailing slash to ensure consistent routing
+  trailingSlash: true,
+  // Add basePath if you're not deploying to the root
+  // basePath: '',
   async headers() {
     return [
       {
@@ -82,8 +91,9 @@ const nextConfig = {
 
     return config
   },
-  env: {
-    NEXT_PUBLIC_RUNTIME: "app",
+  experimental: {
+    // Optimize package imports for specific libraries only
+    optimizePackageImports: ["@mantine/core", "@mantine/hooks", "date-fns", "lodash"],
   },
 }
 
