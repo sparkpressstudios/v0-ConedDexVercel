@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { OfflineIndicator } from "@/components/ui/offline-indicator"
 import { InstallPrompt } from "@/components/ui/install-prompt"
 import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
+import { isPreviewEnvironment, getPreviewUser } from "@/lib/utils/preview-detection"
 
 // Demo user types
 interface DemoUser {
@@ -41,6 +42,11 @@ const demoUsers: Record<string, DemoUser> = {
 
 // Helper function to handle authentication and profile loading
 async function getProfileData() {
+  // If we're in a preview environment, return a preview user
+  if (isPreviewEnvironment()) {
+    return { profile: getPreviewUser() }
+  }
+
   try {
     const supabase = createServerClient()
 

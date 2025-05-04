@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Search, MapPin, Store, Loader2, AlertCircle } from "lucide-react"
+import { Search, Store, Loader2, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,48 @@ import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { searchIceCreamBusinesses, getPlaceDetails, convertPlaceToShop } from "@/lib/services/google-places-service"
+import { isPreviewEnvironment } from "@/lib/utils/preview-detection"
+
+// Mock data for preview environments
+const MOCK_SEARCH_RESULTS = [
+  {
+    id: "mock-1",
+    name: "Sweet Scoops Ice Cream",
+    address: "123 Main Street, San Francisco, CA",
+    source: "database",
+    rating: 4.7,
+  },
+  {
+    id: "mock-2",
+    name: "Frosty Delights",
+    address: "456 Market Street, San Francisco, CA",
+    source: "google",
+    place_id: "mock-place-2",
+    rating: 4.5,
+  },
+  {
+    id: "mock-3",
+    name: "Creamy Dreams",
+    address: "789 Mission Street, San Francisco, CA",
+    source: "google",
+    place_id: "mock-place-3",
+    rating: 4.2,
+  },
+]
+
+const MOCK_SHOP_DETAILS = {
+  id: "mock-1",
+  name: "Sweet Scoops Ice Cream",
+  address: "123 Main Street",
+  city: "San Francisco",
+  state: "CA",
+  phone: "(415) 555-1234",
+  website: "https://sweetscoops.example.com",
+  description: "A family-owned ice cream shop serving handcrafted flavors since 1985.",
+  image_url: "/placeholder.svg?key=zcks3",
+  rating: 4.7,
+  source: "database",
+}
 
 export default function ClaimBusinessPage() {
   const router = useRouter()
@@ -40,6 +82,14 @@ export default function ClaimBusinessPage() {
       if (!user) return
 
       setIsCheckingShop(true)
+
+      // In preview mode, simulate the check
+      if (isPreviewEnvironment()) {
+        setHasShop(false)
+        setIsCheckingShop(false)
+        return
+      }
+
       try {
         const { data, error } = await supabase.from("shops").select("*").eq("owner_id", user.id).limit(1)
 
@@ -64,6 +114,15 @@ export default function ClaimBusinessPage() {
 
   // Get user's current location
   const getCurrentLocation = () => {
+    if (isPreviewEnvironment()) {
+      // Mock location for preview
+      setLocation({
+        lat: 37.7749,
+        lng: -122.4194,
+      })
+      return
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -88,6 +147,15 @@ export default function ClaimBusinessPage() {
     setClaimStatus(null)
 
     try {
+      // In preview mode, use mock data
+      if (isPreviewEnvironment()) {
+        // Simulate network delay
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        setSearchResults(MOCK_SEARCH_RESULTS)
+        setIsSearching(false)
+        return
+      }
+
       // First search existing shops in our database
       const { data: existingShops, error } = await supabase
         .from("shops")
@@ -136,6 +204,16 @@ export default function ClaimBusinessPage() {
     setSelectedShop(shop)
     setClaimStatus(null)
 
+    // In preview mode, use mock data
+    if (isPreviewEnvironment()) {
+      setIsLoading(true)
+      // Simulate network delay
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSelectedShop(MOCK_SHOP_DETAILS)
+      setIsLoading(false)
+      return
+    }
+
     // If it's a Google Places result, get more details
     if (shop.source === "google" && shop.place_id) {
       setIsLoading(true)
@@ -181,6 +259,23 @@ export default function ClaimBusinessPage() {
     setClaimStatus(null)
 
     try {
+      // In preview mode, simulate claiming
+      if (isPreviewEnvironment()) {
+        // Simulate network delay
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        setClaimStatus({
+          success: true,
+          message: `You've successfully claimed ${selectedShop.name}. Your claim is pending verification.`,
+        })
+
+        // After successful claim, redirect to shop dashboard after a delay
+        setTimeout(() => {
+          router.push("/dashboard/shop")
+        }, 3000)
+
+        return
+      }
+
       if (selectedShop.source === "database") {
         // Claim existing shop in database
         const { error } = await supabase
@@ -210,9 +305,9 @@ export default function ClaimBusinessPage() {
         delete shopData.source
         delete shopData.place_id
 
-        const { error } = await supabase.from("shops").insert([shopData])
+        const { data: newShop, error: insertError } = await supabase.from("shops").insert([shopData]).select().single()
 
-        if (error) throw error
+        if (insertError) throw insertError
 
         setClaimStatus({
           success: true,
@@ -226,448 +321,180 @@ export default function ClaimBusinessPage() {
       }, 3000)
     } catch (error) {
       console.error("Error claiming shop:", error)
-      setClaimStatus({
-        success: false,
-        message: "Failed to claim shop. Please try again or contact support.",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Create a new shop
-  const createNewShop = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setIsLoading(true)
-
-    const formData = new FormData(e.currentTarget)
-    const shopName = formData.get("shopName") as string
-    const address = formData.get("address") as string
-    const city = formData.get("city") as string
-    const state = formData.get("state") as string
-
-    try {
-      const { data, error } = await supabase
-        .from("shops")
-        .insert([
-          {
-            name: shopName,
-            address,
-            city,
-            state,
-            owner_id: user?.id,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ])
-        .select()
-
-      if (error) throw error
-
       toast({
-        title: "Shop Created",
-        description: "Your shop has been created successfully!",
-      })
-
-      // Redirect to shop dashboard
-      router.push("/dashboard/shop")
-    } catch (error) {
-      console.error("Error creating shop:", error)
-      toast({
-        title: "Error",
-        description: "Failed to create shop. Please try again.",
+        title: "Claim Error",
+        description: "Failed to claim the shop. Please try again.",
         variant: "destructive",
       })
+      setClaimStatus({
+        success: false,
+        message: "Failed to claim the shop. Please try again.",
+      })
     } finally {
       setIsLoading(false)
     }
-  }
-
-  if (isCheckingShop) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (hasShop) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>You already have a shop</CardTitle>
-            <CardDescription>You've already claimed or created a shop.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>You can manage your shop from the dashboard.</p>
-          </CardContent>
-          <CardFooter>
-            <Button onClick={() => router.push("/dashboard/shop")} className="w-full">
-              Go to Shop Dashboard
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Claim Your Business</h1>
-          <p className="text-muted-foreground">Search for your business or create a new listing</p>
-        </div>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="search" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Find Existing
-          </TabsTrigger>
-          <TabsTrigger value="create" className="flex items-center gap-2">
-            <Store className="h-4 w-4" />
-            Create New
-          </TabsTrigger>
+    <div className="container relative hidden h-full flex-col md:flex">
+      <Tabs
+        defaultValue="search"
+        className="w-[400px]"
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value)}
+      >
+        <TabsList>
+          <TabsTrigger value="search">Search</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="search" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Search for Your Business</CardTitle>
-              <CardDescription>Find your ice cream shop to claim ownership</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSearch} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-4 sm:flex-row">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Search by business name..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+        <TabsContent value="search">
+          {isCheckingShop ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Checking your shop...</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              </CardContent>
+            </Card>
+          ) : hasShop ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>You already have a shop!</AlertTitle>
+              <AlertDescription>You can manage your shop in the shop dashboard.</AlertDescription>
+            </Alert>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Claim Your Ice Cream Shop</CardTitle>
+                <CardDescription>Search for your business to claim it.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSearch}>
+                  <div className="grid gap-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <label htmlFor="search">Search</label>
+                      <Input
+                        id="search"
+                        className="col-span-3"
+                        type="text"
+                        placeholder="Shop name"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={getCurrentLocation}>
-                      <MapPin className="mr-2 h-4 w-4" />
-                      {location ? "Location Set" : "Use My Location"}
-                    </Button>
-                    <Button type="submit" disabled={isSearching}>
-                      {isSearching ? (
+                  <Button type="submit" className="mt-4" disabled={isSearching}>
+                    {isSearching ? (
+                      <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
+                        Searching...
+                      </>
+                    ) : (
+                      <>
                         <Search className="mr-2 h-4 w-4" />
-                      )}
-                      Search
-                    </Button>
-                  </div>
-                </div>
-                {location && (
-                  <div className="text-sm text-muted-foreground">
-                    Using location: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
-                  </div>
-                )}
-              </form>
-            </CardContent>
-          </Card>
+                        Search
+                      </>
+                    )}
+                  </Button>
+                </form>
 
-          <div className="grid gap-6 lg:grid-cols-5">
-            {/* Search Results */}
-            <div className="lg:col-span-2">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Search Results</CardTitle>
-                  <CardDescription>
-                    {searchResults.length > 0
-                      ? `Found ${searchResults.length} businesses matching your search`
-                      : "Search results will appear here"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isSearching ? (
-                    <div className="flex h-40 items-center justify-center">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : searchResults.length > 0 ? (
-                    <div className="space-y-4">
+                {searchResults.length > 0 && (
+                  <div className="mt-4">
+                    <h3>Search Results</h3>
+                    <ul>
                       {searchResults.map((shop) => (
-                        <div
-                          key={shop.id}
-                          className={`cursor-pointer rounded-lg border p-4 transition-all hover:bg-accent ${
-                            selectedShop?.id === shop.id ? "border-primary bg-accent" : ""
-                          }`}
-                          onClick={() => selectShop(shop)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h3 className="font-medium">{shop.name}</h3>
-                              <p className="text-sm text-muted-foreground">{shop.address}</p>
-                              <div className="mt-1">
-                                <Badge variant="outline">
-                                  {shop.source === "database" ? "In ConeDex" : "Google Places"}
-                                </Badge>
-                              </div>
-                            </div>
-                            {shop.rating && (
-                              <div className="flex items-center">
-                                <svg
-                                  className="mr-1 h-4 w-4 fill-amber-400 text-amber-400"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-                                </svg>
-                                <span className="text-sm font-medium">{shop.rating}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                        <li key={shop.id} className="mb-2">
+                          <Button variant="secondary" onClick={() => selectShop(shop)} className="w-full justify-start">
+                            <Store className="mr-2 h-4 w-4" />
+                            {shop.name} - {shop.address}
+                            {shop.source === "database" && <Badge className="ml-2">Database</Badge>}
+                          </Button>
+                        </li>
                       ))}
-                    </div>
-                  ) : (
-                    <div className="flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-                      <Search className="mb-2 h-8 w-8" />
-                      <p>No results found. Try a different search term or create a new listing.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Business Details */}
-            <div className="lg:col-span-3">
-              <Card className="h-full">
-                <CardHeader>
-                  <CardTitle>Business Details</CardTitle>
-                  <CardDescription>
-                    {selectedShop
-                      ? `Details for ${selectedShop.name}`
-                      : "Select a business to view its details and claim it"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="flex h-40 items-center justify-center">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : selectedShop ? (
-                    <div className="space-y-6">
-                      {/* Business Header */}
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <h2 className="text-2xl font-bold">{selectedShop.name}</h2>
-                          <p className="text-muted-foreground">
-                            {selectedShop.address}
-                            {selectedShop.city && `, ${selectedShop.city}`}
-                            {selectedShop.state && `, ${selectedShop.state}`}
-                          </p>
-                          {selectedShop.rating && (
-                            <div className="mt-1 flex items-center">
-                              <div className="flex">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <svg
-                                    key={star}
-                                    className={`h-4 w-4 ${
-                                      star <= Math.round(selectedShop.rating || 0)
-                                        ? "fill-amber-400 text-amber-400"
-                                        : "text-gray-300"
-                                    }`}
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-                                  </svg>
-                                ))}
-                              </div>
-                              <span className="ml-2 text-sm">{selectedShop.rating}</span>
-                            </div>
-                          )}
-                        </div>
-                        <Badge variant={selectedShop.source === "database" ? "default" : "secondary"}>
-                          {selectedShop.source === "database" ? "In ConeDex" : "From Google Places"}
-                        </Badge>
-                      </div>
-
-                      {/* Business Image */}
-                      {selectedShop.image_url && (
-                        <div className="overflow-hidden rounded-md">
-                          <img
-                            src={selectedShop.image_url || "/placeholder.svg"}
-                            alt={selectedShop.name}
-                            className="h-64 w-full object-cover"
-                          />
-                        </div>
-                      )}
-
-                      {/* Business Details */}
-                      <div className="grid gap-6 md:grid-cols-2">
-                        {/* Contact Information */}
-                        <div className="space-y-4">
-                          <h3 className="font-semibold">Contact Information</h3>
-                          <div className="space-y-2">
-                            {selectedShop.phone && (
-                              <div className="flex items-center gap-2">
-                                <svg
-                                  className="h-4 w-4 text-muted-foreground"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-                                </svg>
-                                <span>{selectedShop.phone}</span>
-                              </div>
-                            )}
-                            {selectedShop.website && (
-                              <div className="flex items-center gap-2">
-                                <svg
-                                  className="h-4 w-4 text-muted-foreground"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <circle cx="12" cy="12" r="10" />
-                                  <line x1="2" y1="12" x2="22" y2="12" />
-                                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                                </svg>
-                                <a
-                                  href={selectedShop.website}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  {selectedShop.website.replace(/^https?:\/\//, "")}
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Location */}
-                        <div className="space-y-4">
-                          <h3 className="font-semibold">Location</h3>
-                          <div className="space-y-1">
-                            <p>{selectedShop.address}</p>
-                            {selectedShop.city && selectedShop.state && (
-                              <p>
-                                {selectedShop.city}, {selectedShop.state}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Description */}
-                      {selectedShop.description && (
-                        <div className="space-y-2">
-                          <h3 className="font-semibold">Description</h3>
-                          <p>{selectedShop.description}</p>
-                        </div>
-                      )}
-
-                      {/* Claim Status */}
-                      {claimStatus && (
-                        <Alert variant={claimStatus.success ? "default" : "destructive"}>
-                          <AlertTitle>{claimStatus.success ? "Success" : "Error"}</AlertTitle>
-                          <AlertDescription>{claimStatus.message}</AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-                      <Store className="mb-2 h-8 w-8" />
-                      <p>Select a business from the search results to claim it</p>
-                    </div>
-                  )}
-                </CardContent>
-                {selectedShop && !claimStatus?.success && (
-                  <CardFooter>
-                    <Button className="w-full" onClick={claimShop} disabled={isLoading}>
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
-                        </>
-                      ) : (
-                        <>Claim {selectedShop.name}</>
-                      )}
-                    </Button>
-                  </CardFooter>
+                    </ul>
+                  </div>
                 )}
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="create">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create a New Business Listing</CardTitle>
-              <CardDescription>Add your ice cream shop to ConeDex</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={createNewShop} className="space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="shopName" className="text-sm font-medium">
-                    Business Name
-                  </label>
-                  <Input id="shopName" name="shopName" placeholder="Sweet Scoops Ice Cream" required />
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="address" className="text-sm font-medium">
-                    Street Address
-                  </label>
-                  <Input id="address" name="address" placeholder="123 Main Street" required />
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label htmlFor="city" className="text-sm font-medium">
-                      City
-                    </label>
-                    <Input id="city" name="city" placeholder="San Francisco" required />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label htmlFor="state" className="text-sm font-medium">
-                      State
-                    </label>
-                    <Input id="state" name="state" placeholder="CA" required />
-                  </div>
-                </div>
-
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Verification Required</AlertTitle>
-                  <AlertDescription>
-                    New business listings require verification. We'll contact you to verify your ownership.
-                  </AlertDescription>
-                </Alert>
-
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...
-                    </>
-                  ) : (
-                    <>Create Business Listing</>
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
+
+      {selectedShop && (
+        <Card className="w-[400px] mt-4">
+          <CardHeader>
+            <CardTitle>Shop Details</CardTitle>
+            <CardDescription>Verify the details of the shop you are claiming.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center space-x-2">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span>Loading shop details...</span>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-2">
+                  <div>
+                    <p className="text-sm font-medium leading-none">Name</p>
+                    <p className="text-sm text-muted-foreground">{selectedShop.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium leading-none">Address</p>
+                    <p className="text-sm text-muted-foreground">{selectedShop.address}</p>
+                  </div>
+                  {selectedShop.phone && (
+                    <div>
+                      <p className="text-sm font-medium leading-none">Phone</p>
+                      <p className="text-sm text-muted-foreground">{selectedShop.phone}</p>
+                    </div>
+                  )}
+                  {selectedShop.website && (
+                    <div>
+                      <p className="text-sm font-medium leading-none">Website</p>
+                      <p className="text-sm text-muted-foreground">{selectedShop.website}</p>
+                    </div>
+                  )}
+                  {selectedShop.description && (
+                    <div>
+                      <p className="text-sm font-medium leading-none">Description</p>
+                      <p className="text-sm text-muted-foreground">{selectedShop.description}</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button onClick={claimShop} disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Claiming...
+                </>
+              ) : (
+                "Claim Shop"
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {claimStatus && (
+        <Alert variant={claimStatus.success ? "default" : "destructive"}>
+          {claimStatus.success ? (
+            <>
+              <AlertTitle>Success</AlertTitle>
+              <AlertDescription>{claimStatus.message}</AlertDescription>
+            </>
+          ) : (
+            <>
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{claimStatus.message}</AlertDescription>
+            </>
+          )}
+        </Alert>
+      )}
     </div>
   )
 }

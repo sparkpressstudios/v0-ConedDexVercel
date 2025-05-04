@@ -1,51 +1,49 @@
+import { Suspense } from "react"
 import { createServerClient } from "@/lib/supabase/server"
-import { Button } from "@/components/ui/button"
-import ConeDexBrowser from "@/components/flavor/conedex-browser"
-import Link from "next/link"
-import { PlusCircle } from "lucide-react"
+import { FlavorDetailView } from "@/components/flavor/flavor-detail-view"
+import { ConedexBrowser } from "@/components/flavor/conedex-browser"
+
+export const metadata = {
+  title: "Flavors | ConeDex",
+  description: "Browse and discover ice cream flavors in the ConeDex database",
+}
 
 export default async function FlavorsPage() {
   const supabase = createServerClient()
 
-  // Check if user is authenticated
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  // Fetch featured flavors
+  const { data: featuredFlavors } = await supabase
+    .from("flavors")
+    .select("*")
+    .order("popularity", { ascending: false })
+    .limit(5)
 
-  if (!session) {
-    return {
-      redirect: {
-        destination: "/login",
-        permanent: false,
-      },
-    }
-  }
-
-  // Get user's flavor logs count
-  const { count } = await supabase
-    .from("flavor_logs")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", session.user.id)
+  // Fetch flavor categories
+  const { data: categories } = await supabase.from("flavor_categories").select("*").order("name")
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">My ConeDex</h1>
-          <p className="text-muted-foreground">
-            You've logged {count || 0} unique ice cream {count === 1 ? "flavor" : "flavors"} so far
-          </p>
+    <div className="container mx-auto">
+      <h1 className="text-3xl font-bold mb-6">Flavor Explorer</h1>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4">Browse Flavors</h2>
+            <Suspense fallback={<div>Loading flavor browser...</div>}>
+              <ConedexBrowser initialFlavors={featuredFlavors || []} categories={categories || []} />
+            </Suspense>
+          </div>
         </div>
 
-        <Button asChild>
-          <Link href="/dashboard/log-flavor">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Log New Flavor
-          </Link>
-        </Button>
+        <div>
+          <div className="bg-white rounded-lg shadow-md p-6 sticky top-6">
+            <h2 className="text-xl font-semibold mb-4">Flavor Details</h2>
+            <Suspense fallback={<div>Loading flavor details...</div>}>
+              <FlavorDetailView />
+            </Suspense>
+          </div>
+        </div>
       </div>
-
-      <ConeDexBrowser personalOnly={true} />
     </div>
   )
 }

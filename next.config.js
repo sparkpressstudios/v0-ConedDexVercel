@@ -20,6 +20,23 @@ const nextConfig = {
   trailingSlash: true,
   // Add basePath if you're not deploying to the root
   // basePath: '',
+  async rewrites() {
+    return [
+      // Rewrite route group patterns to their clean URLs
+      {
+        source: "/(dashboard)/dashboard/:path*",
+        destination: "/dashboard/:path*",
+      },
+      {
+        source: "/(public)/:path*",
+        destination: "/:path*",
+      },
+      {
+        source: "/(auth)/:path*",
+        destination: "/:path*",
+      },
+    ]
+  },
   async headers() {
     return [
       {

@@ -1,60 +1,57 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { IceCream, Map, Award, Users, Heart, Star } from "lucide-react"
+import { Search, MapPin, Star, Award, Users, TrendingUp } from "lucide-react"
 
 export function FeaturesSection() {
   const features = [
     {
-      icon: <IceCream className="h-10 w-10 text-pink-500" />,
-      title: "Flavor Tracking",
-      description: "Log and rate every ice cream flavor you try, building your personal ConeDex collection.",
+      icon: <Search className="h-10 w-10 text-primary" />,
+      title: "Discover New Flavors",
+      description: "Explore thousands of ice cream flavors from shops around the world.",
     },
     {
-      icon: <Map className="h-10 w-10 text-blue-500" />,
-      title: "Shop Discovery",
-      description: "Find the best ice cream shops near you with our interactive map and community reviews.",
+      icon: <MapPin className="h-10 w-10 text-primary" />,
+      title: "Find Nearby Shops",
+      description: "Locate the best ice cream shops near you with our interactive map.",
     },
     {
-      icon: <Award className="h-10 w-10 text-yellow-500" />,
-      title: "Badges & Achievements",
-      description: "Earn badges as you explore new flavors, visit shops, and engage with the community.",
+      icon: <Star className="h-10 w-10 text-primary" />,
+      title: "Rate & Review",
+      description: "Share your opinions and read reviews from other ice cream enthusiasts.",
     },
     {
-      icon: <Users className="h-10 w-10 text-green-500" />,
-      title: "Ice Cream Teams",
-      description: "Create or join teams to compete in flavor challenges and seasonal leaderboards.",
+      icon: <Award className="h-10 w-10 text-primary" />,
+      title: "Earn Badges",
+      description: "Collect badges as you try new flavors and visit different shops.",
     },
     {
-      icon: <Heart className="h-10 w-10 text-red-500" />,
-      title: "Personalized Recommendations",
-      description: "Get flavor suggestions based on your taste preferences and rating history.",
+      icon: <Users className="h-10 w-10 text-primary" />,
+      title: "Join Communities",
+      description: "Connect with fellow ice cream lovers and share your experiences.",
     },
     {
-      icon: <Star className="h-10 w-10 text-purple-500" />,
-      title: "Shop Owner Tools",
-      description: "Special features for shop owners to manage their profile and engage with customers.",
+      icon: <TrendingUp className="h-10 w-10 text-primary" />,
+      title: "Track Trends",
+      description: "Stay updated with the latest trends in the ice cream world.",
     },
   ]
 
   return (
-    <section className="py-20">
-      <div className="container mx-auto px-4">
-        <div className="mb-16 text-center">
-          <h2 className="mb-4 text-3xl font-bold md:text-4xl">Explore ConeDex Features</h2>
-          <p className="mx-auto max-w-3xl text-lg text-gray-600 dark:text-gray-300">
-            Everything you need to enhance your ice cream experience and connect with a community of fellow enthusiasts.
-          </p>
+    <section className="w-full py-12 md:py-24 lg:py-32 bg-gray-50 dark:bg-gray-900">
+      <div className="container px-4 md:px-6">
+        <div className="flex flex-col items-center justify-center space-y-4 text-center">
+          <div className="space-y-2">
+            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Features</h2>
+            <p className="max-w-[900px] text-gray-500 md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed dark:text-gray-400">
+              Everything you need to enhance your ice cream experience
+            </p>
+          </div>
         </div>
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 py-12 md:grid-cols-2 lg:grid-cols-3">
           {features.map((feature, index) => (
-            <Card key={index}>
-              <CardHeader>
-                <div className="mb-4">{feature.icon}</div>
-                <CardTitle>{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription>{feature.description}</CardDescription>
-              </CardContent>
-            </Card>
+            <div key={index} className="flex flex-col items-center space-y-2 rounded-lg border p-6 shadow-sm">
+              {feature.icon}
+              <h3 className="text-xl font-bold">{feature.title}</h3>
+              <p className="text-center text-gray-500 dark:text-gray-400">{feature.description}</p>
+            </div>
           ))}
         </div>
       </div>

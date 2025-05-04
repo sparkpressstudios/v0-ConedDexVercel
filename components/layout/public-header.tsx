@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -44,6 +45,9 @@ export function PublicHeader() {
       <div className="container flex h-16 items-center justify-between py-4">
         <div className="flex items-center gap-6 md:gap-10">
           <Link href="/" className="flex items-center space-x-2">
+            <div className="relative h-8 w-8">
+              <Image src="/icons/icon-192x192.png" alt="ConeDex Logo" fill className="object-contain" />
+            </div>
             <span className="text-xl font-bold">ConeDex</span>
           </Link>
           <nav className="hidden gap-6 md:flex">
@@ -78,6 +82,12 @@ export function PublicHeader() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
+              <div className="flex items-center mb-6">
+                <div className="relative h-8 w-8 mr-2">
+                  <Image src="/icons/icon-192x192.png" alt="ConeDex Logo" fill className="object-contain" />
+                </div>
+                <span className="text-xl font-bold">ConeDex</span>
+              </div>
               <nav className="grid gap-6 text-lg font-medium">
                 {routes.map((route) => (
                   <Link
