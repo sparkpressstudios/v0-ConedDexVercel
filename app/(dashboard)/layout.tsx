@@ -10,6 +10,9 @@ import { InstallPrompt } from "@/components/ui/install-prompt"
 import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
 import { isPreviewEnvironment, getPreviewUser } from "@/lib/utils/preview-detection"
 
+// Force dynamic rendering since we're using cookies
+export const dynamic = "force-dynamic"
+
 // Demo user types
 interface DemoUser {
   email: string

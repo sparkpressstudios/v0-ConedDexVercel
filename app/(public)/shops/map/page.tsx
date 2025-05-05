@@ -1,11 +1,14 @@
 import { Suspense } from "react"
-import { PublicShopsMap } from "@/components/shop/public-shops-map"
 import { ShopsMapSkeleton } from "@/components/shop/shops-map-skeleton"
+import { SimplePublicShopsMap } from "@/components/shop/simple-public-shops-map"
 
 export const metadata = {
   title: "Ice Cream Shops Map | ConeDex",
   description: "Discover ice cream shops near you with the ConeDex interactive map",
 }
+
+// This ensures this page is always dynamically rendered
+export const dynamic = "force-dynamic"
 
 export default function PublicShopsMapPage() {
   return (
@@ -14,7 +17,7 @@ export default function PublicShopsMapPage() {
       <p className="text-muted-foreground mb-6">Discover amazing ice cream shops near you</p>
 
       <Suspense fallback={<ShopsMapSkeleton />}>
-        <PublicShopsMap />
+        <SimplePublicShopsMap />
       </Suspense>
     </div>
   )
