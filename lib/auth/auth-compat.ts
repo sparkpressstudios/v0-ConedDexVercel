@@ -1,47 +1,51 @@
-// This file provides compatibility between App Router and Pages Router auth utilities
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "../database.types"
+import { createClient } from "@/lib/supabase/client"
 
-// Safe to use in both App Router and Pages Router
-export function getSupabaseClient() {
-  return createClientComponentClient<Database>()
-}
-
-// Safe to use in both App Router and Pages Router
-export async function getAuthSession() {
-  const supabase = getSupabaseClient()
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  return session
-}
-
-// Safe to use in both App Router and Pages Router
-export async function getAuthUser() {
-  const session = await getAuthSession()
-  return session?.user || null
-}
-
-// Safe to use in both App Router and Pages Router
-export async function signOut() {
-  const supabase = getSupabaseClient()
-  await supabase.auth.signOut()
-}
-
-// Safe to use in both App Router and Pages Router
+/**
+ * Sign in with email and password
+ */
 export async function signIn(email: string, password: string) {
-  const supabase = getSupabaseClient()
+  const supabase = createClient()
   return supabase.auth.signInWithPassword({
     email,
     password,
   })
 }
 
-// Safe to use in both App Router and Pages Router
-export async function signUp(email: string, password: string) {
-  const supabase = getSupabaseClient()
+/**
+ * Sign up with email and password
+ */
+export async function signUp(email: string, password: string, userData: any = {}) {
+  const supabase = createClient()
   return supabase.auth.signUp({
     email,
     password,
+    options: {
+      data: userData,
+    },
   })
+}
+
+/**
+ * Sign out the current user
+ */
+export async function signOut() {
+  const supabase = createClient()
+  return supabase.auth.signOut()
+}
+
+/**
+ * Get the current session
+ */
+export async function getSession() {
+  const supabase = createClient()
+  return supabase.auth.getSession()
+}
+
+/**
+ * Get the current user
+ */
+export async function getUser() {
+  const supabase = createClient()
+  const { data } = await supabase.auth.getUser()
+  return data.user
 }

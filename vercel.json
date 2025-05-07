@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "buildCommand": "pnpm run build",
+  "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
   "framework": "nextjs",
-  "regions": ["iad1"],
-  "github": {
-    "silent": true
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_RUNTIME": "app"
   },
   "headers": [
     {

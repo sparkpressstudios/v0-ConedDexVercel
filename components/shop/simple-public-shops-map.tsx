@@ -16,7 +16,7 @@ type Shop = {
   zip: string
   lat: number
   lng: number
-  rating: number
+  rating?: number | null // Changed to allow null/undefined values
   flavor_count: number
   is_verified: boolean
 }
@@ -183,7 +183,8 @@ export function SimplePublicShopsMap() {
                     <div className="flex items-center space-x-4 text-sm">
                       <span className="flex items-center">
                         <span className="mr-1 text-yellow-500">★</span>
-                        {shop.rating.toFixed(1)}
+                        {/* Add null check for rating */}
+                        {shop.rating !== null && shop.rating !== undefined ? shop.rating.toFixed(1) : "N/A"}
                       </span>
                       <span>{shop.flavor_count} flavors</span>
                       {userLocation && (

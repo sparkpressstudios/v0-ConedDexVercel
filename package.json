@@ -79,7 +79,9 @@
     "@ai-sdk/openai": "latest",
     "csv-parse": "latest",
     "uuid": "latest",
-    "@vercel/analytics": "latest"
+    "@vercel/analytics": "latest",
+    "chalk": "latest",
+    "child_process": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

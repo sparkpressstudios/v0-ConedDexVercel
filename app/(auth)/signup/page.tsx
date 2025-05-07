@@ -1,24 +1,18 @@
-import type { Metadata } from "next"
-import { redirect } from "next/navigation"
-import { getAuthUser } from "@/lib/auth/auth-compat"
-import { SignupForm } from "./client"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import SignupForm from "./signup-form"
 
-export const metadata: Metadata = {
-  title: "Sign Up | ConeDex",
-  description: "Create a new ConeDex account",
-}
-
-export default async function SignupPage() {
-  // Check if user is already logged in
-  const user = await getAuthUser()
-
-  if (user) {
-    redirect("/dashboard")
-  }
-
+export default function SignupPage() {
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50">
-      <SignupForm />
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Create an Account</CardTitle>
+          <CardDescription>Sign up to access the ConeDex Platform.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SignupForm />
+        </CardContent>
+      </Card>
     </div>
   )
 }

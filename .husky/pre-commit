@@ -1,0 +1,8 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Run file verification
+npm run verify-files
+
+# Check for broken imports
+npm run lint

@@ -1,0 +1,11 @@
+# Improve merging for critical files
+app/layout.tsx merge=union
+pages/_app.tsx merge=union
+next.config.js merge=union
+tailwind.config.ts merge=union
+
+# Treat JSON files as binary to avoid merge conflicts
+*.json binary
+
+# Ensure line endings are consistent
+* text=auto eol=lf
