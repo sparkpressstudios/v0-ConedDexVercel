@@ -1,147 +1,140 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { isPreviewEnvironment, getPreviewUser } from "@/lib/utils/preview-detection"
+import { useToast } from "@/hooks/use-toast"
 
-type User = any
+type User = {
+  id: string
+  email: string
+  role?: string
+  name?: string
+  avatar_url?: string
+}
+
 type AuthContextType = {
   user: User | null
-  profile: any | null
   isLoading: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string, userData: any) => Promise<void>
+  isAuthenticated: boolean
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<void>
-  resetPassword: (email: string) => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<any | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const { toast } = useToast()
   const supabase = createClient()
 
-  useEffect(() => {
-    // If we're in a preview environment, set a preview user
-    if (isPreviewEnvironment()) {
-      const previewUser = getPreviewUser()
-      setUser({ id: previewUser.id, email: "preview@example.com" })
-      setProfile(previewUser)
-      setIsLoading(false)
-      return
+  // Refresh user data from the server
+  const refreshUser = useCallback(async () => {
+    try {
+      const {
+        data: { user: authUser },
+        error,
+      } = await supabase.auth.getUser()
+
+      if (error || !authUser) {
+        setUser(null)
+        return
+      }
+
+      // Get additional user data from the database
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role, name, avatar_url")
+        .eq("id", authUser.id)
+        .single()
+
+      if (userError) {
+        console.error("Error fetching user data:", userError)
+      }
+
+      setUser({
+        id: authUser.id,
+        email: authUser.email || "",
+        role: userData?.role || "user",
+        name: userData?.name || authUser.user_metadata?.name,
+        avatar_url: userData?.avatar_url || authUser.user_metadata?.avatar_url,
+      })
+    } catch (error) {
+      console.error("Error refreshing user:", error)
+      setUser(null)
     }
+  }, [supabase])
 
-    // Check for active session
-    const checkSession = async () => {
+  // Check auth status on mount and auth state changes
+  useEffect(() => {
+    const checkAuth = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (session) {
-          setUser(session.user)
-
-          // Fetch user profile
-          const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
-
-          setProfile(profileData)
-        }
-      } catch (error) {
-        console.error("Error checking session:", error)
+        setIsLoading(true)
+        await refreshUser()
       } finally {
         setIsLoading(false)
       }
     }
 
-    checkSession()
+    checkAuth()
 
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        setUser(session.user)
-
-        // Fetch user profile
-        const { data: profileData } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
-
-        setProfile(profileData)
-      } else {
+    // Subscribe to auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        await refreshUser()
+      } else if (event === "SIGNED_OUT") {
         setUser(null)
-        setProfile(null)
       }
-      setIsLoading(false)
     })
 
     return () => {
-      authListener.subscription.unsubscribe()
+      subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [supabase, refreshUser])
 
+  // Sign in function
   const signIn = async (email: string, password: string) => {
-    setIsLoading(true)
     try {
+      setIsLoading(true)
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
-    } catch (error) {
-      console.error("Error signing in:", error)
-      throw error
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      await refreshUser()
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message || "An error occurred during sign in" }
     } finally {
       setIsLoading(false)
     }
   }
 
-  const signUp = async (email: string, password: string, userData: any) => {
-    setIsLoading(true)
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: userData,
-        },
-      })
-
-      if (error) throw error
-    } catch (error) {
-      console.error("Error signing up:", error)
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
+  // Sign out function
   const signOut = async () => {
-    setIsLoading(true)
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      setIsLoading(true)
+      await supabase.auth.signOut()
+      setUser(null)
       router.push("/login")
     } catch (error) {
       console.error("Error signing out:", error)
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const resetPassword = async (email: string) => {
-    setIsLoading(true)
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      toast({
+        title: "Error signing out",
+        description: "An error occurred while signing out. Please try again.",
+        variant: "destructive",
       })
-      if (error) throw error
-    } catch (error) {
-      console.error("Error resetting password:", error)
-      throw error
     } finally {
       setIsLoading(false)
     }
@@ -151,12 +144,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        profile,
         isLoading,
+        isAuthenticated: !!user,
         signIn,
-        signUp,
         signOut,
-        resetPassword,
+        refreshUser,
       }}
     >
       {children}
@@ -164,10 +156,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext)
+
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider")
   }
+
   return context
+}
+
+// Higher-order component for protected routes
+export function withAuth<P extends object>(Component: React.ComponentType<P>) {
+  return function ProtectedRoute(props: P) {
+    const { user, isLoading } = useAuth()
+    const router = useRouter()
+
+    useEffect(() => {
+      if (!isLoading && !user) {
+        router.push("/login")
+      }
+    }, [user, isLoading, router])
+
+    if (isLoading) {
+      return <div>Loading...</div>
+    }
+
+    if (!user) {
+      return null
+    }
+
+    return <Component {...props} />
+  }
+}
+
+// Higher-order component for role-based access control
+export function withRole<P extends object>(Component: React.ComponentType<P>, allowedRoles: string[]) {
+  return function RoleProtectedRoute(props: P) {
+    const { user, isLoading } = useAuth()
+    const router = useRouter()
+
+    useEffect(() => {
+      if (!isLoading) {
+        if (!user) {
+          router.push("/login")
+        } else if (user.role && !allowedRoles.includes(user.role)) {
+          router.push("/unauthorized")
+        }
+      }
+    }, [user, isLoading, router])
+
+    if (isLoading) {
+      return <div>Loading...</div>
+    }
+
+    if (!user || (user.role && !allowedRoles.includes(user.role))) {
+      return null
+    }
+
+    return <Component {...props} />
+  }
 }

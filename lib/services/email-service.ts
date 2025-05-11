@@ -1,370 +1,950 @@
+import sgMail from "@sendgrid/mail"
+
+// Initialize SendGrid with API key
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY)
+} else {
+  console.error("SENDGRID_API_KEY is not defined")
+}
+
+// Email template types
+export type EmailTemplate =
+  | "welcome"
+  | "password-reset"
+  | "verification"
+  | "notification"
+  | "shop-follow"
+  | "new-flavor"
+  | "newsletter"
+  | "shop-claim-approved"
+  | "shop-claim-rejected"
+
+// Email data interface
+export interface EmailData {
+  to: string
+  subject: string
+  text?: string
+  html?: string
+  data?: Record<string, any>
+}
+
+/**
+ * Email Service class for handling all email operations
+ */
 export class EmailService {
-  private from: string
+  private static instance: EmailService
 
-  constructor() {
-    this.from = process.env.SENDGRID_FROM_EMAIL || "noreply@conedex.app"
+  private constructor() {}
+
+  public static getInstance(): EmailService {
+    if (!EmailService.instance) {
+      EmailService.instance = new EmailService()
+    }
+    return EmailService.instance
   }
 
-  async sendWelcomeEmail(to: string, name: string): Promise<boolean> {
+  /**
+   * Send an email using SendGrid
+   */
+  public async sendEmail(emailData: EmailData): Promise<boolean> {
     try {
-      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: to }],
-              subject: "Welcome to ConeDex!",
-            },
-          ],
-          from: { email: this.from },
-          content: [
-            {
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #FF6B6B;">Welcome to ConeDex, ${name}!</h1>
-                  <p>Thank you for joining our community of ice cream enthusiasts!</p>
-                  <p>With ConeDex, you can:</p>
-                  <ul>
-                    <li>Track your favorite ice cream flavors</li>
-                    <li>Discover new shops in your area</li>
-                    <li>Share your experiences with others</li>
-                  </ul>
-                  <p>Get started by exploring shops near you or logging your first flavor!</p>
-                  <div style="margin: 30px 0;">
-                    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard" style="background-color: #FF6B6B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Dashboard</a>
-                  </div>
-                  <p>Happy scooping!</p>
-                  <p>The ConeDex Team</p>
-                </div>
-              `,
-            },
-          ],
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        console.error("SendGrid API error:", error)
-        return false
+      const msg = {
+        to: emailData.to,
+        from: process.env.SENDGRID_FROM_EMAIL || "noreply@conedex.com",
+        subject: emailData.subject,
+        text: emailData.text || "Please view this email in an HTML-compatible email client",
+        html: emailData.html,
       }
 
+      await sgMail.send(msg)
       return true
     } catch (error) {
-      console.error("Error sending welcome email:", error)
+      console.error("Error sending email:", error)
+      // Log detailed error information
+      if (error instanceof Error) {
+        console.error(`SendGrid error: ${error.message}`)
+      }
       return false
     }
   }
 
-  async sendPasswordResetEmail(to: string, resetLink: string): Promise<boolean> {
-    try {
-      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: to }],
-              subject: "Reset Your ConeDex Password",
-            },
-          ],
-          from: { email: this.from },
-          content: [
-            {
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #FF6B6B;">Reset Your Password</h1>
-                  <p>We received a request to reset your password for ConeDex.</p>
-                  <p>Click the button below to reset your password. This link will expire in 1 hour.</p>
-                  <div style="margin: 30px 0;">
-                    <a href="${resetLink}" style="background-color: #FF6B6B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
-                  </div>
-                  <p>If you didn't request a password reset, you can safely ignore this email.</p>
-                  <p>The ConeDex Team</p>
-                </div>
-              `,
-            },
-          ],
-        }),
-      })
+  /**
+   * Send a welcome email to new users
+   */
+  public async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/login`
+    const html = generateWelcomeEmailHtml(name, loginUrl)
 
-      if (!response.ok) {
-        const error = await response.json()
-        console.error("SendGrid API error:", error)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error sending password reset email:", error)
-      return false
-    }
+    return this.sendEmail({
+      to: email,
+      subject: "Welcome to ConeDex!",
+      html,
+    })
   }
 
-  async sendVerificationEmail(to: string, verificationLink: string): Promise<boolean> {
-    try {
-      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: to }],
-              subject: "Verify Your ConeDex Email",
-            },
-          ],
-          from: { email: this.from },
-          content: [
-            {
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #FF6B6B;">Verify Your Email</h1>
-                  <p>Thank you for signing up for ConeDex!</p>
-                  <p>Please click the button below to verify your email address:</p>
-                  <div style="margin: 30px 0;">
-                    <a href="${verificationLink}" style="background-color: #FF6B6B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verify Email</a>
-                  </div>
-                  <p>If you didn't create an account with ConeDex, you can safely ignore this email.</p>
-                  <p>The ConeDex Team</p>
-                </div>
-              `,
-            },
-          ],
-        }),
-      })
+  /**
+   * Send a password reset email
+   */
+  public async sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
+    const resetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password?token=${resetToken}`
+    const html = generatePasswordResetEmailHtml(resetUrl)
 
-      if (!response.ok) {
-        const error = await response.json()
-        console.error("SendGrid API error:", error)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error sending verification email:", error)
-      return false
-    }
+    return this.sendEmail({
+      to: email,
+      subject: "Reset Your ConeDex Password",
+      html,
+    })
   }
 
-  async sendShopClaimApprovedEmail(to: string, shopName: string): Promise<boolean> {
-    try {
-      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: to }],
-              subject: `Your Claim for ${shopName} Has Been Approved!`,
-            },
-          ],
-          from: { email: this.from },
-          content: [
-            {
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #FF6B6B;">Claim Approved!</h1>
-                  <p>Great news! Your claim for <strong>${shopName}</strong> has been approved.</p>
-                  <p>You now have full access to manage your shop's profile, including:</p>
-                  <ul>
-                    <li>Updating shop information</li>
-                    <li>Managing flavor listings</li>
-                    <li>Responding to customer reviews</li>
-                    <li>Posting announcements</li>
-                  </ul>
-                  <div style="margin: 30px 0;">
-                    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/shop" style="background-color: #FF6B6B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Manage Your Shop</a>
-                  </div>
-                  <p>If you have any questions, please don't hesitate to contact our support team.</p>
-                  <p>The ConeDex Team</p>
-                </div>
-              `,
-            },
-          ],
-        }),
-      })
+  /**
+   * Send a verification email
+   */
+  public async sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
+    const verificationUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/verify-email?token=${verificationToken}`
+    const html = generateVerificationEmailHtml(verificationUrl)
 
-      if (!response.ok) {
-        const error = await response.json()
-        console.error("SendGrid API error:", error)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error sending shop claim approved email:", error)
-      return false
-    }
+    return this.sendEmail({
+      to: email,
+      subject: "Verify Your ConeDex Email",
+      html,
+    })
   }
 
-  async sendShopClaimRejectedEmail(to: string, shopName: string, reason: string): Promise<boolean> {
-    try {
-      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: to }],
-              subject: `Update on Your Claim for ${shopName}`,
-            },
-          ],
-          from: { email: this.from },
-          content: [
-            {
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #FF6B6B;">Claim Update</h1>
-                  <p>We've reviewed your claim for <strong>${shopName}</strong>.</p>
-                  <p>Unfortunately, we were unable to verify your ownership at this time.</p>
-                  <p><strong>Reason:</strong> ${reason}</p>
-                  <p>You can submit a new claim with additional verification information:</p>
-                  <div style="margin: 30px 0;">
-                    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/shop/claim" style="background-color: #FF6B6B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Submit New Claim</a>
-                  </div>
-                  <p>If you believe this was an error or have questions, please contact our support team.</p>
-                  <p>The ConeDex Team</p>
-                </div>
-              `,
-            },
-          ],
-        }),
-      })
+  /**
+   * Send a notification email
+   */
+  public async sendNotificationEmail(
+    email: string,
+    subject: string,
+    message: string,
+    actionUrl?: string,
+    actionText?: string,
+  ): Promise<boolean> {
+    const html = generateNotificationEmailHtml(subject, message, actionUrl, actionText)
 
-      if (!response.ok) {
-        const error = await response.json()
-        console.error("SendGrid API error:", error)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error sending shop claim rejected email:", error)
-      return false
-    }
+    return this.sendEmail({
+      to: email,
+      subject,
+      html,
+    })
   }
 
-  async sendNewFlavorNotification(to: string, shopName: string, flavorName: string): Promise<boolean> {
-    try {
-      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: to }],
-              subject: `New Flavor Alert: ${flavorName} at ${shopName}`,
-            },
-          ],
-          from: { email: this.from },
-          content: [
-            {
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #FF6B6B;">New Flavor Alert! 🍦</h1>
-                  <p><strong>${shopName}</strong> just added a new flavor: <strong>${flavorName}</strong>!</p>
-                  <p>Be one of the first to try it and add it to your ConeDex collection.</p>
-                  <div style="margin: 30px 0;">
-                    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/shops/${shopName}" style="background-color: #FF6B6B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Shop</a>
-                  </div>
-                  <p>Happy tasting!</p>
-                  <p>The ConeDex Team</p>
-                  <p style="font-size: 12px; color: #999; margin-top: 30px;">
-                    You're receiving this because you follow ${shopName} on ConeDex.
-                    <a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/settings/notifications" style="color: #999;">Manage notification preferences</a>
-                  </p>
-                </div>
-              `,
-            },
-          ],
-        }),
-      })
+  /**
+   * Send a shop follow notification email
+   */
+  public async sendShopFollowEmail(email: string, shopName: string, shopId: string): Promise<boolean> {
+    const shopUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/shops/${shopId}`
+    const html = generateShopFollowEmailHtml(shopName, shopUrl)
 
-      if (!response.ok) {
-        const error = await response.json()
-        console.error("SendGrid API error:", error)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error sending new flavor notification:", error)
-      return false
-    }
+    return this.sendEmail({
+      to: email,
+      subject: `You're now following ${shopName} on ConeDex!`,
+      html,
+    })
   }
 
-  async sendNewsletter(to: string, subject: string, content: string): Promise<boolean> {
-    try {
-      const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email: to }],
-              subject: subject,
-            },
-          ],
-          from: { email: this.from },
-          content: [
-            {
-              type: "text/html",
-              value: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  ${content}
-                  <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
-                    <p>© ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
-                    <p>
-                      You're receiving this email because you subscribed to ConeDex newsletters.
-                      <a href="${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/settings/notifications" style="color: #999;">
-                        Unsubscribe or manage email preferences
-                      </a>
-                    </p>
-                  </div>
-                </div>
-              `,
-            },
-          ],
-        }),
-      })
+  /**
+   * Send a new flavor notification email
+   */
+  public async sendNewFlavorEmail(
+    email: string,
+    shopName: string,
+    flavorName: string,
+    flavorId: string,
+  ): Promise<boolean> {
+    const flavorUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/flavors/${flavorId}`
+    const html = generateNewFlavorEmailHtml(shopName, flavorName, flavorUrl)
 
-      if (!response.ok) {
-        const error = await response.json()
-        console.error("SendGrid API error:", error)
-        return false
+    return this.sendEmail({
+      to: email,
+      subject: `${shopName} just added a new flavor: ${flavorName}!`,
+      html,
+    })
+  }
+
+  /**
+   * Send a newsletter to multiple recipients
+   */
+  public async sendNewsletter(recipients: string[], subject: string, content: string): Promise<boolean> {
+    const html = generateNewsletterEmailHtml(subject, content)
+
+    try {
+      // Split recipients into batches of 1000 to avoid SendGrid limits
+      const batchSize = 1000
+      const batches = []
+
+      for (let i = 0; i < recipients.length; i += batchSize) {
+        batches.push(recipients.slice(i, i + batchSize))
+      }
+
+      // Send to each batch
+      for (const batch of batches) {
+        const personalizations = batch.map((email) => ({
+          to: email,
+        }))
+
+        await sgMail.send({
+          personalizations,
+          from: process.env.SENDGRID_FROM_EMAIL || "noreply@conedex.com",
+          subject,
+          html,
+        })
       }
 
       return true
     } catch (error) {
       console.error("Error sending newsletter:", error)
+      // Log detailed error information
+      if (error instanceof Error) {
+        console.error(`SendGrid batch error: ${error.message}`)
+      }
       return false
     }
   }
+
+  /**
+   * Send shop claim approval email
+   */
+  public async sendShopClaimApprovedEmail(email: string, shopName: string, shopId: string): Promise<boolean> {
+    const shopUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard/shop`
+    const html = generateShopClaimApprovedEmailHtml(shopName, shopUrl)
+
+    return this.sendEmail({
+      to: email,
+      subject: `Your claim for ${shopName} has been approved!`,
+      html,
+    })
+  }
+
+  /**
+   * Send shop claim rejection email
+   */
+  public async sendShopClaimRejectedEmail(email: string, shopName: string, reason: string): Promise<boolean> {
+    const supportUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/contact`
+    const html = generateShopClaimRejectedEmailHtml(shopName, reason, supportUrl)
+
+    return this.sendEmail({
+      to: email,
+      subject: `Update on your claim for ${shopName}`,
+      html,
+    })
+  }
+}
+
+// For backward compatibility
+export async function sendEmail(emailData: EmailData): Promise<boolean> {
+  return EmailService.getInstance().sendEmail(emailData)
+}
+
+export async function sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+  return EmailService.getInstance().sendWelcomeEmail(email, name)
+}
+
+export async function sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
+  return EmailService.getInstance().sendPasswordResetEmail(email, resetToken)
+}
+
+export async function sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
+  return EmailService.getInstance().sendVerificationEmail(email, verificationToken)
+}
+
+export async function sendNotificationEmail(
+  email: string,
+  subject: string,
+  message: string,
+  actionUrl?: string,
+  actionText?: string,
+): Promise<boolean> {
+  return EmailService.getInstance().sendNotificationEmail(email, subject, message, actionUrl, actionText)
+}
+
+export async function sendShopFollowEmail(email: string, shopName: string, shopId: string): Promise<boolean> {
+  return EmailService.getInstance().sendShopFollowEmail(email, shopName, shopId)
+}
+
+export async function sendNewFlavorEmail(
+  email: string,
+  shopName: string,
+  flavorName: string,
+  flavorId: string,
+): Promise<boolean> {
+  return EmailService.getInstance().sendNewFlavorEmail(email, shopName, flavorName, flavorId)
+}
+
+export async function sendNewsletter(recipients: string[], subject: string, content: string): Promise<boolean> {
+  return EmailService.getInstance().sendNewsletter(recipients, subject, content)
+}
+
+export async function sendShopClaimApprovedEmail(email: string, shopName: string, shopId: string): Promise<boolean> {
+  return EmailService.getInstance().sendShopClaimApprovedEmail(email, shopName, shopId)
+}
+
+export async function sendShopClaimRejectedEmail(email: string, shopName: string, reason: string): Promise<boolean> {
+  return EmailService.getInstance().sendShopClaimRejectedEmail(email, shopName, reason)
+}
+
+/**
+ * Generate HTML for welcome email
+ */
+function generateWelcomeEmailHtml(name: string, loginUrl: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Welcome to ConeDex!</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Welcome to ConeDex!</h1>
+      </div>
+      <div class="content">
+        <p>Hi ${name},</p>
+        <p>Welcome to ConeDex, the ultimate platform for ice cream enthusiasts! We're excited to have you join our community.</p>
+        <p>With ConeDex, you can:</p>
+        <ul>
+          <li>Discover new ice cream shops and flavors</li>
+          <li>Track your favorite flavors</li>
+          <li>Connect with other ice cream lovers</li>
+          <li>Earn badges and climb the leaderboard</li>
+        </ul>
+        <p>Ready to start your ice cream adventure?</p>
+        <a href="${loginUrl}" class="button">Log In to Your Account</a>
+        <p>If you have any questions, feel free to contact our support team.</p>
+        <p>Happy scooping!</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+        <p>This email was sent to you because you signed up for ConeDex.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for password reset email
+ */
+function generatePasswordResetEmailHtml(resetUrl: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Reset Your ConeDex Password</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+        .warning {
+          color: #cc0000;
+          font-size: 14px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Reset Your Password</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p>We received a request to reset your password for your ConeDex account. If you didn't make this request, you can safely ignore this email.</p>
+        <p>To reset your password, click the button below:</p>
+        <a href="${resetUrl}" class="button">Reset Password</a>
+        <p class="warning">This link will expire in 1 hour for security reasons.</p>
+        <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+        <p>${resetUrl}</p>
+        <p>If you have any questions, please contact our support team.</p>
+        <p>Best regards,</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for verification email
+ */
+function generateVerificationEmailHtml(verificationUrl: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Verify Your ConeDex Email</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Verify Your Email</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p>Thanks for signing up for ConeDex! Please verify your email address to complete your registration.</p>
+        <p>Click the button below to verify your email:</p>
+        <a href="${verificationUrl}" class="button">Verify Email</a>
+        <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+        <p>${verificationUrl}</p>
+        <p>If you didn't create an account with ConeDex, you can safely ignore this email.</p>
+        <p>Best regards,</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for notification email
+ */
+function generateNotificationEmailHtml(
+  subject: string,
+  message: string,
+  actionUrl?: string,
+  actionText?: string,
+): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${subject}</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${subject}</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p>${message}</p>
+        ${actionUrl && actionText ? `<a href="${actionUrl}" class="button">${actionText}</a>` : ""}
+        <p>Best regards,</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+        <p>You received this email because you have notifications enabled for your ConeDex account.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for shop follow email
+ */
+function generateShopFollowEmailHtml(shopName: string, shopUrl: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>You're now following ${shopName} on ConeDex!</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>You're Following ${shopName}!</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p>You're now following <strong>${shopName}</strong> on ConeDex! You'll receive updates when they add new flavors or make announcements.</p>
+        <p>Visit their shop page to see their current menu and latest updates:</p>
+        <a href="${shopUrl}" class="button">View Shop Page</a>
+        <p>Happy ice cream exploring!</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+        <p>You can manage your notification preferences in your account settings.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for new flavor email
+ */
+function generateNewFlavorEmailHtml(shopName: string, flavorName: string, flavorUrl: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${shopName} just added a new flavor: ${flavorName}!</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+        .flavor-highlight {
+          font-size: 18px;
+          font-weight: bold;
+          color: #f8a100;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>New Flavor Alert!</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p><strong>${shopName}</strong> just added a new flavor to their menu:</p>
+        <p class="flavor-highlight">${flavorName}</p>
+        <p>Be one of the first to try it and add it to your ConeDex collection!</p>
+        <a href="${flavorUrl}" class="button">View Flavor Details</a>
+        <p>Happy tasting!</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+        <p>You received this email because you follow ${shopName} on ConeDex.</p>
+        <p>You can manage your notification preferences in your account settings.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for newsletter email
+ */
+function generateNewsletterEmailHtml(subject: string, content: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${subject}</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>${subject}</h1>
+      </div>
+      <div class="content">
+        ${content}
+        <p>Happy scooping!</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+        <p>You received this newsletter because you subscribed to ConeDex updates.</p>
+        <p>You can manage your email preferences in your account settings.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for shop claim approved email
+ */
+function generateShopClaimApprovedEmailHtml(shopName: string, shopUrl: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Your claim for ${shopName} has been approved!</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Your claim for ${shopName} has been approved!</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p>Your claim for <strong>${shopName}</strong> has been approved! You can now manage your shop details and add new flavors.</p>
+        <p>Visit your shop dashboard to get started:</p>
+        <a href="${shopUrl}" class="button">Go to Shop Dashboard</a>
+        <p>Welcome to the ConeDex community!</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+        <p>You received this email because you requested to claim ${shopName} on ConeDex.</p>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate HTML for shop claim rejection email
+ */
+function generateShopClaimRejectedEmailHtml(shopName: string, reason: string, supportUrl: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Update on your claim for ${shopName}</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          line-height: 1.6; 
+          color: #333; 
+          max-width: 600px; 
+          margin: 0 auto; 
+          padding: 20px; 
+        }
+        .header { 
+          background-color: #f8a100; 
+          padding: 20px; 
+          text-align: center; 
+          border-radius: 5px 5px 0 0; 
+        }
+        .content { 
+          padding: 20px; 
+          background-color: #fff; 
+          border: 1px solid #ddd; 
+          border-top: none; 
+          border-radius: 0 0 5px 5px; 
+        }
+        .button {
+          display: inline-block;
+          background-color: #f8a100;
+          color: white;
+          text-decoration: none;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 20px 0;
+        }
+        .footer { 
+          text-align: center; 
+          margin-top: 20px; 
+          font-size: 12px; 
+          color: #999; 
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Claim Update for ${shopName}</h1>
+      </div>
+      <div class="content">
+        <p>Hello,</p>
+        <p>We regret to inform you that your claim for <strong>${shopName}</strong> has been rejected.</p>
+        <p>Reason: ${reason}</p>
+        <p>If you believe this is an error or have additional information to provide, please contact our support team:</p>
+        <a href="${supportUrl}" class="button">Contact Support</a>
+        <p>We appreciate your interest in ConeDex.</p>
+        <p>The ConeDex Team</p>
+      </div>
+      <div class="footer">
+        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
+        <p>You received this email because you requested to claim ${shopName} on ConeDex.</p>
+      </div>
+    </body>
+    </html>
+  `
 }

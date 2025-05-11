@@ -4,11 +4,10 @@ import React from "react"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Component, type ErrorInfo, type ReactNode } from "react"
 
 interface ErrorBoundaryProps {
-  fallback: ReactNode
-  children: ReactNode
+  children: React.ReactNode
+  fallback?: React.ReactNode
   onReset?: () => void
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void
 }
@@ -18,18 +17,17 @@ interface ErrorBoundaryState {
   error: Error | null
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props)
     this.state = { hasError: false, error: null }
   }
 
-  static getDerivedStateFromError(_: Error): ErrorBoundaryState {
-    return { hasError: true, error: _ }
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error("Error caught by ErrorBoundary:", error, errorInfo)
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Log the error
     console.error("Component error:", error, errorInfo)
 
@@ -42,7 +40,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     this.setState({ hasError: false, error: null })
   }
 
-  render(): ReactNode {
+  render(): React.ReactNode {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback

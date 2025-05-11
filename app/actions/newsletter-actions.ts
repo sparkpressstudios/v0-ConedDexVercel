@@ -197,3 +197,73 @@ export async function getNewsletters() {
 
   return data
 }
+
+export async function deleteNewsletter(id: string) {
+  const supabase = createServerActionClient({ cookies })
+
+  try {
+    // Check if user is admin
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    if (userError || !userData.user) {
+      throw new Error("Unauthorized")
+    }
+
+    // Get user role
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userData.user.id)
+      .single()
+
+    if (profileError || !profile || profile.role !== "admin") {
+      throw new Error("Unauthorized: Admin access required")
+    }
+
+    // Check if newsletter exists and is a draft
+    const { data: newsletter, error: fetchError } = await supabase
+      .from("newsletters")
+      .select("status")
+      .eq("id", id)
+      .single()
+
+    if (fetchError) {
+      console.error("Error fetching newsletter:", fetchError)
+      throw new Error("Newsletter not found")
+    }
+
+    if (newsletter.status !== "draft") {
+      throw new Error("Only draft newsletters can be deleted")
+    }
+
+    // Delete the newsletter
+    const { error: deleteError } = await supabase.from("newsletters").delete().eq("id", id)
+
+    if (deleteError) {
+      console.error("Error deleting newsletter:", deleteError)
+      throw new Error("Failed to delete newsletter")
+    }
+
+    // Log the action to audit log if it exists
+    try {
+      await supabase.from("admin_audit_logs").insert({
+        user_id: userData.user.id,
+        action: "delete",
+        resource_type: "newsletter",
+        resource_id: id,
+        details: { message: "Newsletter deleted" },
+      })
+    } catch (auditError) {
+      // Don't fail the operation if audit logging fails
+      console.warn("Failed to log audit entry:", auditError)
+    }
+
+    revalidatePath("/dashboard/admin/newsletters")
+    return { success: true, message: "Newsletter deleted successfully" }
+  } catch (error) {
+    console.error("Error in deleteNewsletter:", error)
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "An unknown error occurred",
+    }
+  }
+}

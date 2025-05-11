@@ -1,29 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
-import { isPagesRouter } from "@/lib/utils/runtime-utils"
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
-import type { Database } from "@/lib/database.types"
-import { isPagesRouterBuild } from "@/lib/utils/runtime-detection"
-
-// Only import createServerClient if we're not in Pages Router build
-let createServerClient: any
-
-if (!isPagesRouterBuild()) {
-  try {
-    const serverModule = require("@/lib/supabase/server")
-    createServerClient = serverModule.createServerClient
-  } catch (e) {
-    console.warn("Failed to import createServerClient")
-  }
-} else {
-  // In Pages Router, import the Pages-specific version
-  const { createPagesServerClient } = require("@/lib/supabase/server")
-  createServerClient = createPagesServerClient
-}
-
-// Fallback server client for Pages Router
-function createFallbackServerClient() {
-  return createSupabaseClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-}
+import { createServerClient } from "@/lib/supabase/server"
 
 export type SubscriptionTier = {
   id: string
@@ -208,16 +184,7 @@ export class SubscriptionService {
    * Server-side function to check feature access
    */
   static async serverHasFeatureAccess(businessId: string, featureKey: string): Promise<boolean> {
-    // Use the appropriate server client based on the environment
-    let supabase
-
-    if (isPagesRouter()) {
-      // We're in the Pages Router, use the fallback client
-      supabase = createFallbackServerClient()
-    } else {
-      // We're in the App Router, use the server client
-      supabase = createServerClient ? createServerClient() : createFallbackServerClient()
-    }
+    const supabase = createServerClient()
 
     // First check if the business has an active subscription
     const { data: subscription, error: subError } = await supabase
@@ -247,29 +214,5 @@ export class SubscriptionService {
     }
 
     return true
-  }
-}
-
-export async function serverHasFeatureAccess(userId: string, featureKey: string): Promise<boolean> {
-  try {
-    if (!userId || !featureKey) return false
-
-    // Create server client - this will use the appropriate version based on runtime
-    const supabase = createServerClient()
-
-    // Rest of the function remains the same...
-    const { data, error } = await supabase
-      .from("user_subscription_features")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("feature_key", featureKey)
-      .single()
-
-    if (error || !data) return false
-
-    return true
-  } catch (e) {
-    console.error("Error checking feature access:", e)
-    return false
   }
 }

@@ -1,147 +1,73 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
 
-// Demo user credentials
+// Define demo users with their roles
 const DEMO_USERS = {
-  "admin@conedex.app": process.env.DEMO_ADMIN_PASSWORD || "admin-password",
-  "shopowner@conedex.app": process.env.DEMO_SHOPOWNER_PASSWORD || "shopowner-password",
-  "explorer@conedex.app": process.env.DEMO_EXPLORER_PASSWORD || "explorer-password",
+  "admin@conedex.app": {
+    password: process.env.DEMO_ADMIN_PASSWORD || "admin123", // Better to use env var
+    role: "admin",
+  },
+  "explorer@conedex.app": {
+    password: process.env.DEMO_EXPLORER_PASSWORD || "explorer123",
+    role: "explorer",
+  },
+  "shopowner@conedex.app": {
+    password: process.env.DEMO_SHOPOWNER_PASSWORD || "shopowner123",
+    role: "shop_owner",
+  },
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const formData = await request.formData()
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
+    const requestUrl = new URL(request.url)
+    const { email, password } = await request.json()
 
-    // Enhanced logging for debugging
-    console.log(`Login attempt for: ${email}`)
+    // Check if this is a demo email
+    const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS]
 
-    if (!email || !password) {
-      console.log("Missing email or password")
-      return NextResponse.json(
-        {
-          error: "Email and password are required",
-          details: "Both email and password fields must be provided",
-        },
-        { status: 400 },
-      )
+    if (!demoUser || demoUser.password !== password) {
+      return NextResponse.json({ error: "Invalid demo credentials" }, { status: 401 })
     }
 
-    // Create Supabase client
-    const supabase = createClient()
+    // Create a custom session for the demo user
+    const supabase = createServerClient()
 
-    // Check if this is a demo user
-    if (Object.keys(DEMO_USERS).includes(email)) {
-      console.log(`Demo user login attempt: ${email}`)
+    // Get the user ID from the database
+    const { data: userData, error: userError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .single()
 
-      // For demo users, we'll use direct password authentication
-      // This ensures they can access the real dashboard
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        console.error("Demo login error:", error)
-
-        // If the user doesn't exist in Supabase, create them
-        if (error.message.includes("Invalid login credentials")) {
-          console.log(`Creating demo user: ${email}`)
-
-          // Create the user with the demo password
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                role: email.includes("admin") ? "admin" : email.includes("shopowner") ? "shop_owner" : "explorer",
-                name: email.includes("admin")
-                  ? "Alex Admin"
-                  : email.includes("shopowner")
-                    ? "Sam Scooper"
-                    : "Emma Explorer",
-              },
-            },
-          })
-
-          if (signUpError) {
-            console.error("Failed to create demo user:", signUpError)
-            return NextResponse.json(
-              {
-                error: "Failed to create demo user",
-                details: signUpError.message,
-                code: "DEMO_USER_CREATION_FAILED",
-              },
-              { status: 500 },
-            )
-          }
-
-          // Now try to sign in again
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          })
-
-          if (signInError) {
-            console.error("Failed to sign in after creating demo user:", signInError)
-            return NextResponse.json(
-              {
-                error: "Authentication failed after user creation",
-                details: signInError.message,
-                code: "AUTH_FAILED_AFTER_CREATION",
-              },
-              { status: 401 },
-            )
-          }
-
-          // Successfully created and signed in
-          console.log(`Successfully created and signed in demo user: ${email}`)
-          return NextResponse.redirect(new URL("/dashboard", request.url))
-        }
-
-        return NextResponse.json(
-          {
-            error: "Authentication failed",
-            details: error.message,
-            code: "AUTH_FAILED",
-          },
-          { status: 401 },
-        )
-      }
-
-      console.log(`Demo user successfully authenticated: ${email}`)
-      return NextResponse.redirect(new URL("/dashboard", request.url))
-    } else {
-      // For regular users, use normal authentication
-      console.log("Regular user login attempt")
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) {
-        console.error("Regular login error:", error)
-        return NextResponse.json(
-          {
-            error: "Authentication failed",
-            details: error.message,
-            code: "AUTH_FAILED",
-          },
-          { status: 401 },
-        )
-      }
-
-      console.log("Regular user successfully authenticated")
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+    if (userError || !userData) {
+      console.error("Demo user not found:", userError)
+      return NextResponse.json({ error: "User not found in database" }, { status: 404 })
     }
-  } catch (error: any) {
-    console.error("Unexpected login error:", error)
+
+    // Create a custom admin authorization cookie
+    const { data: sessionData, error } = await supabase.auth.admin.createSession({
+      userId: userData.id,
+      properties: {
+        provider: "email",
+        email: email,
+      },
+      attributes: {
+        role: demoUser.role,
+      },
+    })
+
+    if (error) {
+      console.error("Session creation error:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    // Return success response
+    return NextResponse.json({ user: sessionData.user, session: sessionData.session }, { status: 200 })
+  } catch (error) {
+    console.error("Demo login error:", error)
     return NextResponse.json(
       {
-        error: "An unexpected error occurred",
-        details: error?.message || "Unknown error",
-        code: "UNEXPECTED_ERROR",
+        error: error instanceof Error ? error.message : "An unknown error occurred",
       },
       { status: 500 },
     )

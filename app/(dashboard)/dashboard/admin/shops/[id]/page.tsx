@@ -1,236 +1,303 @@
-import { createClient } from "@/lib/supabase/server"
-import { notFound } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { ArrowLeft, Edit, MapPin, Phone, Globe, Clock, Shield, User, Calendar } from "lucide-react"
-import { VerifyShopButton } from "@/components/admin/shops/verify-shop-button"
-import { DeleteShopButton } from "@/components/admin/shops/delete-shop-button"
+import { notFound } from "next/navigation"
+import { ArrowLeft, MapPin, Phone, Globe, Edit, Trash2, CheckCircle, XCircle } from "lucide-react"
 
-export default async function AdminShopDetailPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { createServerClient } from "@/lib/supabase/server"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
-  // Fetch shop details
-  const { data: shop, error } = await supabase
-    .from("shops")
-    .select(`
-      *,
-      profiles:owner_id (
-        id,
-        full_name,
-        email
-      )
-    `)
-    .eq("id", params.id)
-    .single()
+export default async function ShopDetailPage({ params }: { params: { id: string } }) {
+  const supabase = createServerClient()
+  const { data: shop, error } = await supabase.from("shops").select("*").eq("id", params.id).single()
 
   if (error || !shop) {
     notFound()
   }
 
-  // Format dates
-  const createdAt = new Date(shop.created_at).toLocaleDateString()
-  const updatedAt = shop.updated_at ? new Date(shop.updated_at).toLocaleDateString() : "Never"
+  // Get shop owner details if claimed
+  let owner = null
+  if (shop.owner_id) {
+    const { data: ownerData } = await supabase.from("profiles").select("*").eq("id", shop.owner_id).single()
+    owner = ownerData
+  }
 
-  // Fetch shop stats
-  const { data: stats } = await supabase.rpc("get_shop_stats", { shop_id: shop.id })
+  // Get shop flavors
+  const { data: flavors } = await supabase.from("flavors").select("*").eq("shop_id", shop.id)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard/admin/shops">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Shops
-            </Link>
-          </Button>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/dashboard/admin/shops">
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+            <h1 className="text-2xl sm:text-3xl font-bold">{shop.name}</h1>
+          </div>
+          <p className="text-muted-foreground ml-10">
+            {shop.address}, {shop.city}, {shop.state}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild>
+        <div className="flex gap-2 ml-10 sm:ml-0">
+          <Button variant="outline" asChild>
             <Link href={`/dashboard/admin/shops/${shop.id}/edit`}>
-              <Edit className="h-4 w-4 mr-2" />
+              <Edit className="mr-2 h-4 w-4" />
               Edit Shop
             </Link>
           </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the shop and all associated data.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction className="bg-red-600 hover:bg-red-700">Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid gap-6 md:grid-cols-3">
+        {/* Main Shop Info */}
         <div className="md:col-span-2 space-y-6">
+          {/* Shop Image and Details */}
           <Card>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="text-2xl">{shop.name}</CardTitle>
-                  <CardDescription>{shop.description}</CardDescription>
-                </div>
-                <Badge variant={shop.is_verified ? "success" : "outline"}>
-                  {shop.is_verified ? "Verified" : "Unverified"}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Address</div>
-                    <div className="text-sm text-muted-foreground">
-                      {shop.address || "No address provided"}
-                      {shop.city && shop.state && (
-                        <>
-                          <br />
-                          {shop.city}, {shop.state} {shop.zip_code}
-                        </>
-                      )}
+            <div className="relative h-48 sm:h-64 w-full">
+              <img
+                src={shop.image_url || "/placeholder.svg?height=256&width=768&query=ice cream shop"}
+                alt={shop.name}
+                className="h-full w-full object-cover"
+              />
+              <Badge
+                className={`absolute right-2 top-2 ${
+                  shop.is_verified ? "bg-green-500 hover:bg-green-600" : "bg-amber-500 hover:bg-amber-600"
+                } text-white`}
+              >
+                {shop.is_verified ? "Verified" : "Unverified"}
+              </Badge>
+              {shop.owner_id && (
+                <Badge className="absolute left-2 top-2 bg-mint-500 text-white hover:bg-mint-600">Claimed</Badge>
+              )}
+            </div>
+            <CardContent className="pt-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <h3 className="font-semibold">Contact Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-mint-500" />
+                      <span>
+                        {shop.address}, {shop.city}, {shop.state}
+                      </span>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2">
-                  <Phone className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Contact</div>
-                    <div className="text-sm text-muted-foreground">
-                      {shop.phone || "No phone provided"}
-                      {shop.email && (
-                        <>
-                          <br />
-                          {shop.email}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {shop.website && (
-                  <div className="flex items-start gap-2">
-                    <Globe className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-medium">Website</div>
-                      <div className="text-sm text-muted-foreground">
-                        <a href={shop.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                          {shop.website}
+                    {shop.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-blueberry-500" />
+                        <span>{shop.phone}</span>
+                      </div>
+                    )}
+                    {shop.website && (
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-strawberry-500" />
+                        <a
+                          href={shop.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {new URL(shop.website).hostname}
                         </a>
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex items-start gap-2">
-                  <Clock className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium">Hours</div>
-                    <div className="text-sm text-muted-foreground">{shop.hours || "No hours provided"}</div>
+                    )}
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold">Shop Status</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      {shop.is_verified ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-amber-500" />
+                      )}
+                      <span>Verification: {shop.is_verified ? "Verified" : "Unverified"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {shop.is_active ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      )}
+                      <span>Status: {shop.is_active ? "Active" : "Inactive"}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {shop.owner_id ? (
+                        <CheckCircle className="h-4 w-4 text-mint-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-gray-500" />
+                      )}
+                      <span>Ownership: {shop.owner_id ? "Claimed" : "Unclaimed"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t">
+                <h3 className="font-semibold mb-2">Description</h3>
+                <p className="text-sm">{shop.description || "No description available."}</p>
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Flavors</CardTitle>
-                <CardDescription>Flavors offered by this shop</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {stats?.flavor_count ? (
-                  <div className="text-2xl font-bold">{stats.flavor_count} flavors</div>
-                ) : (
-                  <div className="text-muted-foreground">No flavors added yet</div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Reviews</CardTitle>
-                <CardDescription>Customer reviews for this shop</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {stats?.review_count ? (
-                  <div>
-                    <div className="text-2xl font-bold">{stats.review_count} reviews</div>
-                    <div className="text-sm text-muted-foreground">
-                      Average rating: {stats.avg_rating?.toFixed(1) || "N/A"}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground">No reviews yet</div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        <div className="space-y-6">
+          {/* Flavors */}
           <Card>
-            <CardHeader>
-              <CardTitle>Shop Owner</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {shop.profiles ? (
-                <div className="flex items-start gap-2">
-                  <User className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium">{shop.profiles.full_name || "Unknown"}</div>
-                    <div className="text-sm text-muted-foreground">{shop.profiles.email}</div>
-                    <Button variant="link" className="p-0 h-auto" asChild>
-                      <Link href={`/dashboard/admin/users/${shop.owner_id}`}>View Profile</Link>
-                    </Button>
-                  </div>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Flavors</h3>
+                <span className="text-sm text-muted-foreground">{flavors?.length || 0} flavors</span>
+              </div>
+              {flavors && flavors.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {flavors.slice(0, 6).map((flavor) => (
+                    <div key={flavor.id} className="rounded-md border p-2 flex items-center gap-2">
+                      <div
+                        className="h-8 w-8 rounded-full"
+                        style={{ backgroundColor: flavor.color_hex || "#f0f0f0" }}
+                      ></div>
+                      <div>
+                        <p className="font-medium text-sm">{flavor.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {flavor.description?.slice(0, 30) || "No description"}
+                          {(flavor.description?.length || 0) > 30 ? "..." : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div className="text-muted-foreground">No owner assigned</div>
+                <p className="text-sm text-muted-foreground">No flavors available for this shop.</p>
+              )}
+              {flavors && flavors.length > 6 && (
+                <div className="mt-4 text-center">
+                  <Button variant="outline" size="sm">
+                    View All {flavors.length} Flavors
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Owner Information */}
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4">Owner Information</h3>
+              {owner ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-mint-100 flex items-center justify-center text-mint-700 font-bold">
+                      {owner.first_name?.charAt(0) || ""}
+                      {owner.last_name?.charAt(0) || ""}
+                    </div>
+                    <div>
+                      <p className="font-medium">
+                        {owner.first_name} {owner.last_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{owner.email}</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full" asChild>
+                    <Link href={`/dashboard/admin/users/${owner.id}`}>View Owner Profile</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center p-4">
+                  <p className="text-sm text-muted-foreground mb-3">This shop has not been claimed yet.</p>
+                  <Button variant="outline" size="sm">
+                    Assign Owner
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
 
+          {/* Shop Stats */}
           <Card>
-            <CardHeader>
-              <CardTitle>Shop Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-[20px_1fr] items-start gap-2">
-                <Shield className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">Verification Status</div>
-                  <div className="text-sm text-muted-foreground">{shop.is_verified ? "Verified" : "Not Verified"}</div>
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4">Shop Statistics</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Reviews:</span>
+                  <span className="font-medium">{shop.review_count || 0}</span>
                 </div>
-
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">Created</div>
-                  <div className="text-sm text-muted-foreground">{createdAt}</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Average Rating:</span>
+                  <span className="font-medium">{shop.average_rating?.toFixed(1) || "N/A"}</span>
                 </div>
-
-                <Clock className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium">Last Updated</div>
-                  <div className="text-sm text-muted-foreground">{updatedAt}</div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Followers:</span>
+                  <span className="font-medium">{shop.follower_count || 0}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Created:</span>
+                  <span className="font-medium">
+                    {shop.created_at ? new Date(shop.created_at).toLocaleDateString() : "N/A"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Last Updated:</span>
+                  <span className="font-medium">
+                    {shop.updated_at ? new Date(shop.updated_at).toLocaleDateString() : "N/A"}
+                  </span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* Actions */}
           <Card>
-            <CardHeader>
-              <CardTitle>Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button className="w-full" variant="outline" asChild>
-                <Link href={`/dashboard/admin/shops/${shop.id}/edit`}>Edit Shop</Link>
-              </Button>
-              <VerifyShopButton
-                shopId={shop.id}
-                shopName={shop.name}
-                isVerified={shop.is_verified}
-                ownerId={shop.owner_id}
-              />
-              <DeleteShopButton shopId={shop.id} shopName={shop.name} />
+            <CardContent className="pt-6">
+              <h3 className="text-lg font-semibold mb-4">Admin Actions</h3>
+              <div className="space-y-2">
+                <Button variant="outline" className="w-full justify-start" size="sm">
+                  {shop.is_verified ? "Revoke Verification" : "Verify Shop"}
+                </Button>
+                <Button variant="outline" className="w-full justify-start" size="sm">
+                  {shop.is_active ? "Deactivate Shop" : "Activate Shop"}
+                </Button>
+                <Button variant="outline" className="w-full justify-start" size="sm">
+                  View Analytics
+                </Button>
+                <Button variant="outline" className="w-full justify-start" size="sm">
+                  View Reports
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

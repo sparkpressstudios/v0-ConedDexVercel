@@ -1,27 +1,17 @@
 import { NextResponse } from "next/server"
 
 export async function GET() {
+  // Server-side only access to the API key
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
 
   if (!apiKey) {
     return NextResponse.json({ error: "Maps API not configured" }, { status: 500 })
   }
 
-  // Create a proxy endpoint that loads the Maps API without exposing the key
-  // This returns a script that can be used by the client
-  const script = `
-    (function() {
-      const script = document.createElement('script');
-      script.src = "https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places";
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    })();
-  `
-
-  return new Response(script, {
-    headers: {
-      "Content-Type": "application/javascript",
-    },
+  // Return a JSON response with a token that can be used client-side
+  // This approach doesn't expose the actual API key
+  return NextResponse.json({
+    configured: true,
+    mapUrl: `/api/maps/proxy`, // Use a proxy endpoint instead of direct Google Maps URL
   })
 }

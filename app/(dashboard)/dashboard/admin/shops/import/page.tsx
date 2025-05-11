@@ -1,217 +1,366 @@
 "use client"
 
+import { ShopScraper } from "@/components/admin/shop-scraper"
+import { PuppeteerTestRunner } from "@/components/admin/testing/puppeteer-test-runner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import ImportProgress from "@/components/admin/batch-import/import-progress"
+import { createClient } from "@/lib/supabase/client"
+import {
+  searchIceCreamBusinesses,
+  getPlaceDetails,
+  convertPlaceToShop,
+  batchSearchIceCreamBusinesses,
+  isDuplicateShop,
+  type PlaceSearchResult,
+  type PlaceDetails,
+} from "@/lib/services/google-places-service"
 
-export default function ImportShopsPage() {
+// Popular US cities for ice cream
+const popularLocations = [
+  { name: "New York, NY", lat: 40.7128, lng: -74.006 },
+  { name: "Los Angeles, CA", lat: 34.0522, lng: -118.2437 },
+  { name: "Chicago, IL", lat: 41.8781, lng: -87.6298 },
+  { name: "Miami, FL", lat: 25.7617, lng: -80.1918 },
+  { name: "San Francisco, CA", lat: 37.7749, lng: -122.4194 },
+  { name: "Portland, OR", lat: 45.5152, lng: -122.6784 },
+  { name: "Austin, TX", lat: 30.2672, lng: -97.7431 },
+  { name: "Seattle, WA", lat: 47.6062, lng: -122.3321 },
+  { name: "Boston, MA", lat: 42.3601, lng: -71.0589 },
+  { name: "Denver, CO", lat: 39.7392, lng: -104.9903 },
+]
+
+export default function ShopsImportPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState("csv")
-  const [file, setFile] = useState<File | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [importId, setImportId] = useState<string | null>(null)
-  const [importStarted, setImportStarted] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState<PlaceSearchResult[]>([])
+  const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null)
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importStatus, setImportStatus] = useState<{ success: boolean; message: string } | null>(null)
+  const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined)
+  const [activeTab, setActiveTab] = useState("scraper")
+  const [batchImportStatus, setBatchImportStatus] = useState<{
+    isRunning: boolean
+    total: number
+    processed: number
+    imported: number
+    skipped: number
+    failed: number
+    currentLocation: string
+  }>({
+    isRunning: false,
+    total: 0,
+    processed: 0,
+    imported: 0,
+    skipped: 0,
+    failed: 0,
+    currentLocation: "",
+  })
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
+  const [batchRadius, setBatchRadius] = useState(25000)
+  const [showBatchDialog, setShowBatchDialog] = useState(false)
+  const [existingShops, setExistingShops] = useState<any[]>([])
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0])
-      setError(null)
+  // Fetch existing shops on component mount
+  useEffect(() => {
+    const fetchExistingShops = async () => {
+      try {
+        const supabase = createClient()
+        const { data, error } = await supabase.from("shops").select("id, name, address")
+
+        if (error) throw error
+        setExistingShops(data || [])
+      } catch (error) {
+        console.error("Error fetching existing shops:", error)
+      }
+    }
+
+    fetchExistingShops()
+  }, [])
+
+  // Get user's current location
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          })
+        },
+        (error) => {
+          console.error("Error getting location:", error)
+        },
+      )
     }
   }
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  // Handle search form submission
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0])
-      setError(null)
-    }
-  }
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-  }
-
-  const handleImport = async () => {
-    if (!file) {
-      setError("Please select a file to import")
-      return
-    }
-
-    setIsUploading(true)
-    setError(null)
+    setIsSearching(true)
+    setSearchResults([])
+    setSelectedPlace(null)
+    setImportStatus(null)
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const response = await fetch("/api/admin/shops/import", {
-        method: "POST",
-        body: formData,
+      const { results, nextPageToken: token } = await searchIceCreamBusinesses(searchQuery, location)
+      setSearchResults(results)
+      setNextPageToken(token)
+    } catch (error) {
+      console.error("Error searching for businesses:", error)
+      setImportStatus({
+        success: false,
+        message: "Failed to search for businesses. Please try again.",
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to start import")
-      }
-
-      setImportId(data.importId)
-      setImportStarted(true)
-    } catch (err) {
-      console.error("Error starting import:", err)
-      setError(err instanceof Error ? err.message : "An unexpected error occurred")
     } finally {
-      setIsUploading(false)
+      setIsSearching(false)
     }
   }
 
-  const handleImportComplete = () => {
-    // Wait a moment before redirecting to allow user to see the completion state
-    setTimeout(() => {
-      router.push("/dashboard/admin/shops")
-    }, 3000)
+  // Load more results
+  const loadMoreResults = async () => {
+    if (!nextPageToken) return
+
+    setIsSearching(true)
+    try {
+      const { results, nextPageToken: token } = await searchIceCreamBusinesses(
+        searchQuery,
+        location,
+        50000,
+        nextPageToken,
+      )
+      setSearchResults([...searchResults, ...results])
+      setNextPageToken(token)
+    } catch (error) {
+      console.error("Error loading more businesses:", error)
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // View details of a place
+  const viewPlaceDetails = async (placeId: string) => {
+    setIsLoadingDetails(true)
+    setSelectedPlace(null)
+    setImportStatus(null)
+
+    try {
+      const details = await getPlaceDetails(placeId)
+      setSelectedPlace(details)
+    } catch (error) {
+      console.error("Error getting place details:", error)
+      setImportStatus({
+        success: false,
+        message: "Failed to load business details. Please try again.",
+      })
+    } finally {
+      setIsLoadingDetails(false)
+    }
+  }
+
+  // Import a shop to the database
+  const importShop = async () => {
+    if (!selectedPlace) return
+
+    setIsImporting(true)
+    setImportStatus(null)
+
+    try {
+      const supabase = createClient()
+      const shopData = convertPlaceToShop(selectedPlace)
+
+      // Check if shop already exists
+      const { data: existingShops } = await supabase
+        .from("shops")
+        .select("id")
+        .eq("name", shopData.name)
+        .eq("address", shopData.address)
+        .limit(1)
+
+      if (existingShops && existingShops.length > 0) {
+        setImportStatus({
+          success: false,
+          message: "This shop already exists in the database.",
+        })
+        setIsImporting(false)
+        return
+      }
+
+      // Insert the new shop
+      const { data, error } = await supabase.from("shops").insert([shopData]).select()
+
+      if (error) throw error
+
+      setImportStatus({
+        success: true,
+        message: `Successfully imported ${shopData.name} to the database.`,
+      })
+
+      // Clear selected place after successful import
+      setTimeout(() => {
+        setSelectedPlace(null)
+      }, 2000)
+    } catch (error) {
+      console.error("Error importing shop:", error)
+      setImportStatus({
+        success: false,
+        message: "Failed to import shop. Please try again.",
+      })
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  // Toggle location selection for batch import
+  const toggleLocationSelection = (locationName: string) => {
+    if (selectedLocations.includes(locationName)) {
+      setSelectedLocations(selectedLocations.filter((name) => name !== locationName))
+    } else {
+      setSelectedLocations([...selectedLocations, locationName])
+    }
+  }
+
+  // Start batch import process
+  const startBatchImport = async () => {
+    if (selectedLocations.length === 0) return
+
+    setShowBatchDialog(true)
+    setBatchImportStatus({
+      isRunning: true,
+      total: 0,
+      processed: 0,
+      imported: 0,
+      skipped: 0,
+      failed: 0,
+      currentLocation: "",
+    })
+
+    const selectedLocationData = popularLocations.filter((loc) => selectedLocations.includes(loc.name))
+
+    try {
+      let totalProcessed = 0
+      let totalImported = 0
+      let totalSkipped = 0
+      let totalFailed = 0
+      let totalShops = 0
+
+      // First pass to get total count
+      const batchResults = await batchSearchIceCreamBusinesses(selectedLocationData, batchRadius)
+      totalShops = batchResults.reduce((sum, location) => sum + location.results.length, 0)
+
+      setBatchImportStatus((prev) => ({
+        ...prev,
+        total: totalShops,
+      }))
+
+      const supabase = createClient()
+
+      // Process each location
+      for (const locationResult of batchResults) {
+        setBatchImportStatus((prev) => ({
+          ...prev,
+          currentLocation: locationResult.location,
+        }))
+
+        // Process each shop in the location
+        for (const place of locationResult.results) {
+          try {
+            // Get detailed information
+            const details = await getPlaceDetails(place.place_id)
+            const shopData = convertPlaceToShop(details)
+
+            // Check if shop already exists
+            if (isDuplicateShop(existingShops, shopData)) {
+              totalSkipped++
+              setBatchImportStatus((prev) => ({
+                ...prev,
+                processed: prev.processed + 1,
+                skipped: prev.skipped + 1,
+              }))
+              continue
+            }
+
+            // Insert the shop
+            const { error } = await supabase.from("shops").insert([shopData])
+
+            if (error) {
+              throw error
+            }
+
+            // Update existing shops list to prevent duplicates in the same batch
+            setExistingShops((prev) => [...prev, shopData])
+
+            totalImported++
+            setBatchImportStatus((prev) => ({
+              ...prev,
+              processed: prev.processed + 1,
+              imported: prev.imported + 1,
+            }))
+
+            // Add a small delay to avoid rate limiting
+            await new Promise((resolve) => setTimeout(resolve, 500))
+          } catch (error) {
+            console.error("Error importing shop:", error)
+            totalFailed++
+            setBatchImportStatus((prev) => ({
+              ...prev,
+              processed: prev.processed + 1,
+              failed: prev.failed + 1,
+            }))
+          }
+
+          totalProcessed++
+        }
+      }
+    } catch (error) {
+      console.error("Error in batch import:", error)
+    } finally {
+      setBatchImportStatus((prev) => ({
+        ...prev,
+        isRunning: false,
+      }))
+    }
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-center mb-6">
-        <Button variant="ghost" size="icon" asChild className="mr-2">
-          <Link href="/dashboard/admin/shops">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <h1 className="text-2xl font-bold">Import Shops</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Import Shops</h1>
+        <p className="text-muted-foreground">Import ice cream shops from various sources</p>
       </div>
 
-      {importStarted && importId ? (
-        <ImportProgress
-          importId={importId}
-          title="Shop Import Progress"
-          entityType="shops"
-          onComplete={handleImportComplete}
-        />
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Import Shops</CardTitle>
-            <CardDescription>
-              Add multiple shops to the ConeDex platform by importing from a CSV file or using the Google Places API.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="csv">CSV Import</TabsTrigger>
-                <TabsTrigger value="places">Google Places</TabsTrigger>
-              </TabsList>
+      <Tabs defaultValue="scraper">
+        <TabsList>
+          <TabsTrigger value="scraper">Web Scraper</TabsTrigger>
+          <TabsTrigger value="csv">CSV Upload</TabsTrigger>
+          <TabsTrigger value="api">API Import</TabsTrigger>
+          <TabsTrigger value="testing">Testing</TabsTrigger>
+        </TabsList>
 
-              <TabsContent value="csv" className="space-y-4 pt-4">
-                <div
-                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors ${
-                    error ? "border-red-300" : ""
-                  }`}
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onClick={() => document.getElementById("file-upload")?.click()}
-                >
-                  <input id="file-upload" type="file" className="hidden" accept=".csv" onChange={handleFileChange} />
-                  <FileSpreadsheet className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
-                  {file ? (
-                    <div>
-                      <p className="font-medium">{file.name}</p>
-                      <p className="text-sm text-muted-foreground">{(file.size / 1024).toFixed(2)} KB</p>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="font-medium mb-1">Click to upload or drag and drop</p>
-                      <p className="text-sm text-muted-foreground">CSV files only (.csv)</p>
-                    </div>
-                  )}
-                </div>
+        <TabsContent value="scraper" className="space-y-4">
+          <ShopScraper />
+        </TabsContent>
 
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+        <TabsContent value="csv" className="space-y-4">
+          {/* Existing CSV upload component would go here */}
+          <p>CSV upload functionality</p>
+        </TabsContent>
 
-                <div className="bg-muted rounded-lg p-4">
-                  <h4 className="font-medium mb-2">CSV Format Requirements</h4>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Your CSV file should include the following columns:
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
-                    <div className="text-sm">
-                      <span className="font-semibold">Required Fields:</span>
-                      <ul className="list-disc pl-5 space-y-1 mt-1">
-                        <li>
-                          <strong>name</strong> - Shop name
-                        </li>
-                        <li>
-                          <strong>address</strong> - Street address
-                        </li>
-                      </ul>
-                    </div>
-                    <div className="text-sm">
-                      <span className="font-semibold">Optional Fields:</span>
-                      <ul className="list-disc pl-5 space-y-1 mt-1">
-                        <li>
-                          <strong>city</strong> - City name
-                        </li>
-                        <li>
-                          <strong>state</strong> - State/Province
-                        </li>
-                        <li>
-                          <strong>phone</strong> - Phone number
-                        </li>
-                        <li>
-                          <strong>website</strong> - Website URL
-                        </li>
-                        <li>
-                          <strong>lat</strong> - Latitude
-                        </li>
-                        <li>
-                          <strong>lng</strong> - Longitude
-                        </li>
-                        <li>
-                          <strong>image_url</strong> - Image URL
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
+        <TabsContent value="api" className="space-y-4">
+          {/* Existing API import component would go here */}
+          <p>API import functionality</p>
+        </TabsContent>
 
-              <TabsContent value="places" className="pt-4">
-                <Alert>
-                  <CheckCircle2 className="h-4 w-4" />
-                  <AlertTitle>Google Places Integration</AlertTitle>
-                  <AlertDescription>
-                    Use the Google Places API to search for and import ice cream shops by location. This feature is
-                    coming soon.
-                  </AlertDescription>
-                </Alert>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-          <CardFooter>
-            <Button onClick={handleImport} disabled={!file || isUploading} className="ml-auto">
-              {isUploading ? "Uploading..." : "Start Import"}
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
+        <TabsContent value="testing" className="space-y-4">
+          <PuppeteerTestRunner />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

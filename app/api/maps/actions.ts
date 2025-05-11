@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 
-// Get the API key from server environment - renamed to not use NEXT_PUBLIC prefix
+// Get the API key from server environment - renamed to non-public version
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ""
 
 // Check if Maps API is configured

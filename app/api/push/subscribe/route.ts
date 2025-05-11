@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 
 export async function POST(request: Request) {
   try {
-    const supabase = createServerClient()
+    const cookieStore = cookies()
+    const supabase = createServerClient(cookieStore)
 
     // Get the current session
     const {

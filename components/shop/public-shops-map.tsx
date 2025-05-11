@@ -2,445 +2,263 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useRef, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, MapPin, Filter } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
-import { createClient } from "@/lib/supabase/client"
-import { Badge } from "@/components/ui/badge"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
-import { isMapsApiConfigured, searchShopsNearLocation } from "@/app/api/maps/actions"
+import { Search, MapPin, Loader2 } from "lucide-react"
+import { MapsLoader } from "@/components/maps/maps-loader"
+import { searchShops } from "@/app/actions/maps-actions"
 
-type Shop = {
+// Declare google variable
+declare global {
+  interface Window {
+    google?: any
+  }
+}
+
+interface Shop {
   id: string
   name: string
   address: string
-  city: string
-  state: string
-  zip: string
+  rating?: number
+  vicinity: string
   lat: number
   lng: number
-  rating: number
-  flavor_count: number
-  is_verified: boolean
 }
 
+// Export as a named export to maintain compatibility
 export function PublicShopsMap() {
-  const router = useRouter()
-  const { user, isLoading: authLoading } = useAuth()
-  const supabase = createClient()
-
-  const [isMapLoaded, setIsMapLoaded] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
+  const mapRef = useRef<HTMLDivElement>(null)
+  const [map, setMap] = useState<any>(null)
+  const [markers, setMarkers] = useState<any[]>([])
   const [shops, setShops] = useState<Shop[]>([])
-  const [filteredShops, setFilteredShops] = useState<Shop[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [loading, setLoading] = useState(false)
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
-  const [mapInstance, setMapInstance] = useState<any>(null)
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [isApiConfigured, setIsApiConfigured] = useState(false)
+  const [infoWindow, setInfoWindow] = useState<any>(null)
 
-  // Filter states
-  const [showFilters, setShowFilters] = useState(false)
-  const [minRating, setMinRating] = useState(0)
-  const [maxDistance, setMaxDistance] = useState(50) // miles
-  const [onlyVerified, setOnlyVerified] = useState(false)
-  const [minFlavors, setMinFlavors] = useState(0)
+  // Initialize the map when Google Maps is loaded
+  const handleMapsLoaded = () => {
+    if (!mapRef.current || !window.google) return
 
-  // Fetch shops data
-  useEffect(() => {
-    async function fetchShops() {
-      try {
-        setIsLoading(true)
-        const { data, error } = await supabase.from("shops").select("*")
+    // Create a new map instance
+    const mapInstance = new window.google.maps.Map(mapRef.current, {
+      center: { lat: 40.7128, lng: -74.006 }, // Default to NYC
+      zoom: 12,
+      mapTypeControl: false,
+      streetViewControl: false,
+      fullscreenControl: false,
+    })
 
-        if (error) throw error
+    // Create an info window for displaying shop details
+    const infoWindowInstance = new window.google.maps.InfoWindow()
 
-        setShops(data || [])
-        setFilteredShops(data || [])
-      } catch (error) {
-        console.error("Error fetching shops:", error)
-      } finally {
-        setIsLoading(false)
+    setMap(mapInstance)
+    setInfoWindow(infoWindowInstance)
+
+    // Load initial shops
+    handleSearch("ice cream")
+  }
+
+  // Handle search form submission
+  const handleSearch = async (query: string) => {
+    if (!query) return
+
+    setLoading(true)
+    setSelectedShop(null)
+
+    try {
+      // Use the server action to search for shops
+      const { results } = await searchShops(query)
+
+      // Convert results to our shop format
+      const formattedShops = results.map((result) => ({
+        id: result.place_id,
+        name: result.name,
+        vicinity: result.vicinity,
+        address: result.vicinity,
+        rating: result.rating,
+        lat: result.geometry.location.lat,
+        lng: result.geometry.location.lng,
+      }))
+
+      setShops(formattedShops)
+
+      // Update map bounds to fit all shops
+      if (map && formattedShops.length > 0) {
+        const bounds = new window.google.maps.LatLngBounds()
+        formattedShops.forEach((shop) => {
+          bounds.extend({ lat: shop.lat, lng: shop.lng })
+        })
+        map.fitBounds(bounds)
+
+        // If only one result, zoom in a bit
+        if (formattedShops.length === 1) {
+          map.setZoom(15)
+        }
       }
+    } catch (error) {
+      console.error("Error searching for shops:", error)
+    } finally {
+      setLoading(false)
     }
+  }
 
-    fetchShops()
-  }, [supabase])
-
-  // Initialize map
+  // Update markers when shops change
   useEffect(() => {
-    // Check if Maps API is configured using server action
-    async function checkMapsApi() {
-      const configured = await isMapsApiConfigured()
-      setIsApiConfigured(configured)
+    if (!map || !window.google) return
 
-      if (configured) {
-        // Simulate map loading
-        const timer = setTimeout(() => {
-          setIsMapLoaded(true)
-          // Simulate map instance
-          setMapInstance({})
-        }, 1000)
+    // Clear existing markers
+    markers.forEach((marker) => marker.setMap(null))
 
-        return () => clearTimeout(timer)
-      }
-    }
+    // Create new markers
+    const newMarkers = shops.map((shop) => {
+      const marker = new window.google.maps.Marker({
+        position: { lat: shop.lat, lng: shop.lng },
+        map,
+        title: shop.name,
+        animation: window.google.maps.Animation.DROP,
+      })
 
-    checkMapsApi()
+      // Add click event to show info window
+      marker.addListener("click", () => {
+        setSelectedShop(shop)
 
-    // Try to get user location
+        if (infoWindow) {
+          infoWindow.setContent(`
+            <div class="p-2">
+              <h3 class="font-bold">${shop.name}</h3>
+              <p class="text-sm">${shop.vicinity}</p>
+              ${shop.rating ? `<p class="text-sm">Rating: ${shop.rating} ⭐</p>` : ""}
+              <p class="text-sm mt-2">
+                <a href="#" class="text-blue-600 hover:underline view-details" data-id="${shop.id}">
+                  View Details
+                </a>
+              </p>
+            </div>
+          `)
+          infoWindow.open(map, marker)
+        }
+      })
+
+      return marker
+    })
+
+    setMarkers(newMarkers)
+  }, [shops, map, infoWindow])
+
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    handleSearch(searchQuery)
+  }
+
+  // Get user's current location
+  const handleGetCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          })
+          const { latitude, longitude } = position.coords
+
+          if (map) {
+            map.setCenter({ lat: latitude, lng: longitude })
+            map.setZoom(14)
+
+            // Add a special marker for user's location
+            new window.google.maps.Marker({
+              position: { lat: latitude, lng: longitude },
+              map,
+              title: "Your Location",
+              icon: {
+                path: window.google.maps.SymbolPath.CIRCLE,
+                scale: 10,
+                fillColor: "#4285F4",
+                fillOpacity: 1,
+                strokeColor: "#ffffff",
+                strokeWeight: 2,
+              },
+            })
+
+            // Search for shops near the user's location
+            handleSearch("ice cream near me")
+          }
         },
-        () => {
-          console.log("Unable to retrieve your location")
+        (error) => {
+          console.error("Error getting location:", error)
         },
       )
     }
-  }, [])
-
-  // Apply filters
-  const applyFilters = useCallback(async () => {
-    if (!user) {
-      setShowAuthPrompt(true)
-      return
-    }
-
-    let filtered = [...shops]
-
-    // Apply search query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(
-        (shop) =>
-          shop.name.toLowerCase().includes(query) ||
-          shop.city.toLowerCase().includes(query) ||
-          shop.state.toLowerCase().includes(query),
-      )
-    }
-
-    // Apply rating filter
-    if (minRating > 0) {
-      filtered = filtered.filter((shop) => shop.rating >= minRating)
-    }
-
-    // Apply verified filter
-    if (onlyVerified) {
-      filtered = filtered.filter((shop) => shop.is_verified)
-    }
-
-    // Apply flavor count filter
-    if (minFlavors > 0) {
-      filtered = filtered.filter((shop) => shop.flavor_count >= minFlavors)
-    }
-
-    // Apply distance filter if user location is available
-    if (userLocation && maxDistance < 50) {
-      // Use server action to filter by distance
-      const nearbyShops = await searchShopsNearLocation(
-        userLocation.lat,
-        userLocation.lng,
-        maxDistance * 1000, // Convert miles to meters
-      )
-
-      // Get IDs of nearby shops
-      const nearbyShopIds = new Set(nearbyShops.map((shop) => shop.id))
-
-      // Filter the shops
-      filtered = filtered.filter((shop) => nearbyShopIds.has(shop.id))
-    }
-
-    setFilteredShops(filtered)
-  }, [shops, searchQuery, minRating, onlyVerified, minFlavors, maxDistance, userLocation, user])
-
-  // Handle search
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    applyFilters()
-  }
-
-  // Handle shop selection
-  const handleShopSelect = (shop: Shop) => {
-    if (!user) {
-      setSelectedShop(shop)
-      setShowAuthPrompt(true)
-      return
-    }
-
-    router.push(`/shops/${shop.id}`)
-  }
-
-  // Reset filters
-  const resetFilters = () => {
-    setSearchQuery("")
-    setMinRating(0)
-    setMaxDistance(50)
-    setOnlyVerified(false)
-    setMinFlavors(0)
-    setFilteredShops(shops)
-  }
-
-  // Calculate distance between two points using Haversine formula
-  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 3958.8 // Earth's radius in miles
-    const dLat = ((lat2 - lat1) * Math.PI) / 180
-    const dLon = ((lon2 - lon1) * Math.PI) / 180
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-    return R * c
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden">
-        <CardHeader className="pb-3">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle>Ice Cream Shop Map</CardTitle>
-              <CardDescription>
-                {filteredShops.length} shops available
-                {userLocation && <span className="ml-2">(Location detected)</span>}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <form onSubmit={handleSearch} className="flex w-full max-w-sm items-center space-x-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Search locations..."
-                    className="pl-8"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Button type="submit">Search</Button>
-              </form>
-
-              <Popover open={showFilters} onOpenChange={setShowFilters}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className="relative">
-                    <Filter className="h-4 w-4" />
-                    {(minRating > 0 || maxDistance < 50 || onlyVerified || minFlavors > 0) && (
-                      <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80">
-                  <div className="space-y-4">
-                    <h4 className="font-medium">Filter Shops</h4>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label htmlFor="min-rating">Minimum Rating</Label>
-                        <span>{minRating} ★</span>
-                      </div>
-                      <Slider
-                        id="min-rating"
-                        min={0}
-                        max={5}
-                        step={0.5}
-                        value={[minRating]}
-                        onValueChange={(value) => setMinRating(value[0])}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label htmlFor="max-distance">Max Distance</Label>
-                        <span>{maxDistance} miles</span>
-                      </div>
-                      <Slider
-                        id="max-distance"
-                        min={1}
-                        max={50}
-                        step={1}
-                        value={[maxDistance]}
-                        onValueChange={(value) => setMaxDistance(value[0])}
-                        disabled={!userLocation}
-                      />
-                      {!userLocation && (
-                        <p className="text-xs text-muted-foreground">Enable location to use distance filter</p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="verified-only"
-                        checked={onlyVerified}
-                        onCheckedChange={(checked) => setOnlyVerified(checked === true)}
-                      />
-                      <Label htmlFor="verified-only">Verified shops only</Label>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <Label htmlFor="min-flavors">Minimum Flavors</Label>
-                        <span>{minFlavors}</span>
-                      </div>
-                      <Slider
-                        id="min-flavors"
-                        min={0}
-                        max={50}
-                        step={5}
-                        value={[minFlavors]}
-                        onValueChange={(value) => setMinFlavors(value[0])}
-                      />
-                    </div>
-
-                    <div className="flex justify-between">
-                      <Button variant="outline" size="sm" onClick={resetFilters}>
-                        Reset
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setShowFilters(false)
-                          applyFilters()
-                        }}
-                      >
-                        Apply Filters
-                      </Button>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="relative h-[70vh] w-full bg-muted">
-            {!isMapLoaded ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="h-16 w-16 animate-spin rounded-full border-4 border-muted-foreground border-t-transparent"></div>
-                <p className="mt-4 text-muted-foreground">Loading map...</p>
-              </div>
-            ) : isApiConfigured ? (
-              <div className="absolute inset-0">
-                {/* This would be replaced with an actual Google Map */}
-                <div className="h-full w-full bg-slate-100 flex items-center justify-center">
-                  <div className="text-center p-4">
-                    <MapPin className="h-16 w-16 text-primary mx-auto mb-4" />
-                    <h3 className="text-xl font-bold mb-2">Map Visualization</h3>
-                    <p className="mb-4">{filteredShops.length} shops would be displayed here on the map</p>
-                    <div className="flex flex-wrap gap-2 justify-center">
-                      {filteredShops.slice(0, 5).map((shop) => (
-                        <Badge
-                          key={shop.id}
-                          variant="outline"
-                          className="cursor-pointer"
-                          onClick={() => handleShopSelect(shop)}
-                        >
-                          {shop.name}
-                        </Badge>
-                      ))}
-                      {filteredShops.length > 5 && <Badge variant="outline">+{filteredShops.length - 5} more</Badge>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-                <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-xl font-bold mb-2">Maps API Not Configured</h3>
-                <p className="mb-4 max-w-md text-muted-foreground">
-                  The Google Maps API key is not configured. Please add it to your environment variables to enable the
-                  map functionality.
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Shop List */}
-      <Card>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100vh-200px)] min-h-[500px]">
+      <Card className="md:col-span-1 overflow-auto">
         <CardHeader>
-          <CardTitle>Nearby Ice Cream Shops</CardTitle>
-          <CardDescription>
-            {filteredShops.length === 0
-              ? "No shops found matching your criteria"
-              : `${filteredShops.length} shops found`}
-          </CardDescription>
+          <CardTitle>Find Ice Cream Shops</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {isLoading ? (
-              // Loading skeleton
-              Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-center space-x-4">
-                  <div className="h-12 w-12 rounded-full bg-muted"></div>
-                  <div className="space-y-2">
-                    <div className="h-4 w-40 rounded bg-muted"></div>
-                    <div className="h-3 w-60 rounded bg-muted"></div>
-                  </div>
-                </div>
-              ))
-            ) : filteredShops.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <p className="text-muted-foreground">No shops found matching your criteria</p>
-                <Button variant="outline" className="mt-4" onClick={resetFilters}>
-                  Reset Filters
-                </Button>
-              </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex space-x-2">
+              <Input
+                placeholder="Search for ice cream shops..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <Button type="submit" disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
+
+            <Button type="button" variant="outline" className="w-full" onClick={handleGetCurrentLocation}>
+              <MapPin className="h-4 w-4 mr-2" /> Use My Location
+            </Button>
+          </form>
+
+          <div className="mt-4 space-y-2">
+            <h3 className="font-medium">Results ({shops.length})</h3>
+            {shops.length === 0 ? (
+              <p className="text-sm text-gray-500">No shops found. Try a different search.</p>
             ) : (
-              filteredShops.map((shop) => (
-                <div
-                  key={shop.id}
-                  className="flex items-start space-x-4 rounded-lg border p-4 transition-colors hover:bg-muted/50 cursor-pointer"
-                  onClick={() => handleShopSelect(shop)}
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                    <MapPin className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center">
-                      <h4 className="font-medium">{shop.name}</h4>
-                      {shop.is_verified && (
-                        <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 hover:bg-green-50">
-                          Verified
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {shop.address}, {shop.city}, {shop.state} {shop.zip}
-                    </p>
-                    <div className="flex items-center space-x-4 text-sm">
-                      <span className="flex items-center">
-                        <span className="mr-1 text-yellow-500">★</span>
-                        {shop.rating.toFixed(1)}
-                      </span>
-                      <span>{shop.flavor_count} flavors</span>
-                      {userLocation && (
-                        <span>
-                          {calculateDistance(userLocation.lat, userLocation.lng, shop.lat, shop.lng).toFixed(1)} miles
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
+              <div className="space-y-2 max-h-[300px] overflow-auto">
+                {shops.map((shop) => (
+                  <Card
+                    key={shop.id}
+                    className={`p-3 cursor-pointer hover:bg-gray-50 ${
+                      selectedShop?.id === shop.id ? "ring-2 ring-primary" : ""
+                    }`}
+                    onClick={() => {
+                      setSelectedShop(shop)
+
+                      // Find the marker for this shop and trigger a click
+                      const marker = markers.find((m) => m.getTitle() === shop.name)
+                      if (marker) {
+                        window.google.maps.event.trigger(marker, "click")
+
+                        // Center the map on this marker
+                        map.panTo(marker.getPosition())
+                      }
+                    }}
+                  >
+                    <h4 className="font-medium">{shop.name}</h4>
+                    <p className="text-sm text-gray-500">{shop.vicinity}</p>
+                    {shop.rating && <p className="text-sm">Rating: {shop.rating} ⭐</p>}
+                  </Card>
+                ))}
+              </div>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Auth Prompt Dialog would be implemented here */}
+      <Card className="md:col-span-2 relative">
+        <div ref={mapRef} className="w-full h-full min-h-[400px] rounded-md overflow-hidden">
+          <MapsLoader onLoad={handleMapsLoaded} />
+        </div>
+      </Card>
     </div>
   )
 }
+
+// Also export as default for flexibility
+export default PublicShopsMap

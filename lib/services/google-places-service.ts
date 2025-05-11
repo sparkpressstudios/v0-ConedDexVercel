@@ -1,10 +1,9 @@
 "use server"
 
 // Google Places API service for searching and retrieving business information
-// This is now a server-side only service
+// This is a server-side only service
 
-// Note: API key is accessed server-side only
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY || ""
+import type { Shop } from "@/types/shop"
 
 export interface PlaceSearchResult {
   place_id: string
@@ -75,11 +74,18 @@ export async function searchIceCreamBusinesses(
   nextPageToken?: string,
 ): Promise<{ results: PlaceSearchResult[]; nextPageToken?: string }> {
   try {
+    // Server-side only access to the API key
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+    if (!apiKey) {
+      throw new Error("Google Maps API key is not configured")
+    }
+
     // Build the search query
     const searchQuery = query || "ice cream"
     let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(
       searchQuery,
-    )}&key=${GOOGLE_MAPS_API_KEY}`
+    )}&key=${apiKey}`
 
     // Add location if provided
     if (location) {
@@ -114,6 +120,13 @@ export async function searchIceCreamBusinesses(
  */
 export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
   try {
+    // Server-side only access to the API key
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+    if (!apiKey) {
+      throw new Error("Google Maps API key is not configured")
+    }
+
     const fields = [
       "place_id",
       "name",
@@ -132,7 +145,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
       "editorial_summary",
     ].join(",")
 
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${GOOGLE_MAPS_API_KEY}`
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${apiKey}`
 
     const response = await fetch(url)
     const data = await response.json()
@@ -149,54 +162,35 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
 }
 
 /**
- * Get a photo URL from a photo reference
- * This is now a server-side function that will proxy the image
+ * Get the URL for a Google Places photo
  */
 export async function getPhotoUrl(photoReference: string, maxWidth = 400): Promise<string> {
-  // Return a URL to our own API endpoint that will proxy the image
-  return `/api/maps/photo?reference=${photoReference}&maxwidth=${maxWidth}`
+  return `/api/maps/photo?photoReference=${photoReference}&maxWidth=${maxWidth}`
 }
 
 /**
- * Convert Google Places business to our shop format
+ * Convert a Google Place to a Shop object
  */
-export async function convertPlaceToShop(place: PlaceDetails) {
-  // Extract address components
-  const addressParts = place.formatted_address.split(", ")
-  const address = addressParts[0]
-  const cityState = addressParts[1]?.split(" ") || []
-  const city = cityState.slice(0, -1).join(" ")
-  const state = cityState[cityState.length - 1]
-
-  // Get the first photo if available
-  const imageUrl = place.photos && place.photos.length > 0 ? await getPhotoUrl(place.photos[0].photo_reference) : null
-
-  // Create a description from available information
-  let description = ""
-  if (place.editorial_summary?.overview) {
-    description = place.editorial_summary.overview
-  } else if (place.reviews && place.reviews.length > 0) {
-    // Use the highest rated review as a description if no editorial summary
-    const highestRatedReview = [...place.reviews].sort((a, b) => b.rating - a.rating)[0]
-    description = `${highestRatedReview.text.substring(0, 200)}${highestRatedReview.text.length > 200 ? "..." : ""}`
-  }
+export async function convertPlaceToShop(place: any): Promise<Partial<Shop>> {
+  const mainPhoto =
+    place.photos && place.photos.length > 0 ? await getPhotoUrl(place.photos[0].photo_reference, 800) : null
 
   return {
     name: place.name,
-    address,
-    city,
-    state,
-    lat: place.geometry.location.lat,
-    lng: place.geometry.location.lng,
-    phone: place.formatted_phone_number || null,
-    website: place.website || null,
-    description,
-    image_url: imageUrl,
-    // Additional fields that would need to be filled in later
-    owner_id: null,
-    is_verified: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    description: place.editorial_summary?.overview || "",
+    address: place.formatted_address || "",
+    phone: place.formatted_phone_number || "",
+    website: place.website || "",
+    googlePlaceId: place.place_id,
+    latitude: place.geometry?.location?.lat,
+    longitude: place.geometry?.location?.lng,
+    rating: place.rating,
+    reviewCount: place.user_ratings_total || 0,
+    mainImage: mainPhoto,
+    isVerified: false,
+    isActive: true,
+    priceLevel: place.price_level || 2,
+    openingHours: place.opening_hours?.weekday_text?.join("\n") || "",
   }
 }
 
@@ -234,8 +228,15 @@ export async function batchSearchIceCreamBusinesses(
 }
 
 /**
- * Check if a shop already exists in the database
+ * Check if a shop with the same Google Place ID already exists
  */
-export async function isDuplicateShop(existingShops: any[], newShop: any): Promise<boolean> {
-  return existingShops.some((shop) => shop.name === newShop.name && shop.address === newShop.address)
+export async function isDuplicateShop(placeId: string, supabase: any): Promise<boolean> {
+  const { data, error } = await supabase.from("shops").select("id").eq("googlePlaceId", placeId).limit(1)
+
+  if (error) {
+    console.error("Error checking for duplicate shop:", error)
+    return false
+  }
+
+  return data && data.length > 0
 }

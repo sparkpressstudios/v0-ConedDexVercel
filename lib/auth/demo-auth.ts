@@ -1,4 +1,4 @@
-// Demo user types - duplicated to avoid importing from a file that might use next/headers
+// Demo user types
 export type DemoUserRole = "admin" | "shop_owner" | "explorer"
 
 export interface DemoUser {
@@ -39,6 +39,14 @@ export function setDemoUser(email: string): void {
 
       // Set cookie with SameSite=Lax to work across tabs
       document.cookie = `conedex_demo_user=${email}; path=/; max-age=86400; SameSite=Lax`
+
+      // Dispatch storage event to notify other tabs
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "conedex_demo_user",
+          newValue: email,
+        }),
+      )
     } catch (error) {
       console.error("Error setting demo user:", error)
     }
@@ -60,6 +68,8 @@ export function getDemoUser(): DemoUser | null {
       const demoUserCookie = cookies.find((cookie) => cookie.trim().startsWith("conedex_demo_user="))
       if (demoUserCookie) {
         email = demoUserCookie.split("=")[1].trim()
+        // Sync with localStorage
+        localStorage.setItem("conedex_demo_user", email)
       }
     }
 
@@ -75,15 +85,20 @@ export function clearDemoUser(): void {
     try {
       localStorage.removeItem("conedex_demo_user")
       document.cookie = "conedex_demo_user=; path=/; max-age=0; SameSite=Lax"
+
+      // Dispatch storage event to notify other tabs
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "conedex_demo_user",
+          oldValue: "some-value",
+          newValue: null,
+        }),
+      )
     } catch (error) {
       console.error("Error clearing demo user:", error)
     }
   }
 }
 
-// Pages-specific demo login functions
-import { pagesSignIn } from "./pages-auth"
-
-export async function pagesLoginAsDemo(email: string, password: string) {
-  return pagesSignIn(email, password)
-}
+// Server-side functions remain the same
+// These are imported from 'next/headers' at the top level in server components
