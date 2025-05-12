@@ -23,21 +23,56 @@ export const dynamic = "force-dynamic"
 export default async function AdminUsersPage() {
   const supabase = await createServerClient()
 
-  // Fetch users from the database
-  const { data: users, error } = await supabase
+  // Try to fetch from profiles table first
+  let { data: users, error } = await supabase
     .from("profiles")
-    .select("id, user_id, full_name, email, avatar_url, role, created_at, last_sign_in_at, is_active")
+    .select("id, full_name, email, avatar_url, role, created_at, last_sign_in_at, is_active")
     .order("created_at", { ascending: false })
     .limit(100)
 
+  // If there's an error with the profiles table, try the view
+  if (error && error.message.includes("does not exist")) {
+    console.log("Trying profiles_with_user_id view instead")
+    const { data: viewUsers, error: viewError } = await supabase
+      .from("profiles_with_user_id")
+      .select("id, user_id, full_name, email, avatar_url, role, created_at, last_sign_in_at, is_active")
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (viewError) {
+      console.error("Error fetching from view:", viewError)
+    } else {
+      users = viewUsers
+      error = null
+    }
+  }
+
+  // If both fail, try to get users directly from auth.users
   if (error) {
-    console.error("Error fetching users:", error)
+    console.log("Falling back to auth.users")
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+
+    if (authError) {
+      console.error("Error fetching users from auth:", authError)
+    } else if (authUsers?.users) {
+      users = authUsers.users.map((user) => ({
+        id: user.id,
+        full_name: user.user_metadata?.full_name || "Unnamed User",
+        email: user.email,
+        avatar_url: user.user_metadata?.avatar_url,
+        role: user.user_metadata?.role || "User",
+        created_at: user.created_at,
+        last_sign_in_at: user.last_sign_in_at,
+        is_active: !user.banned_until,
+      }))
+      error = null
+    }
   }
 
   // Format the user data
   const formattedUsers =
     users?.map((user) => ({
-      id: user.user_id,
+      id: user.id,
       name: user.full_name || "Unnamed User",
       email: user.email || "No email",
       role: user.role || "User",
@@ -126,7 +161,7 @@ export default async function AdminUsersPage() {
                             <AvatarImage
                               src={
                                 user.avatar ||
-                                `/placeholder.svg?height=32&width=32&query=${encodeURIComponent(user.name)}`
+                                `/placeholder.svg?height=32&width=32&query=${encodeURIComponent(user.name) || "/placeholder.svg"}`
                               }
                               alt={user.name}
                             />
