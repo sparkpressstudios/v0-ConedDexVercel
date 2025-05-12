@@ -134,12 +134,16 @@ export function AuthPromptDialog({
     }
   }
 
-  const handleDemoLogin = async () => {
+  const handleDemoLogin = async (role = "explorer") => {
     try {
       setIsLoading(true)
 
       const response = await fetch("/api/auth/demo-login", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ role }),
       })
 
       if (!response.ok) {
@@ -148,7 +152,7 @@ export function AuthPromptDialog({
 
       toast({
         title: "Demo login successful",
-        description: "You are now signed in as a demo user",
+        description: `You are now signed in as a demo ${role}`,
       })
 
       onOpenChange(false)
@@ -270,16 +274,28 @@ export function AuthPromptDialog({
           </div>
         </div>
 
-        <Button variant="outline" className="w-full" onClick={handleDemoLogin} disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading demo...
-            </>
-          ) : (
-            "Try with Demo Account"
-          )}
-        </Button>
+        <div className="space-y-4">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Demo Access</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <Button variant="outline" size="sm" onClick={() => handleDemoLogin("explorer")} disabled={isLoading}>
+              Explorer
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleDemoLogin("shopowner")} disabled={isLoading}>
+              Shop Owner
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => handleDemoLogin("admin")} disabled={isLoading}>
+              Admin
+            </Button>
+          </div>
+        </div>
 
         <DialogFooter className="flex flex-col sm:flex-row sm:justify-between sm:space-x-0">
           <Button variant="link" size="sm" className="px-0" onClick={() => onOpenChange(false)}>

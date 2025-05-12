@@ -14,3 +14,23 @@ export async function getServerDemoUser() {
   const demoUsers = getDemoUserData()
   return demoUsers[demoUserEmail] || null
 }
+
+export async function setDemoUser(email: string): Promise<void> {
+  const cookieStore = cookies()
+
+  // Set the demo user cookie with a 24-hour expiration
+  cookieStore.set("conedex_demo_user", email, {
+    path: "/",
+    maxAge: 86400, // 24 hours in seconds
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+  })
+}
+
+export async function clearServerDemoUser(): Promise<void> {
+  const cookieStore = cookies()
+
+  // Clear the demo user cookie
+  cookieStore.delete("conedex_demo_user")
+}

@@ -26,9 +26,21 @@ export default function LoginPage() {
 
   // Demo user credentials
   const demoUsers = [
-    { email: "explorer@conedex.app", password: "demo123", role: "Explorer" },
-    { email: "shopowner@conedex.app", password: "demo123", role: "Shop Owner" },
-    { email: "admin@conedex.app", password: "demo123", role: "Admin" },
+    {
+      email: "explorer@conedex.app",
+      password: process.env.NEXT_PUBLIC_DEMO_EXPLORER_PASSWORD || "demo123",
+      role: "Explorer",
+    },
+    {
+      email: "shopowner@conedex.app",
+      password: process.env.NEXT_PUBLIC_DEMO_SHOPOWNER_PASSWORD || "demo123",
+      role: "Shop Owner",
+    },
+    {
+      email: "admin@conedex.app",
+      password: process.env.NEXT_PUBLIC_DEMO_ADMIN_PASSWORD || "demo123",
+      role: "Admin",
+    },
   ]
 
   // Clear any URL error parameters on mount
@@ -150,16 +162,42 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col">
           <div className="w-full border-t pt-4">
-            <h3 className="mb-2 text-sm font-medium">Demo Accounts</h3>
+            <h3 className="mb-2 text-sm font-medium">Demo Access</h3>
             <div className="space-y-2 text-xs text-muted-foreground">
-              {demoUsers.map((user) => (
-                <div key={user.email} className="flex justify-between">
-                  <span>
-                    {user.role}: {user.email}
-                  </span>
-                  <span>Password: {user.password}</span>
-                </div>
-              ))}
+              <p>Contact an administrator for demo account access or create a new account.</p>
+              <p>For testing purposes, you can use the demo buttons below:</p>
+              <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEmail("explorer@conedex.app")
+                    setPassword(process.env.NEXT_PUBLIC_DEMO_EXPLORER_PASSWORD || "demo123")
+                  }}
+                >
+                  Try as Explorer
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEmail("shopowner@conedex.app")
+                    setPassword(process.env.NEXT_PUBLIC_DEMO_SHOPOWNER_PASSWORD || "demo123")
+                  }}
+                >
+                  Try as Shop Owner
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEmail("admin@conedex.app")
+                    setPassword(process.env.NEXT_PUBLIC_DEMO_ADMIN_PASSWORD || "demo123")
+                  }}
+                >
+                  Try as Admin
+                </Button>
+              </div>
             </div>
           </div>
         </CardFooter>

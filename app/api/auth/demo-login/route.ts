@@ -1,75 +1,39 @@
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
+import { setDemoUser } from "@/lib/auth/server-demo-auth"
 
-// Define demo users with their roles
-const DEMO_USERS = {
-  "admin@conedex.app": {
-    password: process.env.DEMO_ADMIN_PASSWORD || "admin123", // Better to use env var
-    role: "admin",
-  },
-  "explorer@conedex.app": {
-    password: process.env.DEMO_EXPLORER_PASSWORD || "explorer123",
-    role: "explorer",
-  },
-  "shopowner@conedex.app": {
-    password: process.env.DEMO_SHOPOWNER_PASSWORD || "shopowner123",
-    role: "shop_owner",
-  },
-}
-
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const response = NextResponse.next()
-    const supabase = createMiddlewareClient({ req: request, res: response })
+    const { role = "explorer" } = await request.json()
 
-    const requestUrl = new URL(request.url)
-    const { email, password } = await request.json()
+    let email = "explorer@conedex.app"
+    let password = process.env.DEMO_EXPLORER_PASSWORD || "demo123"
 
-    // Check if this is a demo email
-    const demoUser = DEMO_USERS[email as keyof typeof DEMO_USERS]
-
-    if (!demoUser || demoUser.password !== password) {
-      return NextResponse.json({ error: "Invalid demo credentials" }, { status: 401 })
+    if (role === "shopowner") {
+      email = "shopowner@conedex.app"
+      password = process.env.DEMO_SHOPOWNER_PASSWORD || "demo123"
+    } else if (role === "admin") {
+      email = "admin@conedex.app"
+      password = process.env.DEMO_ADMIN_PASSWORD || "demo123"
     }
 
-    // Get the user ID from the database
-    const { data: userData, error: userError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("email", email)
-      .single()
+    // Set demo user in cookie
+    await setDemoUser(email)
 
-    if (userError || !userData) {
-      console.error("Demo user not found:", userError)
-      return NextResponse.json({ error: "User not found in database" }, { status: 404 })
-    }
-
-    // Create a custom admin authorization cookie
-    const { data: sessionData, error } = await supabase.auth.admin.createSession({
-      userId: userData.id,
-      properties: {
-        provider: "email",
-        email: email,
-      },
-      attributes: {
-        role: demoUser.role,
-      },
+    // Sign in with Supabase
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     })
 
     if (error) {
-      console.error("Session creation error:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // Return success response
-    return NextResponse.json({ user: sessionData.user, session: sessionData.session }, { status: 200 })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Demo login error:", error)
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "An unknown error occurred",
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
