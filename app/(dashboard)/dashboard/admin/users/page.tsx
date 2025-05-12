@@ -20,51 +20,81 @@ import { formatDistanceToNow } from "date-fns"
 
 export const dynamic = "force-dynamic"
 
+async function syncProfilesWithAuth() {
+  const supabase = await createServerClient()
+
+  try {
+    // Check if email column exists
+    const { data: hasEmailColumn } = await supabase.rpc("column_exists", {
+      table_name: "profiles",
+      column_name: "email",
+    })
+
+    if (!hasEmailColumn) {
+      console.log("Email column doesn't exist in profiles table")
+      return false
+    }
+
+    // Get users from auth.users
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+    if (authError) {
+      console.error("Error fetching auth users:", authError)
+      return false
+    }
+
+    // Update profiles with missing emails
+    for (const user of authUsers.users) {
+      await supabase.from("profiles").update({ email: user.email }).eq("id", user.id).is("email", null)
+    }
+
+    return true
+  } catch (error) {
+    console.error("Error syncing profiles with auth:", error)
+    return false
+  }
+}
+
 export default async function AdminUsersPage() {
   const supabase = await createServerClient()
 
-  // Try to fetch from profiles table first
+  // Try to sync profiles with auth users
+  await syncProfilesWithAuth()
+
+  // Try to fetch from user_profiles view first
   let { data: users, error } = await supabase
-    .from("profiles")
+    .from("user_profiles")
     .select("id, full_name, email, avatar_url, role, created_at, last_sign_in_at, is_active")
     .order("created_at", { ascending: false })
     .limit(100)
 
-  // If there's an error with the profiles table, try the view
-  if (error && error.message.includes("does not exist")) {
-    console.log("Trying profiles_with_user_id view instead")
-    const { data: viewUsers, error: viewError } = await supabase
-      .from("profiles_with_user_id")
-      .select("id, user_id, full_name, email, avatar_url, role, created_at, last_sign_in_at, is_active")
+  // If there's an error with the view, fall back to profiles table
+  if (error) {
+    console.error("Error fetching from user_profiles view:", error.message)
+
+    // Try profiles table
+    const { data: profileUsers, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url, role, created_at")
       .order("created_at", { ascending: false })
       .limit(100)
 
-    if (viewError) {
-      console.error("Error fetching from view:", viewError)
+    if (profileError) {
+      console.error("Error fetching from profiles table:", profileError.message)
     } else {
-      users = viewUsers
-      error = null
-    }
-  }
+      // Get auth data separately
+      const { data: authUsers } = await supabase.auth.admin.listUsers()
+      const authMap = new Map(authUsers?.users.map((u) => [u.id, u]) || [])
 
-  // If both fail, try to get users directly from auth.users
-  if (error) {
-    console.log("Falling back to auth.users")
-    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
-
-    if (authError) {
-      console.error("Error fetching users from auth:", authError)
-    } else if (authUsers?.users) {
-      users = authUsers.users.map((user) => ({
-        id: user.id,
-        full_name: user.user_metadata?.full_name || "Unnamed User",
-        email: user.email,
-        avatar_url: user.user_metadata?.avatar_url,
-        role: user.user_metadata?.role || "User",
-        created_at: user.created_at,
-        last_sign_in_at: user.last_sign_in_at,
-        is_active: !user.banned_until,
-      }))
+      // Combine profile and auth data
+      users = profileUsers.map((profile) => {
+        const authUser = authMap.get(profile.id)
+        return {
+          ...profile,
+          email: authUser?.email || "No email",
+          last_sign_in_at: authUser?.last_sign_in_at,
+          is_active: !authUser?.banned_until,
+        }
+      })
       error = null
     }
   }
