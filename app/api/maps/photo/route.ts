@@ -1,23 +1,22 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 
-export async function GET(request: NextRequest) {
-  // Get the photo reference and max width from the query parameters
-  const searchParams = request.nextUrl.searchParams
-  const photoReference = searchParams.get("reference")
-  const maxWidth = searchParams.get("maxwidth") || "400"
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const reference = searchParams.get("reference")
+  const maxwidth = searchParams.get("maxwidth") || "400"
 
-  // Server-side only access to the API key
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY
-
-  if (!apiKey || !photoReference) {
-    return NextResponse.json(
-      { error: !apiKey ? "Maps API not configured" : "Photo reference is required" },
-      { status: !apiKey ? 500 : 400 },
-    )
+  if (!reference) {
+    return NextResponse.json({ error: "Missing photo reference" }, { status: 400 })
   }
 
-  // Create the Google Places Photo API URL with the key
-  const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${maxWidth}&photoreference=${photoReference}&key=${apiKey}`
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+  if (!apiKey) {
+    return NextResponse.json({ error: "Maps API not configured" }, { status: 500 })
+  }
+
+  // Create the Google Maps Photo API URL with the key
+  const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?photoreference=${reference}&maxwidth=${maxwidth}&key=${apiKey}`
 
   try {
     // Fetch the photo
@@ -40,7 +39,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error("Error proxying Google Places photo:", error)
+    console.error("Error proxying Google Maps photo:", error)
     return NextResponse.json({ error: "Failed to load photo" }, { status: 500 })
   }
 }

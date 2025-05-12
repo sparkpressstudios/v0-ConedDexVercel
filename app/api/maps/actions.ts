@@ -10,15 +10,20 @@ export async function isMapsApiConfigured() {
   return !!GOOGLE_MAPS_API_KEY
 }
 
-// Get a signed URL for Maps API (for client-side map loading)
+/**
+ * Server action to get the Google Maps API URL with the API key
+ * This keeps the API key secure on the server
+ */
 export async function getMapsApiUrl() {
-  if (!GOOGLE_MAPS_API_KEY) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+  if (!apiKey) {
+    console.error("Google Maps API key not configured")
     return null
   }
 
-  // Return a URL that doesn't expose the API key directly
-  // In a real implementation, you would create a more secure solution
-  return `/api/maps/loader`
+  // Return the URL to our loader endpoint which will inject the key securely
+  return "/api/maps/loader"
 }
 
 // Search for shops near a location

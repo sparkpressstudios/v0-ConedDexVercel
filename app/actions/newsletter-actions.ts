@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { EmailService } from "@/lib/services/email-service"
+import { sendEmail, sendBatchEmails, generateNewsletterEmail } from "@/lib/services/sendgrid-email-service"
 
 interface NewsletterData {
   subject: string
@@ -77,11 +77,17 @@ export async function sendNewsletter(data: SendNewsletterData) {
       throw new Error("Unauthorized: Admin access required")
     }
 
-    const emailService = new EmailService()
+    // Generate email content
+    const { subject, html } = generateNewsletterEmail(data.subject, data.content)
 
     if (data.testOnly && data.testEmail) {
       // Send test email
-      const testResult = await emailService.sendNewsletter(data.testEmail, data.subject, data.content)
+      const testResult = await sendEmail({
+        to: data.testEmail,
+        subject,
+        html,
+      })
+
       if (!testResult) {
         throw new Error("Failed to send test email")
       }
@@ -122,33 +128,28 @@ export async function sendNewsletter(data: SendNewsletterData) {
       throw new Error("Failed to create newsletter record")
     }
 
-    // Send to all subscribers with better error handling
-    const results = await Promise.allSettled(
-      subscribers.map((subscriber) => emailService.sendNewsletter(subscriber.email, data.subject, data.content)),
-    )
+    // Extract email addresses
+    const emailAddresses = subscribers.map((sub) => sub.email).filter(Boolean)
 
-    // Count successful and failed sends
-    const successful = results.filter((r) => r.status === "fulfilled" && r.value === true).length
-    const failed = subscribers.length - successful
+    // Send to all subscribers
+    const sendResult = await sendBatchEmails(emailAddresses, subject, html)
 
-    // Update newsletter record with actual send results
-    if (failed > 0) {
+    if (!sendResult) {
+      // Update newsletter record with failed status
       await supabase
         .from("newsletters")
         .update({
-          status: "partial_send",
-          recipient_count: successful,
-          failed_count: failed,
+          status: "failed",
         })
         .eq("id", newsletter.id)
 
-      console.warn(`Newsletter partially sent: ${successful} successful, ${failed} failed`)
+      throw new Error("Failed to send newsletter")
     }
 
     revalidatePath("/dashboard/admin/newsletters")
     return {
       success: true,
-      message: `Newsletter sent to ${successful} subscribers${failed > 0 ? ` (${failed} failed)` : ""}`,
+      message: `Newsletter sent to ${subscribers.length} subscribers`,
     }
   } catch (error) {
     console.error("Error in sendNewsletter:", error)

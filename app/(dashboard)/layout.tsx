@@ -8,13 +8,38 @@ import { Toaster } from "@/components/ui/toaster"
 import { OfflineIndicator } from "@/components/ui/offline-indicator"
 import { InstallPrompt } from "@/components/ui/install-prompt"
 import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
-import { demoUsers } from "@/lib/utils/dashboard-utils"
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+// Demo user types
+interface DemoUser {
+  email: string
+  role: string
+  id: string
+  name: string
+}
+
+// Demo user data
+const demoUsers: Record<string, DemoUser> = {
+  "admin@conedex.app": {
+    email: "admin@conedex.app",
+    role: "admin",
+    id: "a1b2c3d4-e5f6-7a8b-9c0d-e1f2a3b4c5d6",
+    name: "Alex Admin",
+  },
+  "shopowner@conedex.app": {
+    email: "shopowner@conedex.app",
+    role: "shop_owner",
+    id: "f5c0d6e7-2e4b-5d7c-8f9a-1b2c3d4e5f6a",
+    name: "Sam Scooper",
+  },
+  "explorer@conedex.app": {
+    email: "explorer@conedex.app",
+    role: "explorer",
+    id: "e4b9c5f8-1d3a-4c6b-9e2f-a8b7c6d5e4f3",
+    name: "Emma Explorer",
+  },
+}
+
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <GlobalErrorBoundary>
       {async () => {

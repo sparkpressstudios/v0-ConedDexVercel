@@ -1,96 +1,94 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface MapsLoaderProps {
   onLoad?: () => void
   onError?: (error: Error) => void
 }
 
-declare global {
-  interface Window {
-    initMap: () => void
-    google?: {
-      maps: any
-    }
-  }
-}
-
 export function MapsLoader({ onLoad, onError }: MapsLoaderProps) {
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const { toast } = useToast()
 
   useEffect(() => {
-    // Skip if Google Maps is already loaded
-    if (window.google?.maps) {
-      setLoading(false)
-      onLoad?.()
+    // Skip if already loaded or errored
+    if (loaded || error || window.google?.maps) {
+      if (window.google?.maps && !loaded) {
+        setLoaded(true)
+        onLoad?.()
+      }
       return
     }
 
-    // Set up the callback function that the Google Maps API will call when loaded
-    window.initMap = () => {
-      setLoading(false)
-      onLoad?.()
-    }
-
-    // Load the Google Maps API through our proxy endpoint
     const loadMapsApi = async () => {
       try {
-        // Fetch configuration from our secure endpoint
+        // Get the maps URL from our proxy endpoint
         const response = await fetch("/api/maps/loader")
         const data = await response.json()
 
-        if (!data.configured) {
-          throw new Error("Maps API is not configured")
+        if (!data.configured || !data.mapUrl) {
+          throw new Error("Maps API not configured")
         }
 
-        // Create a script element to load the Maps API
+        // Define the callback function
+        window.initMap = () => {
+          setLoaded(true)
+          onLoad?.()
+        }
+
+        // Create and append the script tag
         const script = document.createElement("script")
-        script.src = data.mapUrl
+        script.src = `${data.mapUrl}?libraries=places,geometry&callback=initMap`
         script.async = true
         script.defer = true
-
-        // Handle script load errors
-        script.onerror = () => {
-          setError("Failed to load Google Maps. Please try again later.")
-          setLoading(false)
-          onError?.(new Error("Failed to load Google Maps"))
+        script.onerror = (e) => {
+          const loadError = new Error("Failed to load Google Maps API")
+          setError(loadError)
+          onError?.(loadError)
+          toast({
+            title: "Maps Error",
+            description: "Failed to load Google Maps. Some features may not work correctly.",
+            variant: "destructive",
+          })
         }
 
-        // Add the script to the document
         document.head.appendChild(script)
-      } catch (error) {
-        console.error("Error loading Google Maps:", error)
-        setError("Failed to load Google Maps. Please try again later.")
-        setLoading(false)
-        onError?.(error instanceof Error ? error : new Error("Unknown error loading Maps API"))
+
+        return () => {
+          // Clean up
+          if (window.initMap) {
+            // @ts-ignore
+            delete window.initMap
+          }
+          document.head.removeChild(script)
+        }
+      } catch (err) {
+        const loadError = err instanceof Error ? err : new Error("Unknown error loading maps")
+        setError(loadError)
+        onError?.(loadError)
+        toast({
+          title: "Maps Error",
+          description: "Failed to load Google Maps. Some features may not work correctly.",
+          variant: "destructive",
+        })
       }
     }
 
     loadMapsApi()
+  }, [onLoad, onError, loaded, error, toast])
 
-    // Clean up
-    return () => {
-      window.initMap = () => {}
+  return null // This component doesn't render anything
+}
+
+// Add type definitions for the global window object
+declare global {
+  interface Window {
+    initMap?: () => void
+    google?: {
+      maps: any
     }
-  }, [onLoad, onError])
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    )
   }
-
-  if (loading) {
-    return <div className="w-full h-full bg-gray-100 animate-pulse rounded-md" />
-  }
-
-  return null
 }

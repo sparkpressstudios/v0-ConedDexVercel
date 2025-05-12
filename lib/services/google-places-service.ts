@@ -4,6 +4,7 @@
 // This is a server-side only service
 
 import type { Shop } from "@/types/shop"
+import { headers } from "next/headers"
 
 export interface PlaceSearchResult {
   place_id: string
@@ -239,4 +240,101 @@ export async function isDuplicateShop(placeId: string, supabase: any): Promise<b
   }
 
   return data && data.length > 0
+}
+
+// Add any other necessary functions for the Google Places API service
+// Get nearby ice cream shops using Google Places API
+export async function searchNearbyIceCreamShops(lat: number, lng: number, radius = 5000) {
+  try {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+    if (!apiKey) {
+      throw new Error("Google Maps API key is not configured")
+    }
+
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=restaurant&keyword=ice%20cream&key=${apiKey}`,
+    )
+
+    if (!response.ok) {
+      throw new Error(`Google Places API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.results || []
+  } catch (error) {
+    console.error("Error fetching nearby ice cream shops:", error)
+    return []
+  }
+}
+
+// Geocode an address to get coordinates
+export async function geocodeAddress(address: string) {
+  try {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+    if (!apiKey) {
+      throw new Error("Google Maps API key is not configured")
+    }
+
+    const encodedAddress = encodeURIComponent(address)
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedAddress}&key=${apiKey}`,
+    )
+
+    if (!response.ok) {
+      throw new Error(`Google Geocoding API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (data.status !== "OK" || !data.results || data.results.length === 0) {
+      throw new Error(`Geocoding failed: ${data.status}`)
+    }
+
+    const location = data.results[0].geometry.location
+    return {
+      lat: location.lat,
+      lng: location.lng,
+      formattedAddress: data.results[0].formatted_address,
+    }
+  } catch (error) {
+    console.error("Error geocoding address:", error)
+    return null
+  }
+}
+
+// Get place photos
+export async function getPlacePhotos(photoReference: string, maxWidth = 400) {
+  const headersList = headers()
+  const host = headersList.get("host") || "localhost:3000"
+  const protocol = host.includes("localhost") ? "http" : "https"
+
+  // Return proxy URL to our own API that will fetch the photo
+  return `${protocol}://${host}/api/maps/photo?reference=${photoReference}&maxwidth=${maxWidth}`
+}
+
+// Autocomplete place search
+export async function autocompletePlaceSearch(input: string, sessionToken: string) {
+  try {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+    if (!apiKey) {
+      throw new Error("Google Maps API key is not configured")
+    }
+
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=establishment&sessiontoken=${sessionToken}&key=${apiKey}`,
+    )
+
+    if (!response.ok) {
+      throw new Error(`Google Places Autocomplete API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.predictions || []
+  } catch (error) {
+    console.error("Error with place autocomplete:", error)
+    return []
+  }
 }

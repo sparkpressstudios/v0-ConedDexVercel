@@ -2,7 +2,6 @@
  * Validates that required environment variables are present
  */
 export function validateEnvironmentVariables(): { valid: boolean; missing: string[] } {
-  // Server-side only variables
   const requiredServerVars = [
     "SENDGRID_API_KEY",
     "SENDGRID_FROM_EMAIL",
@@ -11,10 +10,9 @@ export function validateEnvironmentVariables(): { valid: boolean; missing: strin
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
     "SUPABASE_JWT_SECRET",
-    "GOOGLE_MAPS_API_KEY", // Server-side only Google Maps API key
+    "GOOGLE_MAPS_API_KEY",
   ]
 
-  // Client-side safe variables
   const requiredClientVars = [
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",

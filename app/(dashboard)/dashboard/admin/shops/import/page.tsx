@@ -9,14 +9,12 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import {
-  searchIceCreamBusinesses,
-  getPlaceDetails,
-  convertPlaceToShop,
-  batchSearchIceCreamBusinesses,
-  isDuplicateShop,
-  type PlaceSearchResult,
-  type PlaceDetails,
-} from "@/lib/services/google-places-service"
+  searchBusinesses,
+  getBusinessDetails,
+  importShopToDatabase,
+  batchImportShops,
+} from "@/app/actions/shop-import-actions"
+import type { PlaceDetails } from "@/lib/services/google-places-service"
 
 // Popular US cities for ice cream
 const popularLocations = [
@@ -37,7 +35,7 @@ export default function ShopsImportPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isSearching, setIsSearching] = useState(false)
-  const [searchResults, setSearchResults] = useState<PlaceSearchResult[]>([])
+  const [searchResults, setSearchResults] = useState<any[]>([])
   const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null)
   const [isLoadingDetails, setIsLoadingDetails] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -109,9 +107,16 @@ export default function ShopsImportPage() {
     setImportStatus(null)
 
     try {
-      const { results, nextPageToken: token } = await searchIceCreamBusinesses(searchQuery, location)
-      setSearchResults(results)
-      setNextPageToken(token)
+      const result = await searchBusinesses(searchQuery, location)
+      if (result.success) {
+        setSearchResults(result.results)
+        setNextPageToken(result.nextPageToken)
+      } else {
+        setImportStatus({
+          success: false,
+          message: result.error || "Failed to search for businesses. Please try again.",
+        })
+      }
     } catch (error) {
       console.error("Error searching for businesses:", error)
       setImportStatus({
@@ -129,14 +134,11 @@ export default function ShopsImportPage() {
 
     setIsSearching(true)
     try {
-      const { results, nextPageToken: token } = await searchIceCreamBusinesses(
-        searchQuery,
-        location,
-        50000,
-        nextPageToken,
-      )
-      setSearchResults([...searchResults, ...results])
-      setNextPageToken(token)
+      const result = await searchBusinesses(searchQuery, location, 50000, nextPageToken)
+      if (result.success) {
+        setSearchResults([...searchResults, ...result.results])
+        setNextPageToken(result.nextPageToken)
+      }
     } catch (error) {
       console.error("Error loading more businesses:", error)
     } finally {
@@ -151,8 +153,15 @@ export default function ShopsImportPage() {
     setImportStatus(null)
 
     try {
-      const details = await getPlaceDetails(placeId)
-      setSelectedPlace(details)
+      const result = await getBusinessDetails(placeId)
+      if (result.success) {
+        setSelectedPlace(result.details)
+      } else {
+        setImportStatus({
+          success: false,
+          message: result.error || "Failed to load business details. Please try again.",
+        })
+      }
     } catch (error) {
       console.error("Error getting place details:", error)
       setImportStatus({
@@ -172,40 +181,18 @@ export default function ShopsImportPage() {
     setImportStatus(null)
 
     try {
-      const supabase = createClient()
-      const shopData = convertPlaceToShop(selectedPlace)
-
-      // Check if shop already exists
-      const { data: existingShops } = await supabase
-        .from("shops")
-        .select("id")
-        .eq("name", shopData.name)
-        .eq("address", shopData.address)
-        .limit(1)
-
-      if (existingShops && existingShops.length > 0) {
-        setImportStatus({
-          success: false,
-          message: "This shop already exists in the database.",
-        })
-        setIsImporting(false)
-        return
-      }
-
-      // Insert the new shop
-      const { data, error } = await supabase.from("shops").insert([shopData]).select()
-
-      if (error) throw error
-
+      const result = await importShopToDatabase(selectedPlace)
       setImportStatus({
-        success: true,
-        message: `Successfully imported ${shopData.name} to the database.`,
+        success: result.success,
+        message: result.message,
       })
 
-      // Clear selected place after successful import
-      setTimeout(() => {
-        setSelectedPlace(null)
-      }, 2000)
+      if (result.success) {
+        // Clear selected place after successful import
+        setTimeout(() => {
+          setSelectedPlace(null)
+        }, 2000)
+      }
     } catch (error) {
       console.error("Error importing shop:", error)
       setImportStatus({
@@ -244,87 +231,40 @@ export default function ShopsImportPage() {
     const selectedLocationData = popularLocations.filter((loc) => selectedLocations.includes(loc.name))
 
     try {
-      let totalProcessed = 0
-      let totalImported = 0
-      let totalSkipped = 0
-      let totalFailed = 0
-      let totalShops = 0
+      const result = await batchImportShops(selectedLocationData, batchRadius)
 
-      // First pass to get total count
-      const batchResults = await batchSearchIceCreamBusinesses(selectedLocationData, batchRadius)
-      totalShops = batchResults.reduce((sum, location) => sum + location.results.length, 0)
-
-      setBatchImportStatus((prev) => ({
-        ...prev,
-        total: totalShops,
-      }))
-
-      const supabase = createClient()
-
-      // Process each location
-      for (const locationResult of batchResults) {
-        setBatchImportStatus((prev) => ({
-          ...prev,
-          currentLocation: locationResult.location,
-        }))
-
-        // Process each shop in the location
-        for (const place of locationResult.results) {
-          try {
-            // Get detailed information
-            const details = await getPlaceDetails(place.place_id)
-            const shopData = convertPlaceToShop(details)
-
-            // Check if shop already exists
-            if (isDuplicateShop(existingShops, shopData)) {
-              totalSkipped++
-              setBatchImportStatus((prev) => ({
-                ...prev,
-                processed: prev.processed + 1,
-                skipped: prev.skipped + 1,
-              }))
-              continue
-            }
-
-            // Insert the shop
-            const { error } = await supabase.from("shops").insert([shopData])
-
-            if (error) {
-              throw error
-            }
-
-            // Update existing shops list to prevent duplicates in the same batch
-            setExistingShops((prev) => [...prev, shopData])
-
-            totalImported++
-            setBatchImportStatus((prev) => ({
-              ...prev,
-              processed: prev.processed + 1,
-              imported: prev.imported + 1,
-            }))
-
-            // Add a small delay to avoid rate limiting
-            await new Promise((resolve) => setTimeout(resolve, 500))
-          } catch (error) {
-            console.error("Error importing shop:", error)
-            totalFailed++
-            setBatchImportStatus((prev) => ({
-              ...prev,
-              processed: prev.processed + 1,
-              failed: prev.failed + 1,
-            }))
-          }
-
-          totalProcessed++
-        }
+      if (result.success) {
+        setBatchImportStatus({
+          isRunning: false,
+          total: result.total,
+          processed: result.processed,
+          imported: result.imported,
+          skipped: result.skipped,
+          failed: result.failed,
+          currentLocation: "Complete",
+        })
+      } else {
+        setBatchImportStatus({
+          isRunning: false,
+          total: 0,
+          processed: 0,
+          imported: 0,
+          skipped: 0,
+          failed: 0,
+          currentLocation: "Error: " + (result.error || "Unknown error"),
+        })
       }
     } catch (error) {
       console.error("Error in batch import:", error)
-    } finally {
-      setBatchImportStatus((prev) => ({
-        ...prev,
+      setBatchImportStatus({
         isRunning: false,
-      }))
+        total: 0,
+        processed: 0,
+        imported: 0,
+        skipped: 0,
+        failed: 0,
+        currentLocation: "Error occurred during import",
+      })
     }
   }
 
