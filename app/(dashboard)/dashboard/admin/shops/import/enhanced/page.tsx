@@ -1,19 +1,22 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Loader2, MapPin, Check, AlertCircle, Download, ImageIcon } from "lucide-react"
+import { Loader2, MapPin, Check, AlertCircle, Download, ImageIcon, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { LocationSearch } from "@/components/admin/shop-import/location-search"
 import { ShopTypeFilter } from "@/components/admin/shop-import/shop-type-filter"
+import Link from "next/link"
 import {
-  searchIceCreamBusinesses,
-  getPlaceDetails,
-  convertPlaceToShop,
-  isIceCreamShop,
-} from "@/lib/services/google-places-service"
+  searchPlaces,
+  filterIceCreamShops,
+  isDuplicateShop,
+  type PlaceSearchResult,
+  type FilterOptions,
+} from "@/lib/services/enhanced-places-service"
+import { importShop } from "@/app/actions/enhanced-shop-import"
 import { createClient } from "@/lib/supabase/client"
 
 interface LocationData {
@@ -23,38 +26,19 @@ interface LocationData {
   radius: number
 }
 
-interface FilterData {
-  types: string[]
-  keywords: string[]
-  excludeKeywords: string[]
-}
-
-interface ShopResult {
-  place_id: string
-  name: string
-  vicinity: string
-  rating?: number
-  user_ratings_total?: number
-  types: string[]
-  geometry: {
-    location: {
-      lat: number
-      lng: number
-    }
-  }
-  photos?: { photo_reference: string }[]
-  matched_keywords?: string[]
+interface ShopResult extends PlaceSearchResult {
   isDuplicate?: boolean
   isSelected?: boolean
-  details?: any
+  matched_keywords?: string[]
 }
 
 export default function EnhancedShopImportPage() {
   const [location, setLocation] = useState<LocationData | null>(null)
-  const [filters, setFilters] = useState<FilterData>({
-    types: ["ice_cream_shop", "gelato", "frozen_yogurt"],
-    keywords: ["ice cream", "gelato", "frozen yogurt", "soft serve", "sorbet"],
-    excludeKeywords: ["convenience store", "grocery"],
+  const [filters, setFilters] = useState<FilterOptions>({
+    includeKeywords: ["ice cream", "gelato", "frozen yogurt", "soft serve", "sorbet"],
+    excludeKeywords: ["convenience store", "grocery", "gas station"],
+    minRating: 3.5,
+    onlyOpenBusinesses: true,
   })
 
   const [isSearching, setIsSearching] = useState(false)
@@ -108,7 +92,7 @@ export default function EnhancedShopImportPage() {
   }
 
   // Handle filter changes
-  const handleFilterChange = (filterData: FilterData) => {
+  const handleFilterChange = (filterData: FilterOptions) => {
     setFilters(filterData)
 
     // Re-apply filters to existing results
@@ -127,18 +111,20 @@ export default function EnhancedShopImportPage() {
     setSelectedShops([])
 
     try {
-      const result = await searchIceCreamBusinesses(
-        "ice cream",
-        { lat: location.lat, lng: location.lng },
-        location.radius,
-        undefined,
-      )
+      const result = await searchPlaces({
+        location: { lat: location.lat, lng: location.lng },
+        radius: location.radius,
+        keyword: "ice cream",
+        type: "food",
+      })
 
       // Mark duplicates
-      const shops = result.results.map((shop) => ({
-        ...shop,
-        isDuplicate: !!existingShops[shop.place_id],
-      }))
+      const shops = await Promise.all(
+        result.results.map(async (shop) => ({
+          ...shop,
+          isDuplicate: await isDuplicateShop(shop.place_id),
+        })),
+      )
 
       setSearchResults(shops)
       setNextPageToken(result.nextPageToken)
@@ -169,18 +155,21 @@ export default function EnhancedShopImportPage() {
     setIsSearching(true)
 
     try {
-      const result = await searchIceCreamBusinesses(
-        "ice cream",
-        { lat: location.lat, lng: location.lng },
-        location.radius,
+      const result = await searchPlaces({
+        location: { lat: location.lat, lng: location.lng },
+        radius: location.radius,
+        keyword: "ice cream",
+        type: "food",
         nextPageToken,
-      )
+      })
 
       // Mark duplicates
-      const newShops = result.results.map((shop) => ({
-        ...shop,
-        isDuplicate: !!existingShops[shop.place_id],
-      }))
+      const newShops = await Promise.all(
+        result.results.map(async (shop) => ({
+          ...shop,
+          isDuplicate: await isDuplicateShop(shop.place_id),
+        })),
+      )
 
       const allShops = [...searchResults, ...newShops]
       setSearchResults(allShops)
@@ -201,33 +190,24 @@ export default function EnhancedShopImportPage() {
   }
 
   // Apply filters to search results
-  const applyFilters = async (shops: ShopResult[], currentFilters: FilterData) => {
-    const { keywords, excludeKeywords } = currentFilters
+  const applyFilters = async (shops: ShopResult[], currentFilters: FilterOptions) => {
+    // Use the enhanced filtering function
+    const filtered = await filterIceCreamShops(shops, currentFilters)
 
-    const filtered = []
+    // Add matched keywords for display
+    const enhancedFiltered = filtered.map((shop) => {
+      const shopText = [shop.name, shop.vicinity || "", ...(shop.types || [])].join(" ").toLowerCase()
+      const matchedKeywords = currentFilters.includeKeywords?.filter((keyword) =>
+        shopText.includes(keyword.toLowerCase()),
+      )
 
-    for (const shop of shops) {
-      // Check if any shop details match our keywords
-      const shopText = [shop.name, shop.vicinity, ...(shop.types || [])].join(" ").toLowerCase()
-
-      // Check for matching keywords
-      const matchedKeywords = keywords.filter((keyword) => shopText.includes(keyword.toLowerCase()))
-
-      // Check for excluded keywords
-      const hasExcludedKeyword = excludeKeywords.some((keyword) => shopText.includes(keyword.toLowerCase()))
-
-      // Use the isIceCreamShop function to check if it's an ice cream shop
-      const isIceCream = await isIceCreamShop(shop, keywords, excludeKeywords)
-
-      // Store matched keywords for display
-      shop.matched_keywords = matchedKeywords
-
-      if ((matchedKeywords.length > 0 || isIceCream) && !hasExcludedKeyword) {
-        filtered.push(shop)
+      return {
+        ...shop,
+        matched_keywords: matchedKeywords,
       }
-    }
+    })
 
-    setFilteredResults(filtered)
+    setFilteredResults(enhancedFiltered)
   }
 
   // Toggle shop selection
@@ -281,37 +261,38 @@ export default function EnhancedShopImportPage() {
       failed: 0,
     })
 
-    const supabase = createClient()
-
     for (let i = 0; i < selectedShops.length; i++) {
       const shop = selectedShops[i]
 
       try {
-        // Get detailed information about the shop
-        const detailsResult = await getPlaceDetails(shop.place_id)
+        // Import the shop using our server action
+        const result = await importShop(shop.place_id, {
+          validateBeforeImport: true,
+          skipExisting: true,
+        })
 
-        // Convert to our shop format
-        const shopData = await convertPlaceToShop(detailsResult)
-
-        // Insert into database
-        const { data, error } = await supabase.from("shops").insert(shopData).select("id").single()
-
-        if (error) {
-          console.error("Error importing shop:", error)
-          setImportStats((prev) => ({
-            ...prev,
-            failed: prev.failed + 1,
-          }))
-        } else {
-          setImportStats((prev) => ({
-            ...prev,
-            imported: prev.imported + 1,
-          }))
+        if (result.success) {
+          if (result.imported > 0) {
+            setImportStats((prev) => ({
+              ...prev,
+              imported: prev.imported + 1,
+            }))
+          } else if (result.skipped > 0) {
+            setImportStats((prev) => ({
+              ...prev,
+              skipped: prev.skipped + 1,
+            }))
+          }
 
           // Add to existing shops to prevent duplicates
           setExistingShops((prev) => ({
             ...prev,
             [shop.place_id]: true,
+          }))
+        } else {
+          setImportStats((prev) => ({
+            ...prev,
+            failed: prev.failed + 1,
           }))
         }
       } catch (error) {
@@ -336,9 +317,17 @@ export default function EnhancedShopImportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Enhanced Shop Import</h1>
-        <p className="text-muted-foreground">Search and import ice cream shops from Google Places</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Enhanced Shop Import</h1>
+          <p className="text-muted-foreground">Search and import ice cream shops from Google Places</p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href="/dashboard/admin/shops/import">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Import Options
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

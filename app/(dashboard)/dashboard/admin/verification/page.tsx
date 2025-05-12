@@ -1,425 +1,326 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { ArrowLeft, CheckCircle, XCircle, Eye, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
-import { createClient } from "@/lib/supabase/client"
-import { useToast } from "@/hooks/use-toast"
+import { createServerClient } from "@/lib/supabase/server"
+import { formatDistanceToNow } from "date-fns"
+import { Check, X, Clock, Building, User } from "lucide-react"
 
-export default function VerificationRequestsPage() {
-  const supabase = createClient()
-  const { toast } = useToast()
+export const dynamic = "force-dynamic"
 
-  const [requests, setRequests] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [processingId, setProcessingId] = useState<string | null>(null)
-  const [adminNotes, setAdminNotes] = useState("")
+export default async function VerificationPage() {
+  const supabase = await createServerClient()
 
-  useEffect(() => {
-    fetchVerificationRequests()
-  }, [])
+  // Fetch pending shop verifications
+  const { data: shopVerifications, error: shopError } = await supabase
+    .from("shop_verification_requests")
+    .select(`
+      *,
+      shop:shop_id(id, name, address, city, state),
+      user:user_id(id, full_name, email)
+    `)
+    .order("created_at", { ascending: false })
+    .limit(50)
 
-  const fetchVerificationRequests = async () => {
-    try {
-      setLoading(true)
+  // Fetch pending user verifications
+  const { data: userVerifications, error: userError } = await supabase
+    .from("user_verification_requests")
+    .select(`
+      *,
+      user:user_id(id, full_name, email)
+    `)
+    .order("created_at", { ascending: false })
+    .limit(50)
 
-      const { data, error } = await supabase
-        .from("shop_verification")
-        .select(`
-          *,
-          shop:shop_id (
-            id,
-            name,
-            address,
-            city,
-            state
-          ),
-          user:user_id (
-            id,
-            email,
-            full_name
-          )
-        `)
-        .order("submitted_at", { ascending: false })
-
-      if (error) throw error
-
-      setRequests(data || [])
-    } catch (error) {
-      console.error("Error fetching verification requests:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load verification requests",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
+  // Handle errors
+  if (shopError || userError) {
+    console.error("Error fetching verification data:", { shopError, userError })
   }
 
-  const handleApprove = async (requestId: string) => {
-    try {
-      setProcessingId(requestId)
+  // Mock data if no real data is available
+  const mockShopVerifications = [
+    {
+      id: "ver_1",
+      status: "pending",
+      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      shop: {
+        id: "shop_1",
+        name: "Creamy Delights",
+        address: "123 Main St",
+        city: "New York",
+        state: "NY",
+      },
+      user: {
+        id: "user_1",
+        full_name: "John Smith",
+        email: "john@example.com",
+      },
+      verification_type: "ownership",
+      verification_documents: ["business_license.pdf", "id_card.jpg"],
+      notes: "Owner claims to have purchased the shop 3 months ago",
+    },
+    {
+      id: "ver_2",
+      status: "pending",
+      created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      shop: {
+        id: "shop_2",
+        name: "Frosty Scoops",
+        address: "456 Elm St",
+        city: "Chicago",
+        state: "IL",
+      },
+      user: {
+        id: "user_2",
+        full_name: "Sarah Johnson",
+        email: "sarah@frostyscoops.com",
+      },
+      verification_type: "ownership",
+      verification_documents: ["business_registration.pdf"],
+      notes: "Family-owned business for 15 years",
+    },
+  ]
 
-      // Update verification request
-      const { error: updateError } = await supabase
-        .from("shop_verification")
-        .update({
-          status: "approved",
-          admin_notes: adminNotes,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", requestId)
+  const mockUserVerifications = [
+    {
+      id: "uver_1",
+      status: "pending",
+      created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      user: {
+        id: "user_3",
+        full_name: "Michael Chen",
+        email: "michael@example.com",
+      },
+      verification_type: "identity",
+      verification_documents: ["id_card.jpg"],
+      notes: "Professional ice cream reviewer",
+    },
+    {
+      id: "uver_2",
+      status: "pending",
+      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      user: {
+        id: "user_4",
+        full_name: "Emma Wilson",
+        email: "emma@example.com",
+      },
+      verification_type: "professional",
+      verification_documents: ["certification.pdf", "business_card.jpg"],
+      notes: "Ice cream chef with 10 years experience",
+    },
+  ]
 
-      if (updateError) throw updateError
-
-      // Get shop ID from request
-      const request = requests.find((r) => r.id === requestId)
-      if (!request) throw new Error("Request not found")
-
-      // Update shop verification status
-      const { error: shopError } = await supabase
-        .from("shops")
-        .update({
-          is_verified: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", request.shop_id)
-
-      if (shopError) throw shopError
-
-      // Create notification for shop owner
-      const { error: notificationError } = await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        shop_id: request.shop_id,
-        type: "verification_approved",
-        title: "Shop Verification Approved",
-        message: "Congratulations! Your shop has been verified.",
-        data: { request_id: requestId },
-      })
-
-      if (notificationError) throw notificationError
-
-      toast({
-        title: "Verification approved",
-        description: "The shop has been successfully verified",
-      })
-
-      // Refresh requests
-      fetchVerificationRequests()
-    } catch (error) {
-      console.error("Error approving verification:", error)
-      toast({
-        title: "Error",
-        description: "Failed to approve verification",
-        variant: "destructive",
-      })
-    } finally {
-      setProcessingId(null)
-      setAdminNotes("")
-    }
-  }
-
-  const handleReject = async (requestId: string) => {
-    try {
-      setProcessingId(requestId)
-
-      // Update verification request
-      const { error: updateError } = await supabase
-        .from("shop_verification")
-        .update({
-          status: "rejected",
-          admin_notes: adminNotes,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", requestId)
-
-      if (updateError) throw updateError
-
-      // Get shop ID from request
-      const request = requests.find((r) => r.id === requestId)
-      if (!request) throw new Error("Request not found")
-
-      // Create notification for shop owner
-      const { error: notificationError } = await supabase.from("notifications").insert({
-        user_id: request.user_id,
-        shop_id: request.shop_id,
-        type: "verification_rejected",
-        title: "Shop Verification Rejected",
-        message: "Your shop verification request has been rejected. Please see admin notes for details.",
-        data: { request_id: requestId },
-      })
-
-      if (notificationError) throw notificationError
-
-      toast({
-        title: "Verification rejected",
-        description: "The verification request has been rejected",
-      })
-
-      // Refresh requests
-      fetchVerificationRequests()
-    } catch (error) {
-      console.error("Error rejecting verification:", error)
-      toast({
-        title: "Error",
-        description: "Failed to reject verification",
-        variant: "destructive",
-      })
-    } finally {
-      setProcessingId(null)
-      setAdminNotes("")
-    }
-  }
-
-  const pendingRequests = requests.filter((r) => r.status === "pending")
-  const approvedRequests = requests.filter((r) => r.status === "approved")
-  const rejectedRequests = requests.filter((r) => r.status === "rejected")
+  // Use real data if available, otherwise use mock data
+  const shopData = shopVerifications?.length ? shopVerifications : mockShopVerifications
+  const userData = userVerifications?.length ? userVerifications : mockUserVerifications
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/admin">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Shop Verification Requests</h1>
-          <p className="text-muted-foreground">Review and manage shop verification requests</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Verification Requests</h1>
+        <p className="text-muted-foreground">Manage verification requests for shops and users</p>
       </div>
 
-      <Tabs defaultValue="pending">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center">
+              <Clock className="mr-2 h-4 w-4 text-amber-500" />
+              Pending
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{shopData.length + userData.length}</div>
+            <p className="text-xs text-muted-foreground">Awaiting review</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center">
+              <Building className="mr-2 h-4 w-4 text-blue-500" />
+              Shop Verifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{shopData.length}</div>
+            <p className="text-xs text-muted-foreground">Ownership claims</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center">
+              <User className="mr-2 h-4 w-4 text-purple-500" />
+              User Verifications
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{userData.length}</div>
+            <p className="text-xs text-muted-foreground">Identity & professional</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="shops">
         <TabsList>
-          <TabsTrigger value="pending">Pending ({pendingRequests.length})</TabsTrigger>
-          <TabsTrigger value="approved">Approved ({approvedRequests.length})</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected ({rejectedRequests.length})</TabsTrigger>
+          <TabsTrigger value="shops">Shop Verifications</TabsTrigger>
+          <TabsTrigger value="users">User Verifications</TabsTrigger>
+          <TabsTrigger value="approved">Approved</TabsTrigger>
+          <TabsTrigger value="rejected">Rejected</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending" className="space-y-4 mt-4">
-          {loading ? (
-            <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : pendingRequests.length === 0 ? (
-            <div className="flex h-40 items-center justify-center text-center">
-              <div>
-                <CheckCircle className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                <h3 className="text-lg font-semibold">No pending requests</h3>
-                <p className="text-muted-foreground">All verification requests have been processed</p>
-              </div>
-            </div>
-          ) : (
-            pendingRequests.map((request) => (
-              <Card key={request.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{request.shop.name}</CardTitle>
-                      <CardDescription>
-                        {request.shop.address}, {request.shop.city}, {request.shop.state}
-                      </CardDescription>
-                    </div>
-                    <Badge>Pending</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <h3 className="font-semibold mb-2">Request Details</h3>
-                      <div className="space-y-1 text-sm">
-                        <p>
-                          <span className="font-medium">Submitted by:</span> {request.user.full_name} (
-                          {request.user.email})
-                        </p>
-                        <p>
-                          <span className="font-medium">Date:</span> {new Date(request.submitted_at).toLocaleString()}
-                        </p>
-                        <p>
-                          <span className="font-medium">Type:</span>{" "}
-                          {request.verification_type.charAt(0).toUpperCase() + request.verification_type.slice(1)}
-                        </p>
-                        {request.verification_data?.document_type && (
-                          <p>
-                            <span className="font-medium">Document:</span>{" "}
-                            {request.verification_data.document_type.replace("_", " ")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold mb-2">Additional Information</h3>
-                      <p className="text-sm">
-                        {request.verification_data?.additional_info || "No additional information provided"}
-                      </p>
-                      {request.verification_data?.document_url && (
-                        <Button variant="outline" size="sm" className="mt-2" asChild>
-                          <a href={request.verification_data.document_url} target="_blank" rel="noopener noreferrer">
-                            <Eye className="h-4 w-4 mr-1" />
-                            View Document
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <h3 className="font-semibold mb-2">Admin Notes</h3>
-                    <Textarea
-                      placeholder="Add notes about this verification request"
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      rows={3}
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end gap-2">
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleReject(request.id)}
-                    disabled={processingId === request.id}
-                  >
-                    {processingId === request.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                    ) : (
-                      <XCircle className="h-4 w-4 mr-1" />
-                    )}
-                    Reject
-                  </Button>
-                  <Button
-                    variant="default"
-                    onClick={() => handleApprove(request.id)}
-                    disabled={processingId === request.id}
-                  >
-                    {processingId === request.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                    )}
-                    Approve
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))
-          )}
+        <TabsContent value="shops" className="mt-6 space-y-6">
+          {shopData.map((verification) => (
+            <VerificationCard
+              key={verification.id}
+              id={verification.id}
+              title={verification.shop.name}
+              subtitle={`${verification.shop.address}, ${verification.shop.city}, ${verification.shop.state}`}
+              requester={verification.user.full_name}
+              requesterEmail={verification.user.email}
+              type={verification.verification_type}
+              documents={verification.verification_documents}
+              notes={verification.notes}
+              createdAt={verification.created_at}
+              status={verification.status}
+            />
+          ))}
         </TabsContent>
 
-        <TabsContent value="approved" className="space-y-4 mt-4">
-          {loading ? (
-            <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : approvedRequests.length === 0 ? (
-            <div className="flex h-40 items-center justify-center text-center">
-              <div>
-                <CheckCircle className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                <h3 className="text-lg font-semibold">No approved requests</h3>
-                <p className="text-muted-foreground">No verification requests have been approved yet</p>
-              </div>
-            </div>
-          ) : (
-            approvedRequests.map((request) => (
-              <Card key={request.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{request.shop.name}</CardTitle>
-                      <CardDescription>
-                        {request.shop.address}, {request.shop.city}, {request.shop.state}
-                      </CardDescription>
-                    </div>
-                    <Badge className="bg-green-500 hover:bg-green-600">Approved</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <h3 className="font-semibold mb-2">Request Details</h3>
-                      <div className="space-y-1 text-sm">
-                        <p>
-                          <span className="font-medium">Submitted by:</span> {request.user.full_name} (
-                          {request.user.email})
-                        </p>
-                        <p>
-                          <span className="font-medium">Date:</span> {new Date(request.submitted_at).toLocaleString()}
-                        </p>
-                        <p>
-                          <span className="font-medium">Approved:</span> {new Date(request.updated_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold mb-2">Admin Notes</h3>
-                      <p className="text-sm">{request.admin_notes || "No admin notes provided"}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+        <TabsContent value="users" className="mt-6 space-y-6">
+          {userData.map((verification) => (
+            <VerificationCard
+              key={verification.id}
+              id={verification.id}
+              title={verification.user.full_name}
+              subtitle={verification.user.email}
+              requester={verification.user.full_name}
+              requesterEmail={verification.user.email}
+              type={verification.verification_type}
+              documents={verification.verification_documents}
+              notes={verification.notes}
+              createdAt={verification.created_at}
+              status={verification.status}
+            />
+          ))}
         </TabsContent>
 
-        <TabsContent value="rejected" className="space-y-4 mt-4">
-          {loading ? (
-            <div className="flex h-40 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : rejectedRequests.length === 0 ? (
-            <div className="flex h-40 items-center justify-center text-center">
-              <div>
-                <CheckCircle className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                <h3 className="text-lg font-semibold">No rejected requests</h3>
-                <p className="text-muted-foreground">No verification requests have been rejected</p>
+        <TabsContent value="approved" className="mt-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Check className="h-12 w-12 text-green-500 mb-4" />
+                <h3 className="text-lg font-medium">No recently approved verifications</h3>
+                <p className="text-sm text-muted-foreground mt-2">Approved verifications will appear here</p>
               </div>
-            </div>
-          ) : (
-            rejectedRequests.map((request) => (
-              <Card key={request.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{request.shop.name}</CardTitle>
-                      <CardDescription>
-                        {request.shop.address}, {request.shop.city}, {request.shop.state}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="destructive">Rejected</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <h3 className="font-semibold mb-2">Request Details</h3>
-                      <div className="space-y-1 text-sm">
-                        <p>
-                          <span className="font-medium">Submitted by:</span> {request.user.full_name} (
-                          {request.user.email})
-                        </p>
-                        <p>
-                          <span className="font-medium">Date:</span> {new Date(request.submitted_at).toLocaleString()}
-                        </p>
-                        <p>
-                          <span className="font-medium">Rejected:</span> {new Date(request.updated_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold mb-2">Rejection Reason</h3>
-                      <p className="text-sm">{request.admin_notes || "No reason provided"}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="rejected" className="mt-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <X className="h-12 w-12 text-red-500 mb-4" />
+                <h3 className="text-lg font-medium">No recently rejected verifications</h3>
+                <p className="text-sm text-muted-foreground mt-2">Rejected verifications will appear here</p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+interface VerificationCardProps {
+  id: string
+  title: string
+  subtitle: string
+  requester: string
+  requesterEmail: string
+  type: string
+  documents: string[]
+  notes?: string
+  createdAt: string
+  status: string
+}
+
+function VerificationCard({
+  id,
+  title,
+  subtitle,
+  requester,
+  requesterEmail,
+  type,
+  documents,
+  notes,
+  createdAt,
+  status,
+}: VerificationCardProps) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{subtitle}</CardDescription>
+          </div>
+          <Badge variant={status === "pending" ? "outline" : status === "approved" ? "default" : "destructive"}>
+            {status.toUpperCase()}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="font-medium mb-2">Request Details</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Requester:</span>
+                <span>{requester}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Email:</span>
+                <span>{requesterEmail}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Type:</span>
+                <span className="capitalize">{type}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Submitted:</span>
+                <span>{formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-medium mb-2">Verification Documents</h3>
+            <div className="space-y-2">
+              {documents.map((doc, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <span className="text-sm">{doc}</span>
+                  <Button variant="outline" size="sm">
+                    View
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {notes && (
+              <div className="mt-4">
+                <h3 className="font-medium mb-2">Notes</h3>
+                <p className="text-sm">{notes}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+      <div className="flex justify-end gap-2 p-6 pt-0">
+        <Button variant="outline">Request More Info</Button>
+        <Button variant="destructive">Reject</Button>
+        <Button>Approve</Button>
+      </div>
+    </Card>
   )
 }

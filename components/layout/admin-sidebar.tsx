@@ -16,6 +16,9 @@ import {
   CreditCard,
   CreditCardIcon,
   History,
+  Mail,
+  TestTube,
+  UserCheck,
 } from "lucide-react"
 
 export function AdminSidebar() {
@@ -59,6 +62,12 @@ export function AdminSidebar() {
       active: pathname === "/dashboard/admin/verification",
     },
     {
+      label: "Roles",
+      icon: UserCheck,
+      href: "/dashboard/admin/roles",
+      active: pathname === "/dashboard/admin/roles" || pathname?.startsWith("/dashboard/admin/roles/"),
+    },
+    {
       label: "Subscriptions",
       icon: CreditCard,
       href: "/dashboard/admin/subscriptions",
@@ -71,10 +80,22 @@ export function AdminSidebar() {
       active: pathname === "/dashboard/admin/stripe-mapping",
     },
     {
+      label: "Newsletters",
+      icon: Mail,
+      href: "/dashboard/admin/newsletters",
+      active: pathname === "/dashboard/admin/newsletters" || pathname?.startsWith("/dashboard/admin/newsletters/"),
+    },
+    {
       label: "Analytics",
       icon: BarChart3,
       href: "/dashboard/admin/analytics",
-      active: pathname === "/dashboard/admin/analytics",
+      active: pathname === "/dashboard/admin/analytics" || pathname?.startsWith("/dashboard/admin/analytics/"),
+    },
+    {
+      label: "Testing",
+      icon: TestTube,
+      href: "/dashboard/admin/testing",
+      active: pathname === "/dashboard/admin/testing",
     },
     {
       label: "Audit Logs",

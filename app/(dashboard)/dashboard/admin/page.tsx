@@ -1,7 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Store, Award, MessageSquare, TrendingUp, Activity, AlertTriangle } from "lucide-react"
+import { Users, Store, Award, MessageSquare, TrendingUp, Activity, AlertTriangle, LinkIcon } from "lucide-react"
 import { createServerClient } from "@/lib/supabase/server"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export const dynamic = "force-dynamic"
 
@@ -124,8 +126,8 @@ export default async function AdminDashboardPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            <Card className="col-span-4">
               <CardHeader>
                 <CardTitle>Recent Activity</CardTitle>
                 <CardDescription>Latest user and system activities</CardDescription>
@@ -156,32 +158,43 @@ export default async function AdminDashboardPage() {
                 )}
               </CardContent>
             </Card>
-
-            <Card>
+            <Card className="col-span-3">
               <CardHeader>
                 <CardTitle>System Status</CardTitle>
                 <CardDescription>Current system performance metrics</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Server Load</p>
-                  <p className="text-sm text-green-500">{serverStatus?.status || "Normal"}</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Database</p>
-                  <p className="text-sm text-green-500">{dbStatus?.status || "Healthy"}</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">API Response</p>
-                  <p className="text-sm text-green-500">{serverStatus?.response_time || "Fast (120ms)"}</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Storage</p>
-                  <p className="text-sm text-amber-500">{storageStatus?.usage || "75% Used"}</p>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Server Load</p>
+                    <p className="text-sm text-green-500">{serverStatus?.status || "Normal"}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Database</p>
+                    <p className="text-sm text-green-500">{dbStatus?.status || "Healthy"}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">API Response</p>
+                    <p className="text-sm text-green-500">{serverStatus?.response_time || "Fast (120ms)"}</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Storage</p>
+                    <p className="text-sm text-amber-500">{storageStatus?.usage || "75% Used"}</p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t">
+                    <Button asChild variant="outline" size="sm" className="w-full">
+                      <Link href="/dashboard/admin/navigation-audit">
+                        <LinkIcon className="mr-2 h-4 w-4" />
+                        View Navigation Audit
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
+          </div>
 
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle>Alerts</CardTitle>
@@ -208,20 +221,20 @@ export default async function AdminDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Growth Trends</CardTitle>
-              <CardDescription>User and content growth over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[200px] w-full rounded-md border border-dashed flex items-center justify-center">
-                <TrendingUp className="h-8 w-8 text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">Growth chart placeholder</span>
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="col-span-2">
+              <CardHeader>
+                <CardTitle>Growth Trends</CardTitle>
+                <CardDescription>User and content growth over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[200px] w-full rounded-md border border-dashed flex items-center justify-center">
+                  <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Growth chart placeholder</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
