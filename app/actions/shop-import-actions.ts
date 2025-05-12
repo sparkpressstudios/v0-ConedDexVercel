@@ -1,198 +1,169 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
-import {
-  searchIceCreamBusinesses,
-  getPlaceDetails,
-  convertPlaceToShop,
-  batchSearchIceCreamBusinesses,
-} from "@/lib/services/google-places-service"
-import type { PlaceDetails } from "@/lib/services/google-places-service"
+import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { searchPlaces, getPlaceDetails } from "../api/maps/actions"
 
-/**
- * Server action to search for ice cream businesses
- */
-export async function searchBusinesses(
-  query: string,
-  location?: { lat: number; lng: number },
-  radius = 50000,
-  nextPageToken?: string,
-) {
+// Function to search for businesses
+export async function searchBusinesses(query: string, location?: string, radius?: number) {
   try {
-    const result = await searchIceCreamBusinesses(query, location, radius, nextPageToken)
-    return { success: true, ...result }
+    const result = await searchPlaces(query, location, radius)
+    return result
   } catch (error) {
-    console.error("Error searching for businesses:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-      results: [],
-    }
+    console.error("Error searching businesses:", error)
+    throw new Error("Failed to search businesses")
   }
 }
 
-/**
- * Server action to get details for a place
- */
+// Function to get business details
 export async function getBusinessDetails(placeId: string) {
   try {
-    const details = await getPlaceDetails(placeId)
-    return { success: true, details }
+    const result = await getPlaceDetails(placeId)
+    return result
   } catch (error) {
-    console.error("Error getting place details:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-      details: null,
-    }
+    console.error("Error getting business details:", error)
+    throw new Error("Failed to get business details")
   }
 }
 
-/**
- * Server action to import a shop to the database
- */
-export async function importShopToDatabase(place: PlaceDetails) {
+// Add the missing importShopToDatabase function
+export async function importShopToDatabase(placeDetails: any) {
   try {
-    const supabase = createClient()
-    const shopData = await convertPlaceToShop(place)
+    const supabase = createServerActionClient({ cookies })
 
     // Check if shop already exists
-    const { data: existingShops } = await supabase
+    const { data: existingShop } = await supabase
       .from("shops")
       .select("id")
-      .eq("name", shopData.name)
-      .eq("address", shopData.address)
-      .limit(1)
+      .eq("place_id", placeDetails.place_id)
+      .single()
 
-    if (existingShops && existingShops.length > 0) {
+    if (existingShop) {
       return {
         success: false,
-        message: "This shop already exists in the database.",
+        message: "Shop already exists in the database",
+        shopId: existingShop.id,
       }
     }
 
-    // Insert the new shop
-    const { data, error } = await supabase.from("shops").insert([shopData]).select()
+    // Format the shop data
+    const shopData = {
+      name: placeDetails.name,
+      address: placeDetails.formatted_address,
+      phone: placeDetails.formatted_phone_number,
+      website: placeDetails.website,
+      place_id: placeDetails.place_id,
+      latitude: placeDetails.geometry?.location?.lat,
+      longitude: placeDetails.geometry?.location?.lng,
+      rating: placeDetails.rating,
+      photo_reference: placeDetails.photos?.[0]?.photo_reference,
+      status: "active",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
 
-    if (error) throw error
+    // Insert the shop
+    const { data: shop, error } = await supabase.from("shops").insert(shopData).select("id").single()
+
+    if (error) {
+      console.error("Error importing shop:", error)
+      return { success: false, message: error.message }
+    }
 
     return {
       success: true,
-      message: `Successfully imported ${shopData.name} to the database.`,
-      shop: data[0],
+      message: "Shop imported successfully",
+      shopId: shop.id,
     }
   } catch (error) {
     console.error("Error importing shop:", error)
     return {
       success: false,
-      message: "Failed to import shop. Please try again.",
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      message: error instanceof Error ? error.message : "Failed to import shop",
     }
   }
 }
 
-/**
- * Server action to batch import shops from multiple locations
- */
-export async function batchImportShops(
-  locations: { name: string; lat: number; lng: number }[],
-  radius = 25000,
-  onProgress?: (status: any) => void,
-) {
+// Function to import a shop
+export async function importShop(shopData: any) {
   try {
-    const supabase = createClient()
-    const results = []
+    const supabase = createServerActionClient({ cookies })
 
-    // First pass to get total count
-    const batchResults = await batchSearchIceCreamBusinesses(locations, radius)
-    const totalShops = batchResults.reduce((sum, location) => sum + location.results.length, 0)
+    // Check if shop already exists
+    const { data: existingShop } = await supabase.from("shops").select("id").eq("place_id", shopData.place_id).single()
 
-    let totalProcessed = 0
-    let totalImported = 0
-    let totalSkipped = 0
-    let totalFailed = 0
-
-    // Process each location
-    for (const locationResult of batchResults) {
-      // Process each shop in the location
-      for (const place of locationResult.results) {
-        try {
-          // Get detailed information
-          const details = await getPlaceDetails(place.place_id)
-          const shopData = await convertPlaceToShop(details)
-
-          // Check if shop already exists
-          const { data: existingShops } = await supabase
-            .from("shops")
-            .select("id")
-            .eq("googlePlaceId", place.place_id)
-            .limit(1)
-
-          if (existingShops && existingShops.length > 0) {
-            totalSkipped++
-            totalProcessed++
-            continue
-          }
-
-          // Insert the shop
-          const { error } = await supabase.from("shops").insert([shopData])
-
-          if (error) {
-            throw error
-          }
-
-          totalImported++
-          results.push(shopData)
-
-          // Add a small delay to avoid rate limiting
-          await new Promise((resolve) => setTimeout(resolve, 500))
-        } catch (error) {
-          console.error("Error importing shop:", error)
-          totalFailed++
-        }
-
-        totalProcessed++
-      }
+    if (existingShop) {
+      return { success: false, message: "Shop already exists", shopId: existingShop.id }
     }
 
-    return {
-      success: true,
-      total: totalShops,
-      processed: totalProcessed,
-      imported: totalImported,
-      skipped: totalSkipped,
-      failed: totalFailed,
-      results,
+    // Insert the shop
+    const { data: shop, error } = await supabase
+      .from("shops")
+      .insert({
+        name: shopData.name,
+        address: shopData.formatted_address,
+        phone: shopData.formatted_phone_number,
+        website: shopData.website,
+        place_id: shopData.place_id,
+        latitude: shopData.geometry?.location?.lat,
+        longitude: shopData.geometry?.location?.lng,
+        rating: shopData.rating,
+        photo_reference: shopData.photos?.[0]?.photo_reference,
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single()
+
+    if (error) {
+      console.error("Error importing shop:", error)
+      return { success: false, message: error.message }
     }
+
+    return { success: true, message: "Shop imported successfully", shopId: shop.id }
   } catch (error) {
-    console.error("Error in batch import:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-    }
+    console.error("Error importing shop:", error)
+    throw new Error("Failed to import shop")
   }
 }
 
-/**
- * Server action to check if a shop already exists
- */
-export async function checkShopExists(name: string, address: string) {
+// Function to batch import shops
+export async function batchImportShops(shops: any[]) {
   try {
-    const supabase = createClient()
-    const { data, error } = await supabase.from("shops").select("id").eq("name", name).eq("address", address).limit(1)
+    const supabase = createServerActionClient({ cookies })
 
-    if (error) throw error
+    // Prepare the shops data
+    const shopsData = shops.map((shop) => ({
+      name: shop.name,
+      address: shop.formatted_address,
+      phone: shop.formatted_phone_number,
+      website: shop.website,
+      place_id: shop.place_id,
+      latitude: shop.geometry?.location?.lat,
+      longitude: shop.geometry?.location?.lng,
+      rating: shop.rating,
+      photo_reference: shop.photos?.[0]?.photo_reference,
+      status: "active",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
+
+    // Insert the shops
+    const { data, error } = await supabase.from("shops").insert(shopsData).select("id")
+
+    if (error) {
+      console.error("Error batch importing shops:", error)
+      return { success: false, message: error.message }
+    }
 
     return {
       success: true,
-      exists: data && data.length > 0,
+      message: `${data.length} shops imported successfully`,
+      shopIds: data.map((shop) => shop.id),
     }
   } catch (error) {
-    console.error("Error checking if shop exists:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-      exists: false,
-    }
+    console.error("Error batch importing shops:", error)
+    throw new Error("Failed to batch import shops")
   }
 }

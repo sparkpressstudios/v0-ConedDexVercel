@@ -1,75 +1,80 @@
 "use client"
 
+import type React from "react"
+
 import { useEffect, useState } from "react"
-import { getMapsApiUrl } from "@/app/api/maps/actions"
+import Script from "next/script"
 
 interface MapsApiLoaderProps {
-  onLoad?: () => void
-  onError?: (error: Error) => void
+  children: React.ReactNode
+  libraries?: string[]
+  callback?: string
 }
 
-declare global {
-  interface Window {
-    initMap: () => void
-  }
-}
-
-export function MapsApiLoader({ onLoad, onError }: MapsApiLoaderProps) {
-  const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
+export default function MapsApiLoader({ children, libraries = ["places"], callback = "initMap" }: MapsApiLoaderProps) {
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [scriptSrc, setScriptSrc] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    async function loadMapsApi() {
+    // Check if Google Maps is already loaded
+    if (window.google && window.google.maps) {
+      setIsLoaded(true)
+      return
+    }
+
+    // Define the callback function
+    window[callback as keyof typeof window] = () => {
+      setIsLoaded(true)
+    }
+
+    // Get the script URL from our API
+    const fetchScriptUrl = async () => {
       try {
-        // Check if Maps API is already loaded
-        if (window.google?.maps) {
-          setLoaded(true)
-          onLoad?.()
+        const librariesParam = libraries.join(",")
+        const response = await fetch(`/api/maps/loader?libraries=${librariesParam}`)
+        const data = await response.json()
+
+        if (data.error) {
+          setError(data.error)
           return
         }
 
-        // Get the Maps API URL from the server
-        const mapsUrl = await getMapsApiUrl()
-
-        if (!mapsUrl) {
-          throw new Error("Maps API not configured")
-        }
-
-        // Define the callback function
-        window.initMap = () => {
-          setLoaded(true)
-          onLoad?.()
-        }
-
-        // Create and append the script tag
-        const script = document.createElement("script")
-        script.src = mapsUrl
-        script.async = true
-        script.defer = true
-        script.onerror = (e) => {
-          const error = new Error("Failed to load Google Maps API")
-          setError(error)
-          onError?.(error)
-        }
-
-        document.head.appendChild(script)
-
-        return () => {
-          // Clean up
-          if (window.initMap) {
-            delete window.initMap
-          }
-          document.head.removeChild(script)
-        }
+        setScriptSrc(data.apiUrl)
       } catch (err) {
-        const error = err instanceof Error ? err : new Error("Unknown error loading Maps API")
-        setError(error)
-        onError?.(error)
+        setError("Failed to get Maps API URL")
+        console.error("Error fetching Maps API URL:", err)
       }
     }
 
-    loadMapsApi()
-  }, [onLoad, onError])
+    fetchScriptUrl()
 
-  return null
+    return () => {
+      // Clean up
+      delete window[callback as keyof typeof window]
+    }
+  }, [libraries, callback])
+
+  if (error) {
+    return <div className="p-4 text-red-500">Error loading Google Maps: {error}</div>
+  }
+
+  return (
+    <>
+      {scriptSrc && (
+        <Script
+          src={scriptSrc}
+          strategy="afterInteractive"
+          onError={() => setError("Failed to load Google Maps API")}
+        />
+      )}
+      <div className={isLoaded ? "block" : "hidden"}>{children}</div>
+      {!isLoaded && (
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <span className="ml-2">Loading maps...</span>
+        </div>
+      )}
+    </>
+  )
 }

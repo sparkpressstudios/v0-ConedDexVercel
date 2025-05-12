@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server"
+import { getMapsApiUrl } from "../actions"
 
-export async function GET() {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const libraries = searchParams.get("libraries")?.split(",") || ["places"]
 
-  if (!apiKey) {
-    return NextResponse.json({ configured: false }, { status: 500 })
+    const apiUrl = await getMapsApiUrl(libraries)
+
+    return NextResponse.json({ apiUrl })
+  } catch (error) {
+    console.error("Error getting Maps API URL:", error)
+    return NextResponse.json({ error: "Failed to get Maps API URL" }, { status: 500 })
   }
-
-  // Return the URL to our loader script
-  return NextResponse.json({
-    configured: true,
-    mapUrl: `/api/maps/script`,
-  })
 }
