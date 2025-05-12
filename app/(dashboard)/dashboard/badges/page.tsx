@@ -1,10 +1,14 @@
-import { createServerClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Award, Lock, TrendingUp, Star } from "lucide-react"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/lib/database.types"
+
+// Mark this page as dynamic to allow cookies usage
+export const dynamic = "force-dynamic"
 
 // Demo user data
 const demoUsers = {
@@ -138,7 +142,8 @@ const rarityColors = {
 }
 
 export default async function BadgesPage() {
-  const supabase = createServerClient()
+  // Create the Supabase client directly in the component
+  const supabase = createServerComponentClient<Database>({ cookies })
 
   // Check for demo user in cookies
   const cookieStore = cookies()

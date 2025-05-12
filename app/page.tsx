@@ -10,6 +10,9 @@ import { cookies } from "next/headers"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/lib/database.types"
 
+// Mark this page as dynamic to allow cookies usage
+export const dynamic = "force-dynamic"
+
 export default async function RootPage() {
   // Create the Supabase client directly in the component
   const supabase = createServerComponentClient<Database>({ cookies })
