@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation"
-import { createServerClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { ArrowRight, IceCream, MapPin, Award, Users, Search, Store } from "lucide-react"
 
@@ -7,13 +6,21 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { PublicHeader } from "@/components/layout/public-header"
 import { PublicFooter } from "@/components/layout/public-footer"
+import { cookies } from "next/headers"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import type { Database } from "@/lib/database.types"
 
 export default async function RootPage() {
-  const supabase = createServerClient()
+  // Create the Supabase client directly in the component
+  const supabase = createServerComponentClient<Database>({ cookies })
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  let session = null
+  try {
+    const { data } = await supabase.auth.getSession()
+    session = data.session
+  } catch (error) {
+    console.error("Error getting session:", error)
+  }
 
   if (session) {
     redirect("/dashboard")
