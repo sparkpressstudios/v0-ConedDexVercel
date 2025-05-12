@@ -19,6 +19,7 @@ import {
   Mail,
   TestTube,
   UserCheck,
+  CheckSquare,
 } from "lucide-react"
 
 export function AdminSidebar() {
@@ -42,6 +43,12 @@ export function AdminSidebar() {
       icon: Building,
       href: "/dashboard/admin/shops",
       active: pathname === "/dashboard/admin/shops" || pathname?.startsWith("/dashboard/admin/shops/"),
+    },
+    {
+      label: "Shop Claims",
+      icon: CheckSquare,
+      href: "/dashboard/admin/shops/claims",
+      active: pathname === "/dashboard/admin/shops/claims",
     },
     {
       label: "Badges",

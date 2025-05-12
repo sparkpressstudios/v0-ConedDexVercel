@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/hooks/use-toast"
 import { LocationSearch } from "@/components/admin/shop-import/location-search"
 import { ShopTypeFilter } from "@/components/admin/shop-import/shop-type-filter"
+import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import {
   searchPlaces,
@@ -55,6 +56,13 @@ export default function EnhancedShopImportPage() {
   })
   const [nextPageToken, setNextPageToken] = useState<string | undefined>()
   const [existingShops, setExistingShops] = useState<{ [key: string]: boolean }>({})
+
+  // Import options
+  const [importOptions, setImportOptions] = useState({
+    importReviews: true,
+    updateExisting: false,
+    validateBeforeImport: true,
+  })
 
   const { toast } = useToast()
 
@@ -212,7 +220,7 @@ export default function EnhancedShopImportPage() {
 
   // Toggle shop selection
   const toggleShopSelection = (shop: ShopResult) => {
-    if (shop.isDuplicate) return // Don't allow selecting duplicates
+    if (shop.isDuplicate && !importOptions.updateExisting) return // Don't allow selecting duplicates unless updating existing
 
     setFilteredResults((prev) =>
       prev.map((s) => (s.place_id === shop.place_id ? { ...s, isSelected: !s.isSelected } : s)),
@@ -227,17 +235,27 @@ export default function EnhancedShopImportPage() {
 
   // Select all filtered shops
   const selectAllShops = () => {
-    const nonDuplicates = filteredResults.filter((shop) => !shop.isDuplicate)
+    // If updateExisting is true, allow selecting duplicates
+    const eligibleShops = importOptions.updateExisting
+      ? filteredResults
+      : filteredResults.filter((shop) => !shop.isDuplicate)
 
-    setFilteredResults((prev) => prev.map((shop) => (shop.isDuplicate ? shop : { ...shop, isSelected: true })))
+    setFilteredResults((prev) =>
+      prev.map((shop) => {
+        if (importOptions.updateExisting) {
+          return { ...shop, isSelected: true }
+        } else {
+          return shop.isDuplicate ? shop : { ...shop, isSelected: true }
+        }
+      }),
+    )
 
-    setSelectedShops(nonDuplicates.map((shop) => ({ ...shop, isSelected: true })))
+    setSelectedShops(eligibleShops.map((shop) => ({ ...shop, isSelected: true })))
   }
 
   // Deselect all shops
   const deselectAllShops = () => {
     setFilteredResults((prev) => prev.map((shop) => ({ ...shop, isSelected: false })))
-
     setSelectedShops([])
   }
 
@@ -261,14 +279,24 @@ export default function EnhancedShopImportPage() {
       failed: 0,
     })
 
+    // Get current user for audit trail
+    const supabase = createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    const adminUserId = user?.id
+
     for (let i = 0; i < selectedShops.length; i++) {
       const shop = selectedShops[i]
 
       try {
         // Import the shop using our server action
         const result = await importShop(shop.place_id, {
-          validateBeforeImport: true,
-          skipExisting: true,
+          validateBeforeImport: importOptions.validateBeforeImport,
+          skipExisting: !importOptions.updateExisting,
+          updateExisting: importOptions.updateExisting,
+          importReviews: importOptions.importReviews,
+          adminUserId,
         })
 
         if (result.success) {
@@ -335,6 +363,63 @@ export default function EnhancedShopImportPage() {
         <ShopTypeFilter onFilterChange={handleFilterChange} />
       </div>
 
+      {/* Import Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Import Options</CardTitle>
+          <CardDescription>Configure how shops are imported into the database</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="importReviews"
+                checked={importOptions.importReviews}
+                onCheckedChange={(checked) =>
+                  setImportOptions((prev) => ({ ...prev, importReviews: checked === true }))
+                }
+              />
+              <label
+                htmlFor="importReviews"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Import reviews from Google Places
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="updateExisting"
+                checked={importOptions.updateExisting}
+                onCheckedChange={(checked) =>
+                  setImportOptions((prev) => ({ ...prev, updateExisting: checked === true }))
+                }
+              />
+              <label
+                htmlFor="updateExisting"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Update existing shops (if already imported)
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="validateBeforeImport"
+                checked={importOptions.validateBeforeImport}
+                onCheckedChange={(checked) =>
+                  setImportOptions((prev) => ({ ...prev, validateBeforeImport: checked === true }))
+                }
+              />
+              <label
+                htmlFor="validateBeforeImport"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Validate shop data before importing
+              </label>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {location && (
         <Card>
           <CardHeader>
@@ -398,9 +483,11 @@ export default function EnhancedShopImportPage() {
                         <div
                           key={shop.place_id}
                           className={`grid grid-cols-[auto_80px_1fr_auto] gap-4 p-3 border-b last:border-0 hover:bg-muted/50 ${
-                            shop.isDuplicate ? "opacity-50" : ""
+                            shop.isDuplicate && !importOptions.updateExisting ? "opacity-50" : ""
                           }`}
-                          onClick={() => !shop.isDuplicate && toggleShopSelection(shop)}
+                          onClick={() =>
+                            shop.isDuplicate && !importOptions.updateExisting ? null : toggleShopSelection(shop)
+                          }
                         >
                           <div className="flex items-center justify-center w-8">
                             {shop.isDuplicate ? (
@@ -450,7 +537,9 @@ export default function EnhancedShopImportPage() {
                               </div>
                             )}
                             {shop.isDuplicate && (
-                              <div className="text-xs text-yellow-600 mt-1">Already in database</div>
+                              <div className="text-xs text-yellow-600 mt-1">
+                                {importOptions.updateExisting ? "Will update existing shop" : "Already in database"}
+                              </div>
                             )}
                           </div>
                           <div className="text-right">

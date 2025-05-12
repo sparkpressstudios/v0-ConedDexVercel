@@ -83,6 +83,8 @@ export interface PlaceDetails {
     rating: number
     text: string
     time: number
+    profile_photo_url?: string
+    relative_time_description?: string
   }[]
   price_level?: number
   editorial_summary?: {
@@ -90,6 +92,32 @@ export interface PlaceDetails {
   }
   permanently_closed?: boolean
   business_status?: string
+  utc_offset?: number
+  address_components?: {
+    long_name: string
+    short_name: string
+    types: string[]
+  }[]
+  // Additional attributes from Place Details
+  wheelchair_accessible_entrance?: boolean
+  serves_beer?: boolean
+  serves_wine?: boolean
+  serves_vegetarian_food?: boolean
+  takeout?: boolean
+  delivery?: boolean
+  dine_in?: boolean
+  outdoor_seating?: boolean
+  reservable?: boolean
+  serves_breakfast?: boolean
+  serves_lunch?: boolean
+  serves_dinner?: boolean
+  accepts_credit_cards?: boolean
+  popular_times?: any
+  current_opening_hours?: {
+    open_now?: boolean
+    periods?: any[]
+    weekday_text?: string[]
+  }
 }
 
 export interface SearchOptions {
@@ -302,6 +330,22 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
       "editorial_summary",
       "business_status",
       "permanently_closed",
+      "utc_offset",
+      "address_components",
+      "wheelchair_accessible_entrance",
+      "serves_beer",
+      "serves_wine",
+      "serves_vegetarian_food",
+      "takeout",
+      "delivery",
+      "dine_in",
+      "outdoor_seating",
+      "reservable",
+      "serves_breakfast",
+      "serves_lunch",
+      "serves_dinner",
+      "accepts_credit_cards",
+      "current_opening_hours",
     ].join(",")
 
     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${apiKey}`
@@ -467,14 +511,17 @@ export async function convertPlaceToShop(place: PlaceDetails): Promise<Partial<S
   const businessHours = {}
   let openingHoursText = ""
 
-  if (place.opening_hours?.weekday_text) {
-    openingHoursText = place.opening_hours.weekday_text.join("\n")
+  // Use current_opening_hours if available, otherwise fall back to opening_hours
+  const hours = place.current_opening_hours || place.opening_hours
+
+  if (hours?.weekday_text) {
+    openingHoursText = hours.weekday_text.join("\n")
 
     // Parse structured hours if available
-    if (place.opening_hours.periods) {
+    if (hours.periods) {
       const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
-      place.opening_hours.periods.forEach((period) => {
+      hours.periods.forEach((period) => {
         const day = daysOfWeek[period.open.day]
         const openTime = period.open.time.replace(/(\d{2})(\d{2})/, "$1:$2")
         const closeTime = period.close ? period.close.time.replace(/(\d{2})(\d{2})/, "$1:$2") : "24:00"
@@ -504,6 +551,38 @@ export async function convertPlaceToShop(place: PlaceDetails): Promise<Partial<S
   // Check if business is active
   const isActive = place.business_status !== "CLOSED_PERMANENTLY" && !place.permanently_closed
 
+  // Extract postal code and country from address components
+  let postalCode = ""
+  let country = ""
+  let city = ""
+  let state = ""
+
+  if (place.address_components) {
+    for (const component of place.address_components) {
+      if (component.types.includes("postal_code")) {
+        postalCode = component.long_name
+      } else if (component.types.includes("country")) {
+        country = component.long_name
+      } else if (component.types.includes("locality")) {
+        city = component.long_name
+      } else if (component.types.includes("administrative_area_level_1")) {
+        state = component.long_name
+      }
+    }
+  }
+
+  // Format reviews for storage
+  const formattedReviews = place.reviews
+    ? place.reviews.map((review) => ({
+        author_name: review.author_name,
+        rating: review.rating,
+        text: review.text,
+        time: review.time ? new Date(review.time * 1000).toISOString() : new Date().toISOString(),
+        profile_photo_url: review.profile_photo_url,
+        relative_time_description: review.relative_time_description,
+      }))
+    : []
+
   return {
     name: place.name,
     description: description,
@@ -523,11 +602,30 @@ export async function convertPlaceToShop(place: PlaceDetails): Promise<Partial<S
     isActive: isActive,
     priceLevel: place.price_level || 2,
     openingHours: openingHoursText,
-    businessHours: Object.keys(businessHours).length > 0 ? JSON.stringify(businessHours) : null,
+    businessHours: Object.keys(businessHours).length > 0 ? businessHours : null,
     source: "google_places",
     importedAt: new Date().toISOString(),
     businessType: businessType,
     lastUpdated: new Date().toISOString(),
+    // Additional fields
+    postalCode: postalCode,
+    country: country,
+    city: city,
+    state: state,
+    utcOffset: place.utc_offset,
+    googleReviews: formattedReviews.length > 0 ? formattedReviews : null,
+    isPermanentlyClosed: place.permanently_closed || place.business_status === "CLOSED_PERMANENTLY",
+    // Amenities
+    wheelchairAccessible: place.wheelchair_accessible_entrance || false,
+    servesBeer: place.serves_beer || false,
+    servesWine: place.serves_wine || false,
+    servesVegetarian: place.serves_vegetarian_food || false,
+    takeoutAvailable: place.takeout || false,
+    deliveryAvailable: place.delivery || false,
+    outdoorSeating: place.outdoor_seating || false,
+    // Import metadata
+    importSource: "google_places_api",
+    verificationStatus: "unverified",
   }
 }
 

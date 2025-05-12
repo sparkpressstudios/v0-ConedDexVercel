@@ -12,6 +12,7 @@ import {
   geocodeAddress,
   type PlaceSearchResult,
   type FilterOptions,
+  type PlaceDetails,
 } from "@/lib/services/enhanced-places-service"
 
 // Types for import operations
@@ -20,8 +21,10 @@ export interface ImportOptions {
   skipExisting?: boolean
   updateExisting?: boolean
   importPhotos?: boolean
+  importReviews?: boolean
   notifyOnCompletion?: boolean
   maxResults?: number
+  adminUserId?: string
 }
 
 export interface ImportResult {
@@ -94,6 +97,41 @@ export async function searchForShops(params: SearchParams): Promise<{
 }
 
 /**
+ * Import reviews for a shop
+ */
+async function importShopReviews(shopId: string, placeDetails: PlaceDetails, supabase: any): Promise<number> {
+  if (!placeDetails.reviews || placeDetails.reviews.length === 0) {
+    return 0
+  }
+
+  try {
+    // Format reviews for insertion
+    const reviewsToInsert = placeDetails.reviews.map((review) => ({
+      shop_id: shopId,
+      author_name: review.author_name,
+      rating: review.rating,
+      text: review.text,
+      time: review.time ? new Date(review.time * 1000) : new Date(),
+      source: "google_places",
+      created_at: new Date(),
+    }))
+
+    // Insert reviews
+    const { data, error } = await supabase.from("imported_reviews").insert(reviewsToInsert)
+
+    if (error) {
+      console.error("Error importing reviews:", error)
+      return 0
+    }
+
+    return reviewsToInsert.length
+  } catch (error) {
+    console.error("Error importing reviews:", error)
+    return 0
+  }
+}
+
+/**
  * Import a single shop from Google Places
  */
 export async function importShop(placeId: string, options: ImportOptions = {}): Promise<ImportResult> {
@@ -153,6 +191,8 @@ export async function importShop(placeId: string, options: ImportOptions = {}): 
             .update({
               ...shopData,
               lastUpdated: new Date().toISOString(),
+              imported_by: options.adminUserId,
+              last_synced: new Date().toISOString(),
             })
             .eq("id", existingShop.id)
 
@@ -165,6 +205,11 @@ export async function importShop(placeId: string, options: ImportOptions = {}): 
               failed: 1,
               errors: [error.message],
             }
+          }
+
+          // Import reviews if requested
+          if (options.importReviews) {
+            await importShopReviews(existingShop.id, placeDetails, supabase)
           }
 
           // Revalidate the shops page
@@ -206,6 +251,11 @@ export async function importShop(placeId: string, options: ImportOptions = {}): 
       }
     }
 
+    // Add admin user ID if provided
+    if (options.adminUserId) {
+      shopData.imported_by = options.adminUserId
+    }
+
     // Insert the shop
     const { data: shop, error } = await supabase.from("shops").insert(shopData).select("id").single()
 
@@ -218,6 +268,11 @@ export async function importShop(placeId: string, options: ImportOptions = {}): 
         failed: 1,
         errors: [error.message],
       }
+    }
+
+    // Import reviews if requested
+    if (options.importReviews && shop) {
+      await importShopReviews(shop.id, placeDetails, supabase)
     }
 
     // Revalidate the shops page
