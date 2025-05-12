@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import { Award, Search, Filter, MoreHorizontal, Plus } from "lucide-react"
 
@@ -20,6 +22,33 @@ export default async function BadgesManagementPage() {
 
   if (error) {
     console.error("Error fetching badges:", error)
+    // Return a fallback UI when there's an error
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold">Badge Management</h1>
+            <p className="text-muted-foreground">Create and manage achievement badges for users</p>
+          </div>
+          <Button asChild className="w-full sm:w-auto">
+            <Link href="/dashboard/admin/badges/create">
+              <Plus className="mr-2 h-4 w-4" />
+              Create New Badge
+            </Link>
+          </Button>
+        </div>
+        <div className="p-6 text-center">
+          <div className="mb-4">
+            <Award className="h-12 w-12 mx-auto text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-medium">Error Loading Badges</h3>
+          <p className="text-muted-foreground mt-2">There was an error loading the badges. Please try again later.</p>
+          <Button variant="outline" className="mt-4" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
