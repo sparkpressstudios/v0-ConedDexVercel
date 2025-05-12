@@ -37,63 +37,31 @@ export default function SignupPage() {
     const role = activeTab === "explorer" ? "explorer" : "shop_owner"
 
     try {
-      // Create the user account
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username,
-            full_name: fullName,
-            role,
-          },
+      // Use the signup API endpoint which handles both auth and profile creation
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          email,
+          password,
+          username,
+          fullName,
+          role,
+        }),
       })
 
-      if (signUpError) throw signUpError
+      const data = await response.json()
 
-      // Wait for the user to be fully created before proceeding
-      if (!data.user?.id) {
-        throw new Error("User creation failed. Please try again.")
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to create account")
       }
 
-      // Sign in with the newly created account to get a valid session
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      toast({
+        title: "Account created!",
+        description: "Please check your email to verify your account.",
       })
-
-      if (signInError) throw signInError
-
-      // Now create the profile with the authenticated session
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: data.user.id,
-        username,
-        full_name: fullName,
-        role,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError)
-        // If profile creation fails, we should still allow the user to proceed
-        // since the auth account was created successfully
-        toast({
-          title: "Account created with warnings",
-          description:
-            "Your account was created, but there was an issue setting up your profile. Please contact support.",
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Account created!",
-          description: "Please check your email to verify your account.",
-        })
-      }
-
-      // Sign out after profile creation to ensure clean state
-      await supabase.auth.signOut()
 
       // Redirect to login page
       router.push("/login")
