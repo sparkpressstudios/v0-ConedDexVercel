@@ -15,62 +15,40 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ImportUsersButton } from "@/components/admin/users/import-users-button"
+import { createServerClient } from "@/lib/supabase/server"
+import { formatDistanceToNow } from "date-fns"
 
-// Mock data for users
-const users = [
-  {
-    id: "1",
-    name: "John Doe",
-    email: "john@example.com",
-    role: "Admin",
-    status: "Active",
-    lastActive: "2 hours ago",
-    joined: "Jan 12, 2023",
-    avatar: "/placeholder.svg?key=7pavv",
-  },
-  {
-    id: "2",
-    name: "Jane Smith",
-    email: "jane@example.com",
-    role: "User",
-    status: "Active",
-    lastActive: "5 minutes ago",
-    joined: "Mar 5, 2023",
-    avatar: "/placeholder.svg?key=0m20w",
-  },
-  {
-    id: "3",
-    name: "Robert Johnson",
-    email: "robert@example.com",
-    role: "Shop Owner",
-    status: "Active",
-    lastActive: "1 day ago",
-    joined: "Apr 18, 2023",
-    avatar: "/placeholder.svg?key=9guok",
-  },
-  {
-    id: "4",
-    name: "Emily Davis",
-    email: "emily@example.com",
-    role: "User",
-    status: "Inactive",
-    lastActive: "2 weeks ago",
-    joined: "Jun 22, 2023",
-    avatar: "/placeholder.svg?key=b79h3",
-  },
-  {
-    id: "5",
-    name: "Michael Wilson",
-    email: "michael@example.com",
-    role: "Moderator",
-    status: "Active",
-    lastActive: "3 hours ago",
-    joined: "Aug 9, 2023",
-    avatar: "/placeholder.svg?key=3t6jf",
-  },
-]
+export const dynamic = "force-dynamic"
 
-export default function AdminUsersPage() {
+export default async function AdminUsersPage() {
+  const supabase = await createServerClient()
+
+  // Fetch users from the database
+  const { data: users, error } = await supabase
+    .from("profiles")
+    .select("id, user_id, full_name, email, avatar_url, role, created_at, last_sign_in_at, is_active")
+    .order("created_at", { ascending: false })
+    .limit(100)
+
+  if (error) {
+    console.error("Error fetching users:", error)
+  }
+
+  // Format the user data
+  const formattedUsers =
+    users?.map((user) => ({
+      id: user.user_id,
+      name: user.full_name || "Unnamed User",
+      email: user.email || "No email",
+      role: user.role || "User",
+      status: user.is_active ? "Active" : "Inactive",
+      lastActive: user.last_sign_in_at
+        ? formatDistanceToNow(new Date(user.last_sign_in_at), { addSuffix: true })
+        : "Never",
+      joined: user.created_at ? formatDistanceToNow(new Date(user.created_at), { addSuffix: true }) : "Unknown",
+      avatar: user.avatar_url,
+    })) || []
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -138,64 +116,87 @@ export default function AdminUsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                          <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{user.name}</span>
-                          <span className="text-xs text-muted-foreground hidden sm:inline">{user.email}</span>
+                {formattedUsers.length > 0 ? (
+                  formattedUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.id.substring(0, 8)}...</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage
+                              src={
+                                user.avatar ||
+                                `/placeholder.svg?height=32&width=32&query=${encodeURIComponent(user.name)}`
+                              }
+                              alt={user.name}
+                            />
+                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{user.name}</span>
+                            <span className="text-xs text-muted-foreground hidden sm:inline">{user.email}</span>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge variant={user.role === "Admin" ? "default" : "outline"}>{user.role}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge variant={user.status === "Active" ? "success" : "secondary"}>{user.status}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">{user.lastActive}</TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground">{user.joined}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Open menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/admin/users/${user.id}`}>View Details</Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>Edit User</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem>Reset Password</DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">Delete User</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant={user.role === "Admin" ? "default" : "outline"}>{user.role}</Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant={user.status === "Active" ? "success" : "secondary"}>{user.status}</Badge>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground">{user.lastActive}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground">{user.joined}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Open menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/admin/users/${user.id}`}>View Details</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/admin/users/${user.id}/edit`}>Edit User</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem>Reset Password</DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600">Delete User</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-24 text-center">
+                      {error ? (
+                        <div className="flex flex-col items-center justify-center text-red-500">
+                          <p>Error loading users</p>
+                          <p className="text-xs">{error.message}</p>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">No users found.</p>
+                      )}
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
         </CardContent>
         <CardFooter className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing <strong>5</strong> of <strong>100</strong> users
+            Showing <strong>{formattedUsers.length}</strong> of <strong>{formattedUsers.length}</strong> users
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>
               Previous
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled={formattedUsers.length < 100}>
               Next
             </Button>
           </div>

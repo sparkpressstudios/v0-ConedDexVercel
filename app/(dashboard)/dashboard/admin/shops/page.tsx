@@ -1,6 +1,5 @@
 import Link from "next/link"
-import { Search, MoreHorizontal, Plus, MapPin, Phone, Globe, Store } from "lucide-react"
-
+import { Search, MoreHorizontal, Plus, MapPin, Phone, Globe, Store, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,14 +14,48 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { createServerClient } from "@/lib/supabase/server"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatDistanceToNow } from "date-fns"
 
-export default async function ShopsManagementPage() {
-  const supabase = createServerClient()
-  const { data: shops, error } = await supabase.from("shops").select("*").order("name")
+export const dynamic = "force-dynamic"
+
+export default async function ShopsManagementPage({ searchParams }: { searchParams: { q?: string; status?: string } }) {
+  const supabase = await createServerClient()
+
+  // Get query parameters
+  const searchQuery = searchParams.q || ""
+  const statusFilter = searchParams.status || "all"
+
+  // Build the query
+  let query = supabase.from("shops").select(`
+    *,
+    owner:owner_id(id, email, full_name),
+    reviews:reviews(count)
+  `)
+
+  // Apply filters
+  if (searchQuery) {
+    query = query.ilike("name", `%${searchQuery}%`)
+  }
+
+  if (statusFilter === "claimed") {
+    query = query.not("owner_id", "is", null)
+  } else if (statusFilter === "unclaimed") {
+    query = query.is("owner_id", null)
+  } else if (statusFilter === "pending") {
+    query = query.eq("status", "pending")
+  }
+
+  // Execute the query
+  const { data: shops, error } = await query.order("created_at", { ascending: false })
 
   if (error) {
     console.error("Error fetching shops:", error)
   }
+
+  // Count shops by status
+  const claimedCount = shops?.filter((shop) => shop.owner_id).length || 0
+  const unclaimedCount = shops?.filter((shop) => !shop.owner_id).length || 0
+  const pendingCount = shops?.filter((shop) => shop.status === "pending").length || 0
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,23 +83,73 @@ export default async function ShopsManagementPage() {
       {/* Filters and Search */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex w-full max-w-sm items-center space-x-2">
-          <Input placeholder="Search shops..." className="w-full" type="search" />
-          <Button type="submit" size="icon" variant="ghost">
-            <Search className="h-4 w-4" />
-          </Button>
+          <form action="/dashboard/admin/shops" method="GET">
+            <div className="flex w-full max-w-sm items-center space-x-2">
+              <Input
+                name="q"
+                placeholder="Search shops..."
+                className="w-full"
+                type="search"
+                defaultValue={searchQuery}
+              />
+              <Button type="submit" size="icon" variant="ghost">
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
+            {statusFilter !== "all" && <input type="hidden" name="status" value={statusFilter} />}
+          </form>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Filter className="mr-2 h-4 w-4" />
+                Filter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Filter by</DropdownMenuLabel>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/admin/shops">All Shops</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/admin/shops?status=claimed">Claimed Shops</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/admin/shops?status=unclaimed">Unclaimed Shops</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/admin/shops?status=pending">Pending Approval</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="all">
+      <Tabs defaultValue={statusFilter === "all" ? "all" : statusFilter}>
         <TabsList className="w-full grid grid-cols-4">
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="claimed">Claimed</TabsTrigger>
-          <TabsTrigger value="unclaimed">Unclaimed</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="all" asChild>
+            <Link href="/dashboard/admin/shops">All</Link>
+          </TabsTrigger>
+          <TabsTrigger value="claimed" asChild>
+            <Link href="/dashboard/admin/shops?status=claimed">
+              Claimed {claimedCount > 0 && <Badge className="ml-2">{claimedCount}</Badge>}
+            </Link>
+          </TabsTrigger>
+          <TabsTrigger value="unclaimed" asChild>
+            <Link href="/dashboard/admin/shops?status=unclaimed">
+              Unclaimed {unclaimedCount > 0 && <Badge className="ml-2">{unclaimedCount}</Badge>}
+            </Link>
+          </TabsTrigger>
+          <TabsTrigger value="pending" asChild>
+            <Link href="/dashboard/admin/shops?status=pending">
+              Pending {pendingCount > 0 && <Badge className="ml-2">{pendingCount}</Badge>}
+            </Link>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="all" className="mt-6">
+        <TabsContent value={statusFilter === "all" ? "all" : statusFilter} className="mt-6">
           <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {shops && shops.length > 0 ? (
               shops.map((shop) => (
@@ -79,6 +162,9 @@ export default async function ShopsManagementPage() {
                   phone={shop.phone}
                   website={shop.website}
                   isClaimed={!!shop.owner_id}
+                  ownerName={shop.owner?.full_name}
+                  reviewCount={shop.reviews?.[0]?.count || 0}
+                  createdAt={shop.created_at}
                 />
               ))
             ) : (
@@ -87,67 +173,6 @@ export default async function ShopsManagementPage() {
                 <p>No shops found. Import shops or add them manually.</p>
               </div>
             )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="claimed" className="mt-6">
-          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {shops && shops.filter((shop) => shop.owner_id).length > 0 ? (
-              shops
-                .filter((shop) => shop.owner_id)
-                .map((shop) => (
-                  <ShopCard
-                    key={shop.id}
-                    id={shop.id}
-                    name={shop.name}
-                    address={`${shop.address || ""}, ${shop.city || ""}, ${shop.state || ""}`}
-                    imageUrl={shop.image_url}
-                    phone={shop.phone}
-                    website={shop.website}
-                    isClaimed={true}
-                  />
-                ))
-            ) : (
-              <div className="col-span-full flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-                <Store className="mb-2 h-8 w-8" />
-                <p>No claimed shops found.</p>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="unclaimed" className="mt-6">
-          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {shops && shops.filter((shop) => !shop.owner_id).length > 0 ? (
-              shops
-                .filter((shop) => !shop.owner_id)
-                .map((shop) => (
-                  <ShopCard
-                    key={shop.id}
-                    id={shop.id}
-                    name={shop.name}
-                    address={`${shop.address || ""}, ${shop.city || ""}, ${shop.state || ""}`}
-                    imageUrl={shop.image_url}
-                    phone={shop.phone}
-                    website={shop.website}
-                    isClaimed={false}
-                  />
-                ))
-            ) : (
-              <div className="col-span-full flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-                <Store className="mb-2 h-8 w-8" />
-                <p>No unclaimed shops found.</p>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="pending" className="mt-6">
-          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="col-span-full flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-              <Store className="mb-2 h-8 w-8" />
-              <p>No shops pending approval.</p>
-            </div>
           </div>
         </TabsContent>
       </Tabs>
@@ -163,9 +188,23 @@ interface ShopCardProps {
   phone: string | null
   website: string | null
   isClaimed: boolean
+  ownerName?: string
+  reviewCount?: number
+  createdAt?: string
 }
 
-function ShopCard({ id, name, address, imageUrl, phone, website, isClaimed }: ShopCardProps) {
+function ShopCard({
+  id,
+  name,
+  address,
+  imageUrl,
+  phone,
+  website,
+  isClaimed,
+  ownerName,
+  reviewCount,
+  createdAt,
+}: ShopCardProps) {
   return (
     <Card className="overflow-hidden h-full flex flex-col">
       <div className="relative h-40 sm:h-48 w-full">
@@ -197,7 +236,11 @@ function ShopCard({ id, name, address, imageUrl, phone, website, isClaimed }: Sh
                 <Link href={`/dashboard/admin/shops/${id}/edit`}>Edit Shop</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">Delete Shop</DropdownMenuItem>
+              <DropdownMenuItem>
+                <Link href={`/dashboard/admin/shops/${id}/delete`} className="text-red-600">
+                  Delete Shop
+                </Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -220,13 +263,28 @@ function ShopCard({ id, name, address, imageUrl, phone, website, isClaimed }: Sh
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline truncate"
               >
-                {new URL(website).hostname}
+                {website.replace(/^https?:\/\//, "")}
               </a>
             </div>
           )}
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-mint-500 flex-shrink-0" />
             <span className="line-clamp-1">{address}</span>
+          </div>
+
+          {isClaimed && ownerName && (
+            <div className="mt-2 pt-2 border-t border-gray-100">
+              <span className="text-xs text-muted-foreground">Owner: {ownerName}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between mt-2 pt-2 border-t border-gray-100">
+            <span className="text-xs text-muted-foreground">{reviewCount} reviews</span>
+            {createdAt && (
+              <span className="text-xs text-muted-foreground">
+                Added {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
+              </span>
+            )}
           </div>
         </div>
       </CardContent>

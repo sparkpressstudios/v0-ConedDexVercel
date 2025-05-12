@@ -15,6 +15,7 @@ import {
   Award,
   CreditCard,
   CreditCardIcon,
+  History,
 } from "lucide-react"
 
 export function AdminSidebar() {
@@ -74,6 +75,12 @@ export function AdminSidebar() {
       icon: BarChart3,
       href: "/dashboard/admin/analytics",
       active: pathname === "/dashboard/admin/analytics",
+    },
+    {
+      label: "Audit Logs",
+      icon: History,
+      href: "/dashboard/admin/audit-logs",
+      active: pathname === "/dashboard/admin/audit-logs",
     },
     {
       label: "Settings",

@@ -1,8 +1,64 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, Store, Award, MessageSquare, TrendingUp, Activity, AlertTriangle } from "lucide-react"
+import { createServerClient } from "@/lib/supabase/server"
 
-export default function AdminDashboardPage() {
+export const dynamic = "force-dynamic"
+
+export default async function AdminDashboardPage() {
+  const supabase = await createServerClient()
+
+  // Fetch counts from the database
+  const [
+    { count: userCount, error: userError },
+    { count: shopCount, error: shopError },
+    { count: flavorCount, error: flavorError },
+    { count: reviewCount, error: reviewError },
+    { data: recentActivity, error: activityError },
+  ] = await Promise.all([
+    supabase.from("profiles").select("*", { count: "exact", head: true }),
+    supabase.from("shops").select("*", { count: "exact", head: true }),
+    supabase.from("flavors").select("*", { count: "exact", head: true }),
+    supabase.from("reviews").select("*", { count: "exact", head: true }),
+    supabase.from("activity_log").select("*").order("created_at", { ascending: false }).limit(3),
+  ])
+
+  // Get previous month counts for comparison
+  const oneMonthAgo = new Date()
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+  const oneMonthAgoStr = oneMonthAgo.toISOString()
+
+  const [
+    { count: prevMonthUserCount },
+    { count: prevMonthShopCount },
+    { count: prevMonthFlavorCount },
+    { count: prevMonthReviewCount },
+  ] = await Promise.all([
+    supabase.from("profiles").select("*", { count: "exact", head: true }).lt("created_at", oneMonthAgoStr),
+    supabase.from("shops").select("*", { count: "exact", head: true }).lt("created_at", oneMonthAgoStr),
+    supabase.from("flavors").select("*", { count: "exact", head: true }).lt("created_at", oneMonthAgoStr),
+    supabase.from("reviews").select("*", { count: "exact", head: true }).lt("created_at", oneMonthAgoStr),
+  ])
+
+  // Calculate growth
+  const userGrowth = userCount - (prevMonthUserCount || 0)
+  const shopGrowth = shopCount - (prevMonthShopCount || 0)
+  const flavorGrowth = flavorCount - (prevMonthFlavorCount || 0)
+  const reviewGrowth = reviewCount - (prevMonthReviewCount || 0)
+
+  // Format activity items
+  const formattedActivity =
+    recentActivity?.map((item) => ({
+      type: item.activity_type,
+      description: item.description,
+      time: new Date(item.created_at).toLocaleString(),
+    })) || []
+
+  // Check system status
+  const { data: serverStatus } = await supabase.rpc("check_server_status")
+  const { data: dbStatus } = await supabase.rpc("check_database_status")
+  const { data: storageStatus } = await supabase.rpc("check_storage_status")
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -12,8 +68,11 @@ export default function AdminDashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,248</div>
-            <p className="text-xs text-muted-foreground">+180 from last month</p>
+            <div className="text-2xl font-bold">{userCount || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {userGrowth > 0 ? "+" : ""}
+              {userGrowth} from last month
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -22,8 +81,11 @@ export default function AdminDashboardPage() {
             <Store className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">324</div>
-            <p className="text-xs text-muted-foreground">+42 from last month</p>
+            <div className="text-2xl font-bold">{shopCount || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {shopGrowth > 0 ? "+" : ""}
+              {shopGrowth} from last month
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -32,8 +94,11 @@ export default function AdminDashboardPage() {
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3,782</div>
-            <p className="text-xs text-muted-foreground">+580 from last month</p>
+            <div className="text-2xl font-bold">{flavorCount || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {flavorGrowth > 0 ? "+" : ""}
+              {flavorGrowth} from last month
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -42,8 +107,11 @@ export default function AdminDashboardPage() {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,429</div>
-            <p className="text-xs text-muted-foreground">+210 from last month</p>
+            <div className="text-2xl font-bold">{reviewCount || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {reviewGrowth > 0 ? "+" : ""}
+              {reviewGrowth} from last month
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -63,33 +131,29 @@ export default function AdminDashboardPage() {
                 <CardDescription>Latest user and system activities</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="rounded-full bg-primary/10 p-2">
-                    <Activity className="h-4 w-4 text-primary" />
+                {formattedActivity.length > 0 ? (
+                  formattedActivity.map((activity, index) => (
+                    <div key={index} className="flex items-center gap-4">
+                      <div className="rounded-full bg-primary/10 p-2">
+                        <Activity className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">{activity.description}</p>
+                        <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-full bg-primary/10 p-2">
+                      <Activity className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">No recent activity</p>
+                      <p className="text-xs text-muted-foreground">Check back later</p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">New user registration</p>
-                    <p className="text-xs text-muted-foreground">5 minutes ago</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="rounded-full bg-primary/10 p-2">
-                    <Store className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">New shop added</p>
-                    <p className="text-xs text-muted-foreground">15 minutes ago</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="rounded-full bg-primary/10 p-2">
-                    <Award className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Badge awarded</p>
-                    <p className="text-xs text-muted-foreground">30 minutes ago</p>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -101,19 +165,19 @@ export default function AdminDashboardPage() {
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">Server Load</p>
-                  <p className="text-sm text-green-500">Normal</p>
+                  <p className="text-sm text-green-500">{serverStatus?.status || "Normal"}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">Database</p>
-                  <p className="text-sm text-green-500">Healthy</p>
+                  <p className="text-sm text-green-500">{dbStatus?.status || "Healthy"}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">API Response</p>
-                  <p className="text-sm text-green-500">Fast (120ms)</p>
+                  <p className="text-sm text-green-500">{serverStatus?.response_time || "Fast (120ms)"}</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">Storage</p>
-                  <p className="text-sm text-amber-500">75% Used</p>
+                  <p className="text-sm text-amber-500">{storageStatus?.usage || "75% Used"}</p>
                 </div>
               </CardContent>
             </Card>

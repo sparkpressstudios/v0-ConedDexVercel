@@ -4,7 +4,6 @@ import { ArrowLeft, MapPin, Phone, Globe, Edit, Trash2, CheckCircle, XCircle } f
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { createServerClient } from "@/lib/supabase/server"
 import {
   AlertDialog,
@@ -17,6 +16,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+
+// Update the shop detail page to use the new image gallery component
+
+// Import the ShopImageGallery component
+import { ShopImageGallery } from "@/components/shop/shop-image-gallery"
 
 export default async function ShopDetailPage({ params }: { params: { id: string } }) {
   const supabase = createServerClient()
@@ -87,22 +91,15 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
         <div className="md:col-span-2 space-y-6">
           {/* Shop Image and Details */}
           <Card>
-            <div className="relative h-48 sm:h-64 w-full">
-              <img
-                src={shop.image_url || "/placeholder.svg?height=256&width=768&query=ice cream shop"}
-                alt={shop.name}
-                className="h-full w-full object-cover"
+            <div className="space-y-6">
+              <ShopImageGallery
+                mainImage={shop.mainImage}
+                additionalImages={shop.additionalImages}
+                shopName={shop.name}
+                className="w-full aspect-video"
               />
-              <Badge
-                className={`absolute right-2 top-2 ${
-                  shop.is_verified ? "bg-green-500 hover:bg-green-600" : "bg-amber-500 hover:bg-amber-600"
-                } text-white`}
-              >
-                {shop.is_verified ? "Verified" : "Unverified"}
-              </Badge>
-              {shop.owner_id && (
-                <Badge className="absolute left-2 top-2 bg-mint-500 text-white hover:bg-mint-600">Claimed</Badge>
-              )}
+
+              {/* Rest of the shop details */}
             </div>
             <CardContent className="pt-6">
               <div className="grid gap-4 md:grid-cols-2">

@@ -5,14 +5,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { approveFlavor, rejectFlavor, requestMoreInfo, updateModerationQueue } from "@/app/actions/flavor-moderation"
 import { AlertTriangle, CheckCircle, Clock, Info } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
 
 export const dynamic = "force-dynamic"
 
 export default async function ModerationPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // Get pending flavors that need manual review
-  const { data: pendingFlavors } = await supabase
+  const { data: pendingFlavors, error: pendingError } = await supabase
     .from("flavors")
     .select(`
       *,
@@ -23,7 +24,7 @@ export default async function ModerationPage() {
     .order("created_at", { ascending: false })
 
   // Get flavors that need more info
-  const { data: infoRequestedFlavors } = await supabase
+  const { data: infoRequestedFlavors, error: infoError } = await supabase
     .from("flavors")
     .select(`
       *,
@@ -34,7 +35,7 @@ export default async function ModerationPage() {
     .order("created_at", { ascending: false })
 
   // Get recently auto-approved flavors
-  const { data: autoApprovedFlavors } = await supabase
+  const { data: autoApprovedFlavors, error: autoError } = await supabase
     .from("flavors")
     .select(`
       *,
@@ -47,7 +48,7 @@ export default async function ModerationPage() {
     .limit(10)
 
   // Get recently manually moderated flavors
-  const { data: manuallyModeratedFlavors } = await supabase
+  const { data: manuallyModeratedFlavors, error: manualError } = await supabase
     .from("flavors")
     .select(`
       *,
@@ -58,6 +59,27 @@ export default async function ModerationPage() {
     .not("moderation_notes", "ilike", "%Auto-approved%")
     .order("moderated_at", { ascending: false })
     .limit(10)
+
+  // Get content reports
+  const { data: contentReports, error: reportsError } = await supabase
+    .from("content_reports")
+    .select(`
+      *,
+      reporter:reporter_id(full_name, email),
+      flavor:flavor_id(name, description, image_url, status)
+    `)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+
+  if (pendingError || infoError || autoError || manualError || reportsError) {
+    console.error("Error fetching moderation data:", {
+      pendingError,
+      infoError,
+      autoError,
+      manualError,
+      reportsError,
+    })
+  }
 
   return (
     <div className="container mx-auto py-6 space-y-8">
@@ -117,18 +139,18 @@ export default async function ModerationPage() {
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center">
               <Clock className="h-5 w-5 mr-2 text-purple-500" />
-              <span>Manually Reviewed</span>
+              <span>Content Reports</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">{manuallyModeratedFlavors?.length || 0}</div>
-            <p className="text-sm text-muted-foreground">Recently reviewed by admins</p>
+            <div className="text-3xl font-bold">{contentReports?.length || 0}</div>
+            <p className="text-sm text-muted-foreground">User-reported content</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="pending" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="pending">
             Needs Review
             {pendingFlavors?.length ? (
@@ -147,6 +169,14 @@ export default async function ModerationPage() {
           </TabsTrigger>
           <TabsTrigger value="auto_approved">Auto-Approved</TabsTrigger>
           <TabsTrigger value="manually_reviewed">Manually Reviewed</TabsTrigger>
+          <TabsTrigger value="reports">
+            Reports
+            {contentReports?.length ? (
+              <Badge variant="secondary" className="ml-2">
+                {contentReports.length}
+              </Badge>
+            ) : null}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-6 mt-6">
@@ -182,6 +212,14 @@ export default async function ModerationPage() {
             <div className="text-center py-12 text-muted-foreground">No manually reviewed flavors yet</div>
           )}
         </TabsContent>
+
+        <TabsContent value="reports" className="space-y-6 mt-6">
+          {contentReports?.length ? (
+            contentReports.map((report) => <ReportCard key={report.id} report={report} />)
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">No content reports to review</div>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   )
@@ -209,6 +247,14 @@ function FlavorModerationCard({ flavor, readOnly = false }) {
     Legendary: "bg-amber-100 text-amber-800",
   }
 
+  // Format dates
+  const createdAt = flavor.created_at
+    ? formatDistanceToNow(new Date(flavor.created_at), { addSuffix: true })
+    : "Unknown"
+  const moderatedAt = flavor.moderated_at
+    ? formatDistanceToNow(new Date(flavor.moderated_at), { addSuffix: true })
+    : null
+
   return (
     <Card className="overflow-hidden">
       <CardHeader>
@@ -223,6 +269,8 @@ function FlavorModerationCard({ flavor, readOnly = false }) {
             <CardDescription>
               Submitted by {flavor.users?.full_name || "Unknown"}
               {flavor.shops ? ` for ${flavor.shops.name}` : ""}
+              {" • "}
+              {createdAt}
             </CardDescription>
           </div>
           <Badge className={statusColors[flavor.status] || "bg-gray-100"}>
@@ -307,6 +355,7 @@ function FlavorModerationCard({ flavor, readOnly = false }) {
               <div className="mt-4 p-3 bg-muted rounded-md">
                 <h4 className="text-sm font-medium mb-1">Moderation Notes</h4>
                 <p className="text-sm whitespace-pre-line">{flavor.moderation_notes}</p>
+                {moderatedAt && <p className="text-xs text-muted-foreground mt-2">Moderated {moderatedAt}</p>}
               </div>
             )}
           </div>
@@ -334,6 +383,92 @@ function FlavorModerationCard({ flavor, readOnly = false }) {
           </form>
         </CardFooter>
       )}
+    </Card>
+  )
+}
+
+function ReportCard({ report }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="flex items-center">
+              Report #{report.id.substring(0, 8)}
+              <Badge className="ml-2 bg-red-100 text-red-800">{report.report_type || "Content Report"}</Badge>
+            </CardTitle>
+            <CardDescription>
+              Reported by {report.reporter?.full_name || "Anonymous"}
+              {" • "}
+              {formatDistanceToNow(new Date(report.created_at), { addSuffix: true })}
+            </CardDescription>
+          </div>
+          <Badge className="bg-yellow-100 text-yellow-800">{report.status?.toUpperCase() || "PENDING"}</Badge>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="font-medium mb-2">Report Reason</h3>
+            <p className="text-sm">{report.reason || "No reason provided"}</p>
+
+            <div className="mt-4">
+              <h3 className="font-medium mb-2">Additional Comments</h3>
+              <p className="text-sm">{report.comments || "No additional comments"}</p>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-medium mb-2">Reported Content</h3>
+
+            {report.flavor && (
+              <div className="p-4 border rounded-md">
+                <h4 className="font-medium">{report.flavor.name}</h4>
+                <p className="text-sm mt-1">{report.flavor.description}</p>
+
+                {report.flavor.image_url && (
+                  <div className="mt-2">
+                    <img
+                      src={report.flavor.image_url || "/placeholder.svg"}
+                      alt={report.flavor.name}
+                      className="h-32 w-auto object-cover rounded-md"
+                    />
+                  </div>
+                )}
+
+                <div className="mt-2">
+                  <Badge
+                    className={
+                      report.flavor.status === "approved"
+                        ? "bg-green-100 text-green-800"
+                        : report.flavor.status === "rejected"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-yellow-100 text-yellow-800"
+                    }
+                  >
+                    {report.flavor.status?.toUpperCase() || "PENDING"}
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+
+      <CardFooter className="flex justify-between bg-muted/50 gap-2">
+        <Button className="flex-1" variant="default">
+          Dismiss Report
+        </Button>
+
+        <Button className="flex-1" variant="outline">
+          Contact Reporter
+        </Button>
+
+        <Button className="flex-1" variant="destructive">
+          Remove Content
+        </Button>
+      </CardFooter>
     </Card>
   )
 }

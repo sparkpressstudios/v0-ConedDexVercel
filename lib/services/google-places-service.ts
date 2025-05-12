@@ -170,15 +170,41 @@ export async function getPhotoUrl(photoReference: string, maxWidth = 400): Promi
 }
 
 /**
- * Convert a Google Place to a Shop object
+ * Convert a Google Place to a Shop object with enhanced image handling
  */
 export async function convertPlaceToShop(place: any): Promise<Partial<Shop>> {
-  const mainPhoto =
-    place.photos && place.photos.length > 0 ? await getPhotoUrl(place.photos[0].photo_reference, 800) : null
+  // Process images - get multiple sizes for different use cases
+  let mainImage = null
+  let thumbnailImage = null
+  const additionalImages: string[] = []
+
+  if (place.photos && place.photos.length > 0) {
+    // Get the first photo as main image (high quality)
+    mainImage = await getPhotoUrl(place.photos[0].photo_reference, 800)
+
+    // Get a smaller version for thumbnails
+    thumbnailImage = await getPhotoUrl(place.photos[0].photo_reference, 200)
+
+    // Get additional images (up to 5)
+    const photoLimit = Math.min(place.photos.length, 5)
+    for (let i = 1; i < photoLimit; i++) {
+      additionalImages.push(await getPhotoUrl(place.photos[i].photo_reference, 600))
+    }
+  }
+
+  // Try to extract a better description from reviews if editorial summary is missing
+  let description = place.editorial_summary?.overview || ""
+  if (!description && place.reviews && place.reviews.length > 0) {
+    // Use the highest rated review as a potential description
+    const sortedReviews = [...place.reviews].sort((a, b) => b.rating - a.rating)
+    if (sortedReviews[0].text && sortedReviews[0].text.length > 30) {
+      description = `Customer review: ${sortedReviews[0].text.substring(0, 150)}...`
+    }
+  }
 
   return {
     name: place.name,
-    description: place.editorial_summary?.overview || "",
+    description: description,
     address: place.formatted_address || "",
     phone: place.formatted_phone_number || "",
     website: place.website || "",
@@ -187,11 +213,62 @@ export async function convertPlaceToShop(place: any): Promise<Partial<Shop>> {
     longitude: place.geometry?.location?.lng,
     rating: place.rating,
     reviewCount: place.user_ratings_total || 0,
-    mainImage: mainPhoto,
+    mainImage: mainImage,
+    thumbnailImage: thumbnailImage,
+    additionalImages: additionalImages.length > 0 ? additionalImages : undefined,
     isVerified: false,
     isActive: true,
     priceLevel: place.price_level || 2,
     openingHours: place.opening_hours?.weekday_text?.join("\n") || "",
+    source: "google_places",
+    importedAt: new Date().toISOString(),
+    // Add business type categorization
+    businessType: await categorizeBusinessType(place),
+  }
+}
+
+/**
+ * Categorize the business type based on place data
+ */
+export async function categorizeBusinessType(place: any): Promise<string> {
+  const name = place.name?.toLowerCase() || ""
+  const types = place.types || []
+
+  if (types.includes("ice_cream_shop")) return "ice_cream_shop"
+
+  if (name.includes("gelato")) return "gelato"
+  if (name.includes("frozen yogurt") || name.includes("froyo")) return "frozen_yogurt"
+  if (name.includes("sorbet")) return "sorbet"
+
+  // Check for ice cream in the name
+  if (name.includes("ice cream")) return "ice_cream_shop"
+
+  // Default categorization based on Google types
+  if (types.includes("cafe")) return "cafe_with_ice_cream"
+  if (types.includes("restaurant")) return "restaurant_with_ice_cream"
+  if (types.includes("bakery")) return "bakery_with_ice_cream"
+
+  return "ice_cream_shop" // Default
+}
+
+/**
+ * Get multiple photos for a place
+ */
+export async function getPlacePhotos(placeId: string, maxCount = 5): Promise<string[]> {
+  try {
+    const placeDetails = await getPlaceDetails(placeId)
+    const photos = placeDetails.photos || []
+    const photoUrls: string[] = []
+
+    const photoLimit = Math.min(photos.length, maxCount)
+    for (let i = 0; i < photoLimit; i++) {
+      photoUrls.push(await getPhotoUrl(photos[i].photo_reference, 600))
+    }
+
+    return photoUrls
+  } catch (error) {
+    console.error("Error getting place photos:", error)
+    return []
   }
 }
 
@@ -305,7 +382,7 @@ export async function geocodeAddress(address: string) {
 }
 
 // Get place photos
-export async function getPlacePhotos(photoReference: string, maxWidth = 400) {
+export async function getPlacePhotosOld(photoReference: string, maxWidth = 400) {
   const headersList = headers()
   const host = headersList.get("host") || "localhost:3000"
   const protocol = host.includes("localhost") ? "http" : "https"
@@ -337,4 +414,36 @@ export async function autocompletePlaceSearch(input: string, sessionToken: strin
     console.error("Error with place autocomplete:", error)
     return []
   }
+}
+
+// Intelligent filtering for ice cream shops
+export async function isIceCreamShop(
+  place: any,
+  keywords: string[] = [],
+  excludeKeywords: string[] = [],
+): Promise<boolean> {
+  // Default ice cream related keywords if none provided
+  const iceCreamKeywords =
+    keywords.length > 0 ? keywords : ["ice cream", "gelato", "frozen yogurt", "soft serve", "sorbet", "frozen dessert"]
+
+  // Default exclusion keywords if none provided
+  const exclusionKeywords =
+    excludeKeywords.length > 0 ? excludeKeywords : ["convenience store", "grocery", "supermarket"]
+
+  // Combine all text fields for searching
+  const shopText = [place.name, place.vicinity || place.formatted_address, ...(place.types || [])]
+    .join(" ")
+    .toLowerCase()
+
+  // Check if any keywords match
+  const hasIceCreamKeyword = iceCreamKeywords.some((keyword) => shopText.includes(keyword.toLowerCase()))
+
+  // Check if any exclusion keywords match
+  const hasExclusionKeyword = exclusionKeywords.some((keyword) => shopText.includes(keyword.toLowerCase()))
+
+  // Ice cream shop types from Google Places
+  const iceCreamTypes = ["ice_cream_shop", "cafe", "food", "restaurant", "bakery"]
+  const hasIceCreamType = place.types && place.types.some((type: string) => iceCreamTypes.includes(type))
+
+  return (hasIceCreamKeyword || hasIceCreamType) && !hasExclusionKeyword
 }
