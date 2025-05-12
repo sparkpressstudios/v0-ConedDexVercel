@@ -204,7 +204,6 @@ import {
   FileMinus,
   FilePlus,
   MapPin,
-  PenToolIcon as Tool,
 } from "lucide-react"
 
 export const Icons = {
