@@ -1,11 +1,13 @@
+"use server"
+
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import type { Database } from "@/lib/database.types"
 
-export function createServerClient() {
+export async function createServerClient() {
   return createServerComponentClient<Database>({ cookies })
 }
 
-export function createClient() {
+export async function createClient() {
   return createServerComponentClient<Database>({ cookies })
 }

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
-import { createClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client-browser"
 import { DashboardSidebar } from "./dashboard-sidebar"
 import { NotificationBell } from "@/components/notifications/notification-bell"
 import { Badge } from "@/components/ui/badge"

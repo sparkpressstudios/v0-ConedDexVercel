@@ -100,5 +100,7 @@ export function clearDemoUser(): void {
   }
 }
 
-// Server-side functions remain the same
-// These are imported from 'next/headers' at the top level in server components
+// Export demo users data for server-side use
+export function getDemoUserData() {
+  return demoUsers
+}

@@ -1,5 +1,4 @@
 import type React from "react"
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createServerClient } from "@/lib/supabase/server"
 import { DashboardHeader } from "@/components/layout/dashboard-header"
@@ -8,36 +7,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { OfflineIndicator } from "@/components/ui/offline-indicator"
 import { InstallPrompt } from "@/components/ui/install-prompt"
 import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
-
-// Demo user types
-interface DemoUser {
-  email: string
-  role: string
-  id: string
-  name: string
-}
-
-// Demo user data
-const demoUsers: Record<string, DemoUser> = {
-  "admin@conedex.app": {
-    email: "admin@conedex.app",
-    role: "admin",
-    id: "a1b2c3d4-e5f6-7a8b-9c0d-e1f2a3b4c5d6",
-    name: "Alex Admin",
-  },
-  "shopowner@conedex.app": {
-    email: "shopowner@conedex.app",
-    role: "shop_owner",
-    id: "f5c0d6e7-2e4b-5d7c-8f9a-1b2c3d4e5f6a",
-    name: "Sam Scooper",
-  },
-  "explorer@conedex.app": {
-    email: "explorer@conedex.app",
-    role: "explorer",
-    id: "e4b9c5f8-1d3a-4c6b-9e2f-a8b7c6d5e4f3",
-    name: "Emma Explorer",
-  },
-}
+import { getServerDemoUser } from "@/lib/auth/server-demo-auth"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -52,12 +22,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           } = await supabase.auth.getSession()
 
           // Check for demo user in cookies
-          const cookieStore = cookies()
-          const demoUserEmail = cookieStore.get("conedex_demo_user")?.value
-          const isDemoUser = demoUserEmail && demoUsers[demoUserEmail]
+          const demoUser = await getServerDemoUser()
 
           // If no session and no demo user, redirect to login
-          if (!session && !isDemoUser) {
+          if (!session && !demoUser) {
             return redirect("/login")
           }
 
@@ -77,10 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             }
 
             profile = profileData
-          } else if (isDemoUser) {
-            // Use demo user data
-            const demoUser = demoUsers[demoUserEmail!]
-
+          } else if (demoUser) {
             // Create a profile object that matches the structure expected by components
             profile = {
               id: demoUser.id,

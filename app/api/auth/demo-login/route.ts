@@ -1,4 +1,4 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 
 // Define demo users with their roles
@@ -19,6 +19,9 @@ const DEMO_USERS = {
 
 export async function POST(request: Request) {
   try {
+    const response = NextResponse.next()
+    const supabase = createMiddlewareClient({ req: request, res: response })
+
     const requestUrl = new URL(request.url)
     const { email, password } = await request.json()
 
@@ -28,9 +31,6 @@ export async function POST(request: Request) {
     if (!demoUser || demoUser.password !== password) {
       return NextResponse.json({ error: "Invalid demo credentials" }, { status: 401 })
     }
-
-    // Create a custom session for the demo user
-    const supabase = createServerClient()
 
     // Get the user ID from the database
     const { data: userData, error: userError } = await supabase
