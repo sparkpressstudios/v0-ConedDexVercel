@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client-browser"
@@ -20,6 +20,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams?.get("redirect") || "/dashboard"
 
   // Use a ref to ensure we have a stable reference to the Supabase client
   const [supabase] = useState(() => createClient())
@@ -52,6 +54,37 @@ export default function LoginPage() {
     }
   }, [])
 
+  // Check if already logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      // Check for demo user first
+      const demoUserCookie = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("conedex_demo_user="))
+        ?.split("=")[1]
+
+      if (demoUserCookie) {
+        // Already logged in as demo user, redirect
+        if (demoUserCookie === "admin@conedex.app") {
+          router.push("/dashboard/admin")
+        } else if (demoUserCookie === "shopowner@conedex.app") {
+          router.push("/dashboard/shop")
+        } else {
+          router.push("/dashboard")
+        }
+        return
+      }
+
+      // Check Supabase session
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        router.push(redirectTo)
+      }
+    }
+
+    checkAuth()
+  }, [router, redirectTo, supabase.auth])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -67,8 +100,15 @@ export default function LoginPage() {
           throw new Error("Invalid demo user credentials")
         }
 
+        console.log("Setting demo user:", email)
+
         // Set demo user in both localStorage and cookie
         setDemoUser(email)
+
+        // Set cookie directly as well for redundancy
+        document.cookie = `conedex_demo_user=${email}; path=/; max-age=86400; SameSite=Lax`
+
+        console.log("Demo user cookie set:", document.cookie)
 
         // Redirect based on role
         if (email === "admin@conedex.app") {
@@ -91,8 +131,7 @@ export default function LoginPage() {
         throw new Error(error.message)
       }
 
-      router.push("/dashboard")
-      router.refresh()
+      router.push(redirectTo)
     } catch (error: any) {
       setError(error.message)
     } finally {
@@ -107,7 +146,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center">
               <Image
-                src="/placeholder.svg?key=8qfl1"
+                src="/placeholder.svg?key=tbwki"
                 alt="ConeDex Logo"
                 width={64}
                 height={64}

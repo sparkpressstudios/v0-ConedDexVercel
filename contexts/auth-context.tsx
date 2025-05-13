@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client-browser"
 import { useToast } from "@/hooks/use-toast"
-import { getDemoUser } from "@/lib/auth/demo-auth"
+import { getDemoUser, clearDemoUser } from "@/lib/auth/demo-auth"
 
 type User = {
   id: string
@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // First check for demo user
       const demoUser = getDemoUser()
       if (demoUser) {
+        console.log("Found demo user:", demoUser.email)
         setUser({
           id: demoUser.id,
           email: demoUser.email,
@@ -149,13 +150,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       setIsLoading(true)
-      await supabase.auth.signOut()
 
       // Clear demo user if present
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("conedex_demo_user")
-        document.cookie = "conedex_demo_user=; path=/; max-age=0; SameSite=Lax"
-      }
+      clearDemoUser()
+
+      // Also sign out from Supabase
+      await supabase.auth.signOut()
 
       setUser(null)
       router.push("/login")

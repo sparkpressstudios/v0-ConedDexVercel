@@ -17,6 +17,11 @@ export async function middleware(request: NextRequest) {
   // Get the pathname
   const { pathname } = request.nextUrl
 
+  // Skip middleware for login and signup pages to avoid redirect loops
+  if (pathname.startsWith("/login") || pathname.startsWith("/signup")) {
+    return response
+  }
+
   // Protected routes that require authentication
   const protectedRoutes = ["/dashboard"]
 
@@ -41,7 +46,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // For authenticated users, check the role
-    if (session) {
+    if (session && !demoUserEmail) {
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
 
       if (!profile || profile.role !== "admin") {
@@ -58,7 +63,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // For authenticated users, check the role
-    if (session) {
+    if (session && !demoUserEmail) {
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
 
       if (!profile || (profile.role !== "shop_owner" && profile.role !== "admin")) {
@@ -72,5 +77,14 @@ export async function middleware(request: NextRequest) {
 
 // Specify which routes the middleware should run on
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/:path*"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public (public files)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|public).*)",
+  ],
 }
