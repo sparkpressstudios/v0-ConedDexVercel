@@ -1,13 +1,11 @@
-import { Configuration, OpenAIApi } from "openai"
+import OpenAI from "openai"
 import { generateText } from "ai"
 import { openai as aiSDKOpenAI } from "@ai-sdk/openai"
 
-// Initialize OpenAI API
-const configuration = new Configuration({
+// Initialize OpenAI API with the current SDK approach
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
-
-const openai = new OpenAIApi(configuration)
 
 export async function analyzeFlavor(
   name: string,
@@ -128,7 +126,7 @@ export async function categorizeFlavor(name: string, description: string): Promi
 export async function checkForDuplicates(
   name: string,
   description: string,
-  existingFlavors: Array<{ name: string; description: string }>,
+  existingFlavors: Array<{ name: string; description: string }> = [],
 ): Promise<{
   isDuplicate: boolean
   similarTo: string | null
