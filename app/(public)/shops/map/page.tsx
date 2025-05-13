@@ -1,4 +1,3 @@
-import ClientMapsLoader from "@/components/maps/client-maps-loader"
 import PublicShopsMap from "@/components/shop/public-shops-map"
 import type { Metadata } from "next"
 
@@ -15,9 +14,7 @@ export default function ShopMapPage() {
         Discover ice cream shops near you. Click on a shop to see details about it.
       </p>
 
-      <ClientMapsLoader>
-        <PublicShopsMap />
-      </ClientMapsLoader>
+      <PublicShopsMap />
     </div>
   )
 }

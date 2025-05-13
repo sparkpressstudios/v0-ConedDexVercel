@@ -4,10 +4,19 @@ import { Users, Store, Award, MessageSquare, TrendingUp, Activity, AlertTriangle
 import { createServerClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { redirect } from "next/navigation"
+import { getUserRole } from "@/lib/auth/session"
 
 export const dynamic = "force-dynamic"
 
 export default async function AdminDashboardPage() {
+  // Check if user is admin
+  const userRole = await getUserRole()
+
+  if (userRole !== "admin") {
+    return redirect("/dashboard")
+  }
+
   const supabase = await createServerClient()
 
   // Fetch counts from the database

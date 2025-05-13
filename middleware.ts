@@ -3,121 +3,74 @@ import type { NextRequest } from "next/server"
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 
 export async function middleware(request: NextRequest) {
-  // Create a response object
   const response = NextResponse.next()
+  const supabase = createMiddlewareClient({ req: request, res: response })
 
-  try {
-    // Create the Supabase middleware client
-    const supabase = createMiddlewareClient({ req: request, res: response })
+  // Check if there's a session
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
-    // Check if the user is authenticated with Supabase
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+  // Check for demo user cookie
+  const demoUser = request.cookies.get("conedex_demo_user")?.value
 
-    // Get the pathname from the request
-    const { pathname } = request.nextUrl
+  // Get the pathname
+  const { pathname } = request.nextUrl
 
-    // Check for demo user in cookies
-    const demoUser = request.cookies.get("conedex_demo_user")?.value
+  // Protected routes that require authentication
+  const protectedRoutes = ["/dashboard"]
 
-    // Public routes that don't require authentication
-    const publicRoutes = [
-      "/",
-      "/login",
-      "/signup",
-      "/features",
-      "/pricing",
-      "/business",
-      "/contact",
-      "/sponsors",
-      "/favicon.ico",
-      "/_next",
-      "/api/webhooks", // Allow webhook endpoints
-    ]
+  // Admin-only routes
+  const adminRoutes = ["/dashboard/admin"]
 
-    // Admin-only API routes that need special protection
-    const adminApiRoutes = ["/api/admin/", "/api/admin/stripe/", "/api/admin/audit-logs/"]
+  // Shop owner routes
+  const shopOwnerRoutes = ["/dashboard/shop"]
 
-    // Static assets and non-admin API routes
-    const isStaticOrPublicApi =
-      pathname.startsWith("/_next/") ||
-      (pathname.startsWith("/api/") && !adminApiRoutes.some((route) => pathname.startsWith(route))) ||
-      pathname.includes(".") // Files with extensions (images, etc.)
-
-    // Check if the current path is a public route or starts with a public route
-    const isPublicRoute =
-      publicRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`)) || isStaticOrPublicApi
-
-    // If the user is on a public route, allow access
-    if (isPublicRoute) {
-      return response
-    }
-
-    // Special handling for admin API routes - require admin session
-    if (adminApiRoutes.some((route) => pathname.startsWith(route))) {
-      // For API routes, we need to check if the user is an admin
-      if (!session) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      }
-
-      // Get user role from Supabase
-      const { data: userData } = await supabase.from("users").select("role").eq("id", session.user.id).single()
-
-      // If not admin, return unauthorized
-      if (!userData || userData.role !== "admin") {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-      }
-
-      // Admin is authorized, continue
-      return response
-    }
-
-    // If the user is not authenticated and not a demo user, redirect to login
-    if (!session && !demoUser) {
-      const redirectUrl = new URL("/login", request.url)
-      redirectUrl.searchParams.set("redirect", pathname)
-      return NextResponse.redirect(redirectUrl)
-    }
-
-    // For demo users, handle role-based access
-    if (demoUser && !session) {
-      // Admin routes
-      if (pathname.startsWith("/dashboard/admin") && demoUser !== "admin@conedex.app") {
-        const redirectUrl = new URL("/dashboard", request.url)
-        return NextResponse.redirect(redirectUrl)
-      }
-
-      // Shop owner routes
-      if (pathname.startsWith("/dashboard/shop") && demoUser !== "shopowner@conedex.app") {
-        const redirectUrl = new URL("/dashboard", request.url)
-        return NextResponse.redirect(redirectUrl)
-      }
-    }
-
-    // For authenticated users, check role-based access for admin routes
-    if (session && pathname.startsWith("/dashboard/admin")) {
-      // Get user role from Supabase
-      const { data: userData } = await supabase.from("users").select("role").eq("id", session.user.id).single()
-
-      // If not admin, redirect to dashboard
-      if (!userData || userData.role !== "admin") {
-        const redirectUrl = new URL("/dashboard", request.url)
-        return NextResponse.redirect(redirectUrl)
-      }
-    }
-
-    return response
-  } catch (error) {
-    console.error("Middleware error:", error)
-
-    // If there's an error, redirect to login with an error parameter
+  // If accessing a protected route without authentication, redirect to login
+  if (protectedRoutes.some((route) => pathname.startsWith(route)) && !session && !demoUser) {
     const redirectUrl = new URL("/login", request.url)
-    redirectUrl.searchParams.set("error", "auth")
+    redirectUrl.searchParams.set("redirect", pathname)
     return NextResponse.redirect(redirectUrl)
   }
+
+  // If accessing admin routes, check for admin role
+  if (adminRoutes.some((route) => pathname.startsWith(route))) {
+    // For demo users, check the cookie
+    if (demoUser && demoUser !== "admin@conedex.app") {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+
+    // For authenticated users, check the role
+    if (session) {
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
+
+      if (!profile || profile.role !== "admin") {
+        return NextResponse.redirect(new URL("/dashboard", request.url))
+      }
+    }
+  }
+
+  // If accessing shop owner routes, check for shop_owner role
+  if (shopOwnerRoutes.some((route) => pathname.startsWith(route))) {
+    // For demo users, check the cookie
+    if (demoUser && demoUser !== "shopowner@conedex.app" && demoUser !== "admin@conedex.app") {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+
+    // For authenticated users, check the role
+    if (session) {
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", session.user.id).single()
+
+      if (!profile || (profile.role !== "shop_owner" && profile.role !== "admin")) {
+        return NextResponse.redirect(new URL("/dashboard", request.url))
+      }
+    }
+  }
+
+  return response
 }
 
+// Specify which routes the middleware should run on
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.png$).*)"],
+  matcher: ["/dashboard/:path*", "/api/:path*"],
 }

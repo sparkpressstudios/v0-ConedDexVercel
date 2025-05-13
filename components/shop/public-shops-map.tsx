@@ -1,188 +1,150 @@
 "use client"
 
-import type React from "react"
-
-import { useEffect, useRef, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect, useRef } from "react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Search, MapPin, Loader2 } from "lucide-react"
-import { MapsLoader } from "@/components/maps/maps-loader"
-import { searchShops } from "@/app/actions/maps-actions"
-
-// Declare google variable
-declare global {
-  interface Window {
-    google?: any
-  }
-}
+import { Card } from "@/components/ui/card"
+import ClientMapsLoader from "@/components/maps/client-maps-loader"
+import { createClient } from "@/lib/supabase/client"
 
 interface Shop {
   id: string
   name: string
   address: string
-  rating?: number
-  vicinity: string
-  lat: number
-  lng: number
+  city: string
+  state: string
+  zip: string
+  latitude: number
+  longitude: number
+  rating: number
+  is_verified: boolean
 }
 
-// Export as a named export to maintain compatibility
-export function PublicShopsMap() {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const [map, setMap] = useState<any>(null)
-  const [markers, setMarkers] = useState<any[]>([])
+export default function PublicShopsMap() {
   const [shops, setShops] = useState<Shop[]>([])
-  const [searchQuery, setSearchQuery] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
-  const [infoWindow, setInfoWindow] = useState<any>(null)
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const markersRef = useRef<{ [key: string]: google.maps.Marker }>({})
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
+  const supabase = createClient()
 
-  // Initialize the map when Google Maps is loaded
-  const handleMapsLoaded = () => {
-    if (!mapRef.current || !window.google) return
+  // Fetch shops data
+  useEffect(() => {
+    const fetchShops = async () => {
+      setIsLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from("shops")
+          .select("*")
+          .not("latitude", "is", null)
+          .not("longitude", "is", null)
+          .eq("is_active", true)
+          .order("rating", { ascending: false })
 
-    // Create a new map instance
-    const mapInstance = new window.google.maps.Map(mapRef.current, {
-      center: { lat: 40.7128, lng: -74.006 }, // Default to NYC
-      zoom: 12,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
+        if (error) throw error
+
+        setShops(data || [])
+      } catch (error) {
+        console.error("Error fetching shops:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchShops()
+  }, [supabase])
+
+  // Initialize map when loaded
+  const initMap = (mapInstance: google.maps.Map) => {
+    mapRef.current = mapInstance
+    infoWindowRef.current = new google.maps.InfoWindow()
+
+    // Add markers for shops
+    shops.forEach((shop) => {
+      if (!shop.latitude || !shop.longitude) return
+
+      const marker = new google.maps.Marker({
+        position: { lat: shop.latitude, lng: shop.longitude },
+        map: mapRef.current,
+        title: shop.name,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: shop.is_verified ? "#10b981" : "#6366f1",
+          fillOpacity: 0.9,
+          strokeWeight: 2,
+          strokeColor: "#ffffff",
+        },
+      })
+
+      marker.addListener("click", () => {
+        if (infoWindowRef.current) {
+          infoWindowRef.current.close()
+
+          const content = `
+            <div style="padding: 8px; max-width: 200px;">
+              <h3 style="margin: 0 0 8px; font-weight: 600;">${shop.name}</h3>
+              <p style="margin: 0 0 4px; font-size: 14px;">${shop.address}</p>
+              <p style="margin: 0; font-size: 14px;">${shop.city}, ${shop.state} ${shop.zip}</p>
+              ${shop.rating ? `<p style="margin: 8px 0 0; font-size: 14px;">Rating: ${shop.rating.toFixed(1)} ⭐</p>` : ""}
+            </div>
+          `
+
+          infoWindowRef.current.setContent(content)
+          infoWindowRef.current.open(mapRef.current, marker)
+          setSelectedShop(shop)
+        }
+      })
+
+      markersRef.current[shop.id] = marker
     })
 
-    // Create an info window for displaying shop details
-    const infoWindowInstance = new window.google.maps.InfoWindow()
+    // Fit bounds if we have markers
+    if (Object.keys(markersRef.current).length > 0 && mapRef.current) {
+      const bounds = new window.google.maps.LatLngBounds()
+      Object.values(markersRef.current).forEach((marker) => {
+        bounds.extend(marker.getPosition()!)
+      })
+      mapRef.current.fitBounds(bounds)
 
-    setMap(mapInstance)
-    setInfoWindow(infoWindowInstance)
-
-    // Load initial shops
-    handleSearch("ice cream")
-  }
-
-  // Handle search form submission
-  const handleSearch = async (query: string) => {
-    if (!query) return
-
-    setLoading(true)
-    setSelectedShop(null)
-
-    try {
-      // Use the server action to search for shops
-      const { results } = await searchShops(query)
-
-      // Convert results to our shop format
-      const formattedShops = results.map((result) => ({
-        id: result.place_id,
-        name: result.name,
-        vicinity: result.vicinity,
-        address: result.vicinity,
-        rating: result.rating,
-        lat: result.geometry.location.lat,
-        lng: result.geometry.location.lng,
-      }))
-
-      setShops(formattedShops)
-
-      // Update map bounds to fit all shops
-      if (map && formattedShops.length > 0) {
-        const bounds = new window.google.maps.LatLngBounds()
-        formattedShops.forEach((shop) => {
-          bounds.extend({ lat: shop.lat, lng: shop.lng })
-        })
-        map.fitBounds(bounds)
-
-        // If only one result, zoom in a bit
-        if (formattedShops.length === 1) {
-          map.setZoom(15)
+      // Don't zoom in too far
+      const listener = window.google.maps.event.addListener(mapRef.current, "idle", () => {
+        if (mapRef.current!.getZoom()! > 15) {
+          mapRef.current!.setZoom(15)
         }
-      }
-    } catch (error) {
-      console.error("Error searching for shops:", error)
-    } finally {
-      setLoading(false)
+        window.google.maps.event.removeListener(listener)
+      })
     }
   }
 
-  // Update markers when shops change
-  useEffect(() => {
-    if (!map || !window.google) return
-
-    // Clear existing markers
-    markers.forEach((marker) => marker.setMap(null))
-
-    // Create new markers
-    const newMarkers = shops.map((shop) => {
-      const marker = new window.google.maps.Marker({
-        position: { lat: shop.lat, lng: shop.lng },
-        map,
-        title: shop.name,
-        animation: window.google.maps.Animation.DROP,
-      })
-
-      // Add click event to show info window
-      marker.addListener("click", () => {
-        setSelectedShop(shop)
-
-        if (infoWindow) {
-          infoWindow.setContent(`
-            <div class="p-2">
-              <h3 class="font-bold">${shop.name}</h3>
-              <p class="text-sm">${shop.vicinity}</p>
-              ${shop.rating ? `<p class="text-sm">Rating: ${shop.rating} ⭐</p>` : ""}
-              <p class="text-sm mt-2">
-                <a href="#" class="text-blue-600 hover:underline view-details" data-id="${shop.id}">
-                  View Details
-                </a>
-              </p>
-            </div>
-          `)
-          infoWindow.open(map, marker)
-        }
-      })
-
-      return marker
-    })
-
-    setMarkers(newMarkers)
-  }, [shops, map, infoWindow])
-
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    handleSearch(searchQuery)
-  }
-
-  // Get user's current location
+  // Try to get user's location
   const handleGetCurrentLocation = () => {
-    if (navigator.geolocation) {
+    if (navigator.geolocation && mapRef.current) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          const { latitude, longitude } = position.coords
-
-          if (map) {
-            map.setCenter({ lat: latitude, lng: longitude })
-            map.setZoom(14)
-
-            // Add a special marker for user's location
-            new window.google.maps.Marker({
-              position: { lat: latitude, lng: longitude },
-              map,
-              title: "Your Location",
-              icon: {
-                path: window.google.maps.SymbolPath.CIRCLE,
-                scale: 10,
-                fillColor: "#4285F4",
-                fillOpacity: 1,
-                strokeColor: "#ffffff",
-                strokeWeight: 2,
-              },
-            })
-
-            // Search for shops near the user's location
-            handleSearch("ice cream near me")
+          const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
           }
+
+          mapRef.current!.setCenter(userLocation)
+          mapRef.current!.setZoom(13)
+
+          // Add a marker for the user's location
+          new window.google.maps.Marker({
+            position: userLocation,
+            map: mapRef.current,
+            title: "Your Location",
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: "#ef4444",
+              fillOpacity: 0.9,
+              strokeWeight: 2,
+              strokeColor: "#ffffff",
+            },
+          })
         },
         (error) => {
           console.error("Error getting location:", error)
@@ -191,74 +153,25 @@ export function PublicShopsMap() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex h-[500px] items-center justify-center rounded-lg border bg-card">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100vh-200px)] min-h-[500px]">
-      <Card className="md:col-span-1 overflow-auto">
-        <CardHeader>
-          <CardTitle>Find Ice Cream Shops</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex space-x-2">
-              <Input
-                placeholder="Search for ice cream shops..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <Button type="submit" disabled={loading}>
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </Button>
-            </div>
+    <Card className="overflow-hidden">
+      <div className="relative h-[500px] w-full">
+        <ClientMapsLoader onMapLoad={initMap} />
 
-            <Button type="button" variant="outline" className="w-full" onClick={handleGetCurrentLocation}>
-              <MapPin className="h-4 w-4 mr-2" /> Use My Location
-            </Button>
-          </form>
-
-          <div className="mt-4 space-y-2">
-            <h3 className="font-medium">Results ({shops.length})</h3>
-            {shops.length === 0 ? (
-              <p className="text-sm text-gray-500">No shops found. Try a different search.</p>
-            ) : (
-              <div className="space-y-2 max-h-[300px] overflow-auto">
-                {shops.map((shop) => (
-                  <Card
-                    key={shop.id}
-                    className={`p-3 cursor-pointer hover:bg-gray-50 ${
-                      selectedShop?.id === shop.id ? "ring-2 ring-primary" : ""
-                    }`}
-                    onClick={() => {
-                      setSelectedShop(shop)
-
-                      // Find the marker for this shop and trigger a click
-                      const marker = markers.find((m) => m.getTitle() === shop.name)
-                      if (marker) {
-                        window.google.maps.event.trigger(marker, "click")
-
-                        // Center the map on this marker
-                        map.panTo(marker.getPosition())
-                      }
-                    }}
-                  >
-                    <h4 className="font-medium">{shop.name}</h4>
-                    <p className="text-sm text-gray-500">{shop.vicinity}</p>
-                    {shop.rating && <p className="text-sm">Rating: {shop.rating} ⭐</p>}
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="md:col-span-2 relative">
-        <div ref={mapRef} className="w-full h-full min-h-[400px] rounded-md overflow-hidden">
-          <MapsLoader onLoad={handleMapsLoaded} />
+        <div className="absolute bottom-4 right-4 z-10">
+          <Button onClick={handleGetCurrentLocation} variant="secondary">
+            Find Shops Near Me
+          </Button>
         </div>
-      </Card>
-    </div>
+      </div>
+    </Card>
   )
 }
-
-// Also export as default for flexibility
-export default PublicShopsMap

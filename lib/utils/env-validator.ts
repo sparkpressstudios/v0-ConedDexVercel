@@ -11,6 +11,9 @@ export function validateEnvironmentVariables(): { valid: boolean; missing: strin
     "SUPABASE_SERVICE_ROLE_KEY",
     "SUPABASE_JWT_SECRET",
     "GOOGLE_MAPS_API_KEY",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET",
+    "OPENAI_API_KEY",
   ]
 
   const requiredClientVars = [
@@ -18,6 +21,7 @@ export function validateEnvironmentVariables(): { valid: boolean; missing: strin
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "NEXT_PUBLIC_SITE_URL",
     "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
   ]
 
   const isServer = typeof window === "undefined"

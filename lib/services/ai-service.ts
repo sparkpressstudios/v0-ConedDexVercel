@@ -1,6 +1,13 @@
-// This is a simplified version - your actual implementation may differ
+import { Configuration, OpenAIApi } from "openai"
 import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { openai as aiSDKOpenAI } from "@ai-sdk/openai"
+
+// Initialize OpenAI API
+const configuration = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+})
+
+const openai = new OpenAIApi(configuration)
 
 export async function analyzeFlavor(
   name: string,
@@ -29,7 +36,7 @@ export async function analyzeFlavor(
     `
 
     const { text: textAnalysisResult } = await generateText({
-      model: openai("gpt-4o"),
+      model: aiSDKOpenAI("gpt-4o"),
       prompt: textAnalysisPrompt,
     })
 
@@ -48,7 +55,7 @@ export async function analyzeFlavor(
       `
 
       const { text: imageAnalysisResult } = await generateText({
-        model: openai("gpt-4o"),
+        model: aiSDKOpenAI("gpt-4o"),
         prompt: imageAnalysisPrompt,
       })
 
@@ -98,7 +105,7 @@ export async function categorizeFlavor(name: string, description: string): Promi
     `
 
     const { text } = await generateText({
-      model: openai("gpt-4o"),
+      model: aiSDKOpenAI("gpt-4o"),
       prompt,
     })
 
@@ -151,7 +158,7 @@ export async function checkForDuplicates(
     `
 
     const { text } = await generateText({
-      model: openai("gpt-4o"),
+      model: aiSDKOpenAI("gpt-4o"),
       prompt,
     })
 
@@ -202,7 +209,7 @@ export async function moderateContent(
     `
 
     const { text: textModerationResult } = await generateText({
-      model: openai("gpt-4o"),
+      model: aiSDKOpenAI("gpt-4o"),
       prompt: textModerationPrompt,
     })
 
@@ -225,7 +232,7 @@ export async function moderateContent(
       `
 
       const { text: imageModerationResult } = await generateText({
-        model: openai("gpt-4o"),
+        model: aiSDKOpenAI("gpt-4o"),
         prompt: imageModerationPrompt,
       })
 

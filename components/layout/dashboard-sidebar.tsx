@@ -24,7 +24,6 @@ import {
   LogOut,
   ChevronDown,
   PlusCircle,
-  MapPin,
   BookOpen,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -40,11 +39,13 @@ interface NavItem {
   icon: React.ReactNode
   requiresShop?: boolean
   badge?: string | number
+  roles?: string[]
 }
 
 interface NavGroup {
   title: string
   items: NavItem[]
+  roles?: string[]
 }
 
 export function DashboardSidebar() {
@@ -54,6 +55,7 @@ export function DashboardSidebar() {
   const [shopManagementOpen, setShopManagementOpen] = useState(true)
   const { user, signOut } = useAuth()
   const supabase = createClient()
+  const userRole = user?.role || "explorer"
 
   useEffect(() => {
     async function checkShop() {
@@ -70,7 +72,8 @@ export function DashboardSidebar() {
     checkShop()
   }, [user, supabase])
 
-  const navGroups: NavGroup[] = [
+  // Explorer navigation items
+  const explorerNavGroups: NavGroup[] = [
     {
       title: "General",
       items: [
@@ -78,28 +81,32 @@ export function DashboardSidebar() {
           title: "Dashboard",
           href: "/dashboard",
           icon: <LayoutDashboard className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "ConeDex",
           href: "/dashboard/conedex",
           icon: <IceCream className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "My ConeDex",
           href: "/dashboard/my-conedex",
           icon: <BookOpen className="h-5 w-5" />,
-          description: "View your personal ice cream collection",
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "My Flavors",
           href: "/dashboard/flavors",
           icon: <IceCream className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "Log Flavor",
           href: "/dashboard/log-flavor",
           icon: <PlusCircle className="h-5 w-5" />,
           badge: "New",
+          roles: ["explorer", "shop_owner", "admin"],
         },
       ],
     },
@@ -110,16 +117,13 @@ export function DashboardSidebar() {
           title: "Find Shops",
           href: "/dashboard/shops",
           icon: <Store className="h-5 w-5" />,
-        },
-        {
-          title: "Shop Map",
-          href: "/dashboard/shops/map",
-          icon: <MapPin className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "Following",
           href: "/dashboard/following",
           icon: <Heart className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
       ],
     },
@@ -130,16 +134,19 @@ export function DashboardSidebar() {
           title: "Teams",
           href: "/dashboard/teams",
           icon: <Users className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "Leaderboard",
           href: "/dashboard/leaderboard",
           icon: <Trophy className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "Badges",
           href: "/dashboard/badges",
           icon: <Award className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
       ],
     },
@@ -150,62 +157,157 @@ export function DashboardSidebar() {
           title: "Profile",
           href: "/dashboard/profile",
           icon: <User className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "Notifications",
           href: "/dashboard/notifications",
           icon: <Bell className="h-5 w-5" />,
           badge: 3,
+          roles: ["explorer", "shop_owner", "admin"],
         },
         {
           title: "Settings",
           href: "/dashboard/settings",
           icon: <Settings className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
         },
       ],
     },
   ]
 
+  // Shop owner navigation items
   const shopNavItems: NavItem[] = [
     {
       title: "Shop Dashboard",
       href: "/dashboard/shop",
       icon: <Store className="h-5 w-5" />,
       requiresShop: true,
+      roles: ["shop_owner", "admin"],
     },
     {
       title: "Shop Analytics",
       href: "/dashboard/shop/analytics",
       icon: <BarChart className="h-5 w-5" />,
       requiresShop: true,
+      roles: ["shop_owner", "admin"],
     },
     {
       title: "Marketing",
       href: "/dashboard/shop/marketing",
       icon: <Megaphone className="h-5 w-5" />,
       requiresShop: true,
+      roles: ["shop_owner", "admin"],
     },
     {
       title: "Shop Flavors",
       href: "/dashboard/shop/flavors",
       icon: <IceCream className="h-5 w-5" />,
       requiresShop: true,
+      roles: ["shop_owner", "admin"],
     },
     {
       title: "Announcements",
       href: "/dashboard/shop/announcements",
       icon: <Bell className="h-5 w-5" />,
       requiresShop: true,
+      roles: ["shop_owner", "admin"],
     },
     {
       title: "Shop Settings",
       href: "/dashboard/shop/settings",
       icon: <Settings className="h-5 w-5" />,
       requiresShop: true,
+      roles: ["shop_owner", "admin"],
     },
   ]
 
-  const filteredShopNavItems = shopNavItems.filter((item) => !item.requiresShop || hasShop)
+  // Admin navigation items
+  const adminNavItems: NavItem[] = [
+    {
+      title: "Admin Dashboard",
+      href: "/dashboard/admin",
+      icon: <LayoutDashboard className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Users Management",
+      href: "/dashboard/admin/users",
+      icon: <Users className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Shops Management",
+      href: "/dashboard/admin/shops",
+      icon: <Store className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Shop Claims",
+      href: "/dashboard/admin/shops/claims",
+      icon: <Store className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Badges Management",
+      href: "/dashboard/admin/badges",
+      icon: <Award className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Content Moderation",
+      href: "/dashboard/admin/moderation",
+      icon: <Bell className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Subscriptions",
+      href: "/dashboard/admin/subscriptions",
+      icon: <Award className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Stripe Mapping",
+      href: "/dashboard/admin/stripe-mapping",
+      icon: <Award className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Analytics",
+      href: "/dashboard/admin/analytics",
+      icon: <BarChart className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Audit Logs",
+      href: "/dashboard/admin/audit-logs",
+      icon: <Award className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+    {
+      title: "Admin Settings",
+      href: "/dashboard/admin/settings",
+      icon: <Settings className="h-5 w-5" />,
+      roles: ["admin"],
+    },
+  ]
+
+  // Filter shop nav items based on shop ownership and role
+  const filteredShopNavItems = shopNavItems.filter(
+    (item) => (!item.requiresShop || hasShop) && item.roles?.includes(userRole),
+  )
+
+  // Create admin nav groups
+  const adminNavGroups: NavGroup[] = [
+    {
+      title: "Administration",
+      items: adminNavItems,
+      roles: ["admin"],
+    },
+  ]
+
+  // Combine nav groups based on user role
+  const navGroups = [...explorerNavGroups, ...(userRole === "admin" ? adminNavGroups : [])]
 
   const NavItems = () => (
     <div className="flex flex-col space-y-6">
@@ -219,50 +321,65 @@ export function DashboardSidebar() {
           />
         </div>
 
-        {navGroups.map((group) => (
-          <div key={group.title} className="mb-6">
-            <h2 className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {group.title}
-            </h2>
-            <div className="space-y-1">
-              {group.items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    "group flex items-center justify-between rounded-md px-3 py-2 text-sm transition-all hover:bg-accent",
-                    pathname === item.href
-                      ? "bg-accent text-accent-foreground font-medium"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
+        {navGroups.map((group) => {
+          // Skip groups that don't apply to the user's role
+          if (group.roles && !group.roles.includes(userRole)) {
+            return null
+          }
+
+          return (
+            <div key={group.title} className="mb-6">
+              <h2 className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {group.title}
+              </h2>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  // Skip items that don't apply to the user's role
+                  if (item.roles && !item.roles.includes(userRole)) {
+                    return null
+                  }
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setOpen(false)}
                       className={cn(
-                        "rounded-md p-1",
+                        "group flex items-center justify-between rounded-md px-3 py-2 text-sm transition-all hover:bg-accent",
                         pathname === item.href
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
+                          ? "bg-accent text-accent-foreground font-medium"
+                          : "text-muted-foreground hover:text-foreground",
                       )}
                     >
-                      {item.icon}
-                    </div>
-                    {item.title}
-                  </div>
-                  {item.badge && (
-                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              ))}
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={cn(
+                            "rounded-md p-1",
+                            pathname === item.href
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
+                          )}
+                        >
+                          {item.icon}
+                        </div>
+                        {item.title}
+                      </div>
+                      {item.badge && (
+                        <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      {hasShop && (
+      {/* Shop Management Section - Only for shop owners and admins */}
+      {(userRole === "shop_owner" || userRole === "admin") && hasShop && filteredShopNavItems.length > 0 && (
         <div className="px-3 py-2">
           <Collapsible open={shopManagementOpen} onOpenChange={setShopManagementOpen}>
             <CollapsibleTrigger asChild>

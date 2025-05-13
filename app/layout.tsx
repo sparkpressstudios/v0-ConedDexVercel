@@ -1,9 +1,20 @@
 import type React from "react"
 import { checkEnvironmentVariables } from "@/lib/utils/env-validator"
 import ClientLayout from "./client-layout"
+import { initEnvironment } from "./init-env"
 
-// Check environment variables during server rendering
+// Initialize environment checks - server actions must be awaited
 if (typeof window === "undefined") {
+  // We can't use await at the top level in a module, so we use a self-invoking async function
+  ;(async () => {
+    try {
+      await initEnvironment()
+    } catch (error) {
+      console.error("Environment initialization failed:", error)
+    }
+  })()
+
+  // Also run the direct check for redundancy
   checkEnvironmentVariables()
 }
 

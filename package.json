@@ -56,6 +56,7 @@
     "next": "15.2.4",
     "next-themes": "^0.4.4",
     "node-cron": "latest",
+    "openai": "latest",
     "path": "latest",
     "pixelmatch": "latest",
     "pngjs": "latest",
@@ -73,6 +74,7 @@
     "uuid": "latest",
     "vaul": "^0.9.6",
     "web-push": "latest",
+    "ws": "latest",
     "zod": "latest"
   },
   "devDependencies": {

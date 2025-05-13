@@ -1,462 +1,304 @@
-"use client"
+export const dynamic = "force-dynamic"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import {
-  Store,
-  MapPin,
-  Phone,
-  Globe,
-  Edit,
-  PlusCircle,
-  IceCream,
-  BarChart,
-  Loader2,
-  Users,
-  Star,
-  Calendar,
-  ArrowUpRight,
-  TrendingUp,
-} from "lucide-react"
-
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { IceCream, Users, Award, Bell, TrendingUp, Star, BarChart, Megaphone, Settings } from "lucide-react"
+import Link from "next/link"
+import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createClient } from "@/lib/supabase/client"
-import { useAuth } from "@/contexts/auth-context"
-import { SubscriptionStatus } from "@/components/subscription/subscription-status"
-import { SubscriptionBanner } from "@/components/subscription/subscription-banner"
-import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import type { Database } from "@/lib/database.types"
+import { redirect } from "next/navigation"
 
-export default function ShopDashboardPage() {
-  const router = useRouter()
-  const { user } = useAuth()
-  const supabase = createClient()
+export default async function ShopDashboardPage() {
+  try {
+    const supabase = createServerComponentClient<Database>({ cookies })
 
-  const [shop, setShop] = useState<any | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [flavors, setFlavors] = useState<any[]>([])
-  const [stats, setStats] = useState({
-    totalFlavors: 0,
-    totalLogs: 0,
-    averageRating: 0,
-    totalCustomers: 0,
-    weeklyVisits: 0,
-  })
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  useEffect(() => {
-    const fetchShopData = async () => {
-      if (!user) return
-
-      setIsLoading(true)
-      try {
-        // Get the shop
-        const { data: shopData, error: shopError } = await supabase
-          .from("shops")
-          .select("*")
-          .eq("owner_id", user.id)
-          .single()
-
-        if (shopError) {
-          if (shopError.code === "PGRST116") {
-            // No shop found, redirect to claim page
-            router.push("/dashboard/shop/claim")
-            return
-          }
-          throw shopError
-        }
-
-        setShop(shopData)
-
-        // Get shop flavors
-        const { data: flavorData, error: flavorError } = await supabase
-          .from("flavors")
-          .select("*")
-          .eq("shop_id", shopData.id)
-          .order("created_at", { ascending: false })
-
-        if (flavorError) throw flavorError
-
-        setFlavors(flavorData || [])
-
-        // Get shop stats
-        const { data: logsData, error: logsError } = await supabase
-          .from("flavor_logs")
-          .select("rating, user_id")
-          .eq("shop_id", shopData.id)
-
-        if (logsError) throw logsError
-
-        // Calculate stats
-        const totalLogs = logsData?.length || 0
-        const totalRating = logsData?.reduce((sum, log) => sum + (log.rating || 0), 0) || 0
-        const averageRating = totalLogs > 0 ? (totalRating / totalLogs).toFixed(1) : "0.0"
-        const totalCustomers = new Set(logsData?.map((log) => log.user_id)).size
-
-        // Mock weekly visits data (replace with actual data fetching)
-        const weeklyVisits = Math.floor(Math.random() * 50) + 50 // Random number between 50 and 100
-
-        setStats({
-          totalFlavors: flavorData?.length || 0,
-          totalLogs,
-          averageRating: Number.parseFloat(averageRating),
-          totalCustomers,
-          weeklyVisits,
-        })
-      } catch (error) {
-        console.error("Error fetching shop data:", error)
-      } finally {
-        setIsLoading(false)
-      }
+    if (!user) {
+      return redirect("/login")
     }
 
-    fetchShopData()
-  }, [user, supabase, router])
+    // Get user profile
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user?.id).single()
 
-  if (isLoading) {
+    if (!profile) {
+      return redirect("/login")
+    }
+
+    const userRole = profile.role || "explorer"
+
+    // Only shop owners and admins can access this page
+    if (userRole !== "shop_owner" && userRole !== "admin") {
+      return redirect("/dashboard")
+    }
+
+    // Get shop data
+    const { data: shop, error: shopError } = await supabase
+      .from("shops")
+      .select("*, shop_stats(*)")
+      .eq("owner_id", user.id)
+      .single()
+
+    // If no shop is found, redirect to claim shop page
+    if (shopError || !shop) {
+      return redirect("/dashboard/shop/claim")
+    }
+
+    // Get shop stats
+    const totalFlavors = shop.shop_stats?.total_flavors || 0
+    const totalReviews = shop.shop_stats?.total_reviews || 0
+    const averageRating = shop.shop_stats?.average_rating || 0
+    const totalFollowers = shop.shop_stats?.total_followers || 0
+
+    // Get recent announcements
+    const { data: recentAnnouncements } = await supabase
+      .from("shop_announcements")
+      .select("*")
+      .eq("shop_id", shop.id)
+      .order("created_at", { ascending: false })
+      .limit(3)
+
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (!shop) {
-    return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>No Shop Found</CardTitle>
-            <CardDescription>You haven't claimed or created a shop yet.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>Claim your existing business or create a new listing to get started.</p>
-          </CardContent>
-          <CardFooter>
-            <Button onClick={() => router.push("/dashboard/shop/claim")} className="w-full">
-              Claim or Create Shop
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Subscription Banner */}
-      <SubscriptionBanner businessId={shop.id} />
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{shop.name}</h1>
-          <p className="text-muted-foreground">Shop Dashboard</p>
+      <div className="space-y-8">
+        {/* Welcome Section */}
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-500 via-teal-500 to-emerald-500 p-8 text-white shadow-lg">
+          <div className="absolute inset-0 bg-black/10"></div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 border-2 border-white/50">
+                <AvatarImage src={shop.logo_url || "/placeholder.svg"} alt={shop.name || "Shop"} />
+                <AvatarFallback className="bg-white/20 text-white">
+                  {shop.name?.substring(0, 2).toUpperCase() || "S"}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight">{shop.name || "Your Shop"}</h1>
+                <p className="mt-1 text-white/80">Shop Owner Dashboard</p>
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button asChild variant="secondary" className="bg-white text-teal-700 hover:bg-white/90">
+                <Link href="/dashboard/shop/flavors">
+                  <IceCream className="mr-2 h-4 w-4" />
+                  Manage Flavors
+                </Link>
+              </Button>
+              <Button asChild variant="secondary" className="bg-white text-teal-700 hover:bg-white/90">
+                <Link href="/dashboard/shop/announcements">
+                  <Bell className="mr-2 h-4 w-4" />
+                  Post Announcement
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="bg-white/10 text-white hover:bg-white/20">
+                <Link href="/dashboard/shop/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Shop Settings
+                </Link>
+              </Button>
+            </div>
+          </div>
+          <div className="absolute -bottom-6 -right-6 h-32 w-32 rounded-full bg-white/10 blur-3xl"></div>
+          <div className="absolute -top-8 -left-8 h-32 w-32 rounded-full bg-white/10 blur-3xl"></div>
         </div>
-        <div className="flex items-center gap-2">
-          {shop.is_verified ? (
-            <Badge variant="default" className="bg-green-500">
-              Verified
-            </Badge>
-          ) : (
-            <Badge variant="outline">Unverified</Badge>
-          )}
-          <SubscriptionStatus businessId={shop.id} />
-          <Button onClick={() => router.push("/dashboard/shop/edit")}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Shop
+
+        {/* Stats Section */}
+        <ErrorBoundary>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-teal-50 to-teal-100">
+                <CardTitle className="text-sm font-medium">Total Flavors</CardTitle>
+                <IceCream className="h-4 w-4 text-teal-500" />
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="text-3xl font-bold text-teal-600">{totalFlavors}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalFlavors === 0
+                    ? "Add your first flavor!"
+                    : `You have ${totalFlavors} flavor${totalFlavors === 1 ? "" : "s"} in your shop`}
+                </p>
+                <div className="mt-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    className="h-7 px-2 text-xs text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                  >
+                    <Link href="/dashboard/shop/flavors">Manage Flavors</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-blue-50 to-blue-100">
+                <CardTitle className="text-sm font-medium">Customer Reviews</CardTitle>
+                <Star className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="text-3xl font-bold text-blue-600">{totalReviews}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalReviews === 0 ? "No reviews yet" : `Average rating: ${averageRating.toFixed(1)}/5`}
+                </p>
+                <div className="mt-3 flex items-center text-xs text-blue-600">
+                  <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                  <span>Encourage customers to leave reviews</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-amber-50 to-amber-100">
+                <CardTitle className="text-sm font-medium">Followers</CardTitle>
+                <Users className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="text-3xl font-bold text-amber-600">{totalFollowers}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalFollowers === 0
+                    ? "No followers yet"
+                    : `${totalFollowers} customer${totalFollowers === 1 ? "" : "s"} following your shop`}
+                </p>
+                <div className="mt-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                  >
+                    <Link href="/dashboard/shop/marketing">Grow Your Audience</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-purple-50 to-purple-100">
+                <CardTitle className="text-sm font-medium">Shop Status</CardTitle>
+                <Award className="h-4 w-4 text-purple-500" />
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="text-3xl font-bold text-purple-600">{shop.is_verified ? "Verified" : "Pending"}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {shop.is_verified ? "Your shop is verified" : "Verification in progress"}
+                </p>
+                <div className="mt-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                  >
+                    <Link href="/dashboard/shop/settings">View Status</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </ErrorBoundary>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Quick Actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Manage your shop</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button asChild variant="outline" className="w-full justify-start" size="sm">
+                <Link href="/dashboard/shop/flavors/add">
+                  <IceCream className="mr-2 h-4 w-4" />
+                  Add New Flavor
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start" size="sm">
+                <Link href="/dashboard/shop/announcements/new">
+                  <Bell className="mr-2 h-4 w-4" />
+                  Create Announcement
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start" size="sm">
+                <Link href="/dashboard/shop/analytics">
+                  <BarChart className="mr-2 h-4 w-4" />
+                  View Analytics
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full justify-start" size="sm">
+                <Link href="/dashboard/shop/marketing">
+                  <Megaphone className="mr-2 h-4 w-4" />
+                  Marketing Tools
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Recent Announcements */}
+          <Card className="md:col-span-2">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Recent Announcements</CardTitle>
+                  <CardDescription>Updates you've shared with customers</CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" asChild className="text-xs">
+                  <Link href="/dashboard/shop/announcements">View All</Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {recentAnnouncements && recentAnnouncements.length > 0 ? (
+                <div className="space-y-4">
+                  {recentAnnouncements.map((announcement) => (
+                    <div key={announcement.id} className="rounded-lg border p-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium">{announcement.title}</h3>
+                        <Badge variant={announcement.is_active ? "default" : "outline"}>
+                          {announcement.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{announcement.content}</p>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Posted: {new Date(announcement.created_at).toLocaleDateString()}</span>
+                        {announcement.expiry_date && (
+                          <span>Expires: {new Date(announcement.expiry_date).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex h-40 items-center justify-center rounded-lg border border-dashed">
+                  <div className="text-center">
+                    <Bell className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">No announcements yet</p>
+                    <Button asChild variant="link" className="mt-2">
+                      <Link href="/dashboard/shop/announcements/new">Create your first announcement</Link>
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  } catch (error) {
+    console.error("Shop dashboard page error:", error)
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Something went wrong</h2>
+          <p className="mt-2 text-muted-foreground">We're having trouble loading your shop dashboard.</p>
+          <Button asChild variant="default" className="mt-4">
+            <Link href="/dashboard/shop">Try Again</Link>
           </Button>
         </div>
       </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Flavors</CardTitle>
-            <IceCream className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalFlavors}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalFlavors === 0
-                ? "Add your first flavor to get started"
-                : `You have ${stats.totalFlavors} flavor${stats.totalFlavors === 1 ? "" : "s"} in your menu`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Customer Logs</CardTitle>
-            <BarChart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalLogs}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalLogs === 0
-                ? "No customer logs yet"
-                : `${stats.totalLogs} customer${stats.totalLogs === 1 ? "" : "s"} have logged your flavors`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
-            <Star className="h-4 w-4 text-amber-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.averageRating || "-"}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalLogs === 0
-                ? "No ratings yet"
-                : `Based on ${stats.totalLogs} customer rating${stats.totalLogs === 1 ? "" : "s"}`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCustomers}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.totalCustomers === 0
-                ? "No customers yet"
-                : `You have ${stats.totalCustomers} unique customer${stats.totalCustomers === 1 ? "" : "s"}`}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Weekly Visits</CardTitle>
-            <CardDescription>Number of customers who visited this week</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <div className="text-2xl font-bold">{stats.weeklyVisits}</div>
-              <TrendingUp className="ml-2 h-6 w-6 text-green-500" />
-            </div>
-            <Progress value={(stats.weeklyVisits / 100) * 100} className="mt-4" />
-            <p className="mt-2 text-xs text-muted-foreground">
-              {stats.weeklyVisits === 0
-                ? "No visits this week"
-                : `You had ${stats.weeklyVisits} visit${stats.weeklyVisits === 1 ? "" : "s"} this week`}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Engagement</CardTitle>
-            <CardDescription>Recent customer activity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <Avatar>
-                    <AvatarImage src="https://github.com/shadcn.png" />
-                    <AvatarFallback>CN</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium">shadcn</p>
-                    <p className="text-xs text-muted-foreground">Logged Vanilla Bean</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">2 days ago</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <Avatar>
-                    <AvatarImage src="https://github.com/emilkowalski.png" />
-                    <AvatarFallback>EK</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium">emilkowalski</p>
-                    <p className="text-xs text-muted-foreground">Rated Chocolate Fudge</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">1 week ago</p>
-                </div>
-              </div>
-            </div>
-            <Button variant="link" className="mt-4 w-full justify-start">
-              View All
-              <ArrowUpRight className="ml-2 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Shop Details</CardTitle>
-              <CardDescription>Information about your ice cream shop</CardDescription>
-            </div>
-            <Badge variant={shop.is_verified ? "default" : "outline"}>
-              {shop.is_verified ? "Verified" : "Verification Pending"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div>
-              {shop.image_url ? (
-                <div className="overflow-hidden rounded-md">
-                  <img
-                    src={shop.image_url || "/placeholder.svg"}
-                    alt={shop.name}
-                    className="h-64 w-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="flex h-64 items-center justify-center rounded-md border border-dashed">
-                  <div className="text-center">
-                    <Store className="mx-auto h-10 w-10 text-muted-foreground" />
-                    <p className="mt-2 text-sm text-muted-foreground">No shop image</p>
-                    <Button variant="link" className="mt-1" onClick={() => router.push("/dashboard/shop/edit")}>
-                      Add Image
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-medium">Contact Information</h3>
-                <div className="mt-2 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {shop.address}, {shop.city}, {shop.state}
-                    </span>
-                  </div>
-                  {shop.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span>{shop.phone}</span>
-                    </div>
-                  )}
-                  {shop.website && (
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                      <a
-                        href={shop.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        {shop.website.replace(/^https?:\/\//, "")}
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {shop.description && (
-                <div>
-                  <h3 className="text-lg font-medium">Description</h3>
-                  <p className="mt-2 text-muted-foreground">{shop.description}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="flavors" className="w-full">
-        <TabsList>
-          <TabsTrigger value="flavors">Flavors</TabsTrigger>
-          <TabsTrigger value="reviews">Customer Reviews</TabsTrigger>
-        </TabsList>
-        <TabsContent value="flavors" className="space-y-4">
-          <div className="flex justify-between">
-            <h2 className="text-xl font-bold">Your Flavors</h2>
-            <Button onClick={() => router.push("/dashboard/shop/flavors/add")}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add New Flavor
-            </Button>
-          </div>
-
-          {flavors.length === 0 ? (
-            <Card>
-              <CardContent className="flex h-40 flex-col items-center justify-center p-6 text-center">
-                <IceCream className="mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-muted-foreground">You haven't added any flavors yet</p>
-                <Button variant="link" onClick={() => router.push("/dashboard/shop/flavors/add")}>
-                  Add your first flavor
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {flavors.map((flavor) => (
-                <Card key={flavor.id} className="overflow-hidden">
-                  {flavor.image_url ? (
-                    <div className="aspect-video w-full overflow-hidden">
-                      <img
-                        src={flavor.image_url || "/placeholder.svg"}
-                        alt={flavor.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex aspect-video w-full items-center justify-center bg-muted">
-                      <IceCream className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  )}
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium">{flavor.name}</h3>
-                      <Badge variant={flavor.is_available ? "default" : "outline"}>
-                        {flavor.is_available ? "Available" : "Unavailable"}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{flavor.base_type || "Ice Cream"}</p>
-                    {flavor.description && <p className="mt-2 text-sm line-clamp-2">{flavor.description}</p>}
-                  </CardContent>
-                  <CardFooter className="border-t p-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => router.push(`/dashboard/shop/flavors/${flavor.id}`)}
-                    >
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit Flavor
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-        <TabsContent value="reviews">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex h-40 flex-col items-center justify-center text-center">
-                <BarChart className="mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-muted-foreground">Customer reviews will appear here</p>
-                <p className="text-sm text-muted-foreground">
-                  As customers log your flavors, their reviews will be displayed here
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
+    )
+  }
 }

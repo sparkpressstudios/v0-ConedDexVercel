@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { Database } from "@/lib/database.types"
+import { redirect } from "next/navigation"
 
 export default async function DashboardPage() {
   try {
@@ -23,8 +24,32 @@ export default async function DashboardPage() {
       data: { user },
     } = await supabase.auth.getUser()
 
+    if (!user) {
+      return redirect("/login")
+    }
+
     // Get user profile
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", user?.id).single()
+
+    if (!profile) {
+      return redirect("/login")
+    }
+
+    const userRole = profile.role || "explorer"
+
+    // Redirect admin users to admin dashboard
+    if (userRole === "admin") {
+      return redirect("/dashboard/admin")
+    }
+
+    // Redirect shop owners to shop dashboard if they have a shop
+    if (userRole === "shop_owner") {
+      const { data: shop } = await supabase.from("shops").select("id").eq("owner_id", user.id).single()
+
+      if (shop) {
+        return redirect("/dashboard/shop")
+      }
+    }
 
     // Get flavor logs count
     const { count: flavorLogsCount } = await supabase
@@ -59,8 +84,8 @@ export default async function DashboardPage() {
 
     const uniqueShops = shopsVisited ? [...new Set(shopsVisited.map((log) => log.shop_id))].length : 0
 
-    const isExplorer = profile?.role === "explorer"
-    const isShopOwner = profile?.role === "shop_owner"
+    const isExplorer = userRole === "explorer"
+    const isShopOwner = userRole === "shop_owner"
 
     // Calculate progress to next badge
     const nextBadgeProgress = Math.min(Math.floor((flavorLogsCount || 0) % 10) * 10, 100)
@@ -234,6 +259,7 @@ export default async function DashboardPage() {
                               log.flavors?.image_url ||
                               log.photo_url ||
                               "/placeholder.svg?height=100&width=100&query=ice cream scoop" ||
+                              "/placeholder.svg" ||
                               "/placeholder.svg" ||
                               "/placeholder.svg"
                             }
