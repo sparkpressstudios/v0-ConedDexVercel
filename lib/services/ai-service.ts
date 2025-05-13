@@ -1,303 +1,13 @@
-import OpenAI from "openai"
-import { createClient } from "@/lib/supabase/server"
+import { Configuration, OpenAIApi } from "openai"
+import { generateText } from "ai"
+import { openai as aiSDKOpenAI } from "@ai-sdk/openai"
 
-// Initialize the OpenAI client with the API key
-const openai = new OpenAI({
+// Initialize OpenAI API
+const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-export async function moderateContent(text: string): Promise<{
-  flagged: boolean
-  categories: string[]
-  scores: Record<string, number>
-}> {
-  try {
-    const response = await openai.moderations.create({
-      input: text,
-    })
-
-    const result = response.results[0]
-
-    // Extract flagged categories
-    const flaggedCategories = Object.entries(result.categories)
-      .filter(([_, value]) => value)
-      .map(([key, _]) => key)
-
-    return {
-      flagged: result.flagged,
-      categories: flaggedCategories,
-      scores: result.category_scores,
-    }
-  } catch (error) {
-    console.error("Error moderating content:", error)
-    return {
-      flagged: false,
-      categories: [],
-      scores: {},
-    }
-  }
-}
-
-export async function analyzeFlavorText(
-  name: string,
-  description: string,
-  ingredients?: string[],
-): Promise<{
-  categories: string[]
-  rarity: string
-  flags: string[]
-  similarFlavors?: string[]
-  duplicateScore?: number
-}> {
-  try {
-    const ingredientsText = ingredients && ingredients.length > 0 ? `Ingredients: ${ingredients.join(", ")}` : ""
-
-    const prompt = `
-      Analyze this ice cream flavor:
-      Name: ${name}
-      Description: ${description}
-      ${ingredientsText}
-      
-      Provide the following in JSON format:
-      1. categories: Array of flavor categories (e.g., chocolate, fruit, nut, etc.)
-      2. rarity: One of ["Common", "Uncommon", "Rare", "Ultra Rare", "Legendary"] based on uniqueness
-      3. flags: Array of content issues (empty if none)
-      4. similarFlavors: Array of common similar flavors (if any)
-      5. duplicateScore: Number from 0-1 indicating likelihood of being a duplicate (0 = unique, 1 = exact duplicate)
-    `
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a helpful assistant that analyzes ice cream flavors." },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    })
-
-    const content = response.choices[0]?.message?.content || "{}"
-    const analysis = JSON.parse(content)
-
-    return {
-      categories: analysis.categories || [],
-      rarity: analysis.rarity || "Common",
-      flags: analysis.flags || [],
-      similarFlavors: analysis.similarFlavors || [],
-      duplicateScore: analysis.duplicateScore || 0,
-    }
-  } catch (error) {
-    console.error("Error analyzing flavor text:", error)
-    return {
-      categories: [],
-      rarity: "Common",
-      flags: [],
-    }
-  }
-}
-
-// Adding the missing export that was flagged in the deployment error
-export async function categorizeFlavor(name: string, description: string, ingredients?: string[]): Promise<string[]> {
-  try {
-    const ingredientsText = ingredients && ingredients.length > 0 ? `Ingredients: ${ingredients.join(", ")}` : ""
-
-    const prompt = `
-      Categorize this ice cream flavor:
-      Name: ${name}
-      Description: ${description}
-      ${ingredientsText}
-      
-      Return ONLY an array of category tags in JSON format.
-      Example categories: chocolate, fruit, nuts, vanilla, coffee, caramel, seasonal, alcohol, vegan, etc.
-      Return between 1-5 tags that best describe this flavor.
-    `
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a helpful assistant that categorizes ice cream flavors." },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    })
-
-    const content = response.choices[0]?.message?.content || '{"categories":[]}'
-    const result = JSON.parse(content)
-
-    return Array.isArray(result.categories) ? result.categories : []
-  } catch (error) {
-    console.error("Error categorizing flavor:", error)
-    return ["uncategorized"]
-  }
-}
-
-export async function checkForDuplicates(
-  name: string,
-  description: string,
-): Promise<{
-  isDuplicate: boolean
-  similarFlavors: string[]
-  duplicateScore: number
-}> {
-  try {
-    // Get existing flavors from the database
-    const supabase = await createClient()
-    const { data: existingFlavors } = await supabase.from("flavors").select("name, description").limit(100)
-
-    if (!existingFlavors || existingFlavors.length === 0) {
-      return {
-        isDuplicate: false,
-        similarFlavors: [],
-        duplicateScore: 0,
-      }
-    }
-
-    const existingFlavorsText = existingFlavors.map((f, i) => `${i + 1}. ${f.name}: ${f.description}`).join("\n")
-
-    const prompt = `
-      I have a new ice cream flavor:
-      Name: ${name}
-      Description: ${description}
-      
-      Here are some existing flavors:
-      ${existingFlavorsText}
-      
-      Is the new flavor a duplicate or very similar to any existing flavor? 
-      Provide the following in JSON format:
-      1. isDuplicate: Boolean indicating if it's a duplicate
-      2. similarFlavors: Array of names of similar flavors
-      3. duplicateScore: Number from 0-1 indicating similarity (0 = completely different, 1 = exact duplicate)
-    `
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a helpful assistant that detects duplicate ice cream flavors." },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    })
-
-    const content = response.choices[0]?.message?.content || "{}"
-    const analysis = JSON.parse(content)
-
-    return {
-      isDuplicate: analysis.isDuplicate || false,
-      similarFlavors: analysis.similarFlavors || [],
-      duplicateScore: analysis.duplicateScore || 0,
-    }
-  } catch (error) {
-    console.error("Error checking for duplicates:", error)
-    return {
-      isDuplicate: false,
-      similarFlavors: [],
-      duplicateScore: 0,
-    }
-  }
-}
-
-export async function analyzeImage(imageUrl: string): Promise<{
-  imageSeverity: "none" | "low" | "medium" | "high"
-  imageIssues: string[]
-}> {
-  try {
-    const prompt = `
-      Analyze this ice cream image at URL: ${imageUrl}
-      
-      Provide the following in JSON format:
-      1. imageSeverity: Image moderation severity (none, low, medium, high)
-      2. imageIssues: Array of image issues if any (empty array if none)
-    `
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
-      messages: [
-        { role: "system", content: "You are a helpful assistant that analyzes images for content moderation." },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: imageUrl } },
-          ],
-        },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 300,
-    })
-
-    const content = response.choices[0]?.message?.content || "{}"
-    const analysis = JSON.parse(content)
-
-    return {
-      imageSeverity: analysis.imageSeverity || "none",
-      imageIssues: analysis.imageIssues || [],
-    }
-  } catch (error) {
-    console.error("Error analyzing image:", error)
-    return {
-      imageSeverity: "none",
-      imageIssues: [],
-    }
-  }
-}
-
-export async function generateFlavorDescription(name: string, ingredients?: string[]): Promise<string> {
-  try {
-    const ingredientsText = ingredients && ingredients.length > 0 ? `Ingredients: ${ingredients.join(", ")}` : ""
-
-    const prompt = `
-      Create a mouthwatering description for this ice cream flavor:
-      Name: ${name}
-      ${ingredientsText}
-      
-      The description should be 2-3 sentences long, enticing, and highlight the flavor profile.
-    `
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a creative ice cream flavor writer." },
-        { role: "user", content: prompt },
-      ],
-    })
-
-    return (
-      response.choices[0]?.message?.content || `A delicious ${name} ice cream that's sure to delight your taste buds.`
-    )
-  } catch (error) {
-    console.error("Error generating flavor description:", error)
-    return `A delicious ${name} ice cream that's sure to delight your taste buds.`
-  }
-}
-
-export async function generateFlavorSuggestions(userPreferences: string[]): Promise<string[]> {
-  try {
-    const preferencesText = userPreferences.join(", ")
-
-    const prompt = `
-      Based on these flavor preferences: ${preferencesText}
-      
-      Generate 5 unique ice cream flavor suggestions that this person might enjoy.
-      Return only the names of the flavors as a JSON array of strings.
-    `
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a creative ice cream flavor expert." },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    })
-
-    const content = response.choices[0]?.message?.content || '{"flavors":[]}'
-    const suggestions = JSON.parse(content)
-
-    return Array.isArray(suggestions.flavors) ? suggestions.flavors : []
-  } catch (error) {
-    console.error("Error generating flavor suggestions:", error)
-    return ["Vanilla Bean", "Chocolate Fudge", "Strawberry Swirl", "Mint Chocolate Chip", "Cookies and Cream"]
-  }
-}
+const openai = new OpenAIApi(configuration)
 
 export async function analyzeFlavor(
   name: string,
@@ -307,38 +17,55 @@ export async function analyzeFlavor(
 ) {
   try {
     // Analyze text content
-    const contentToModerate = `${name} ${description}`
-    const moderationResults = await moderateContent(contentToModerate)
-    const analysisResults = await analyzeFlavorText(name, description)
+    const textAnalysisPrompt = `
+      Analyze this ice cream flavor:
+      Name: ${name}
+      Description: ${description}
+      
+      Existing flavors for comparison:
+      ${existingFlavors.map((f) => `- ${f.name}: ${f.description}`).join("\n")}
+      
+      Provide the following in JSON format:
+      1. tags: Array of category tags (e.g., chocolate, fruit, nuts)
+      2. rarity: Rarity classification (Common, Uncommon, Rare, Ultra Rare, or Legendary)
+      3. contentSeverity: Content moderation severity (none, low, medium, high)
+      4. contentIssues: Array of content issues if any
+      5. isDuplicate: Boolean indicating if this is likely a duplicate
+      6. similarTo: Name of the most similar flavor if it's a duplicate
+      7. duplicateConfidence: Confidence score for duplicate detection (0-1)
+    `
 
-    const existingFlavorsFormatted = existingFlavors.map((f) => ({
-      name: f.name,
-      description: f.description || "",
-    }))
+    const { text: textAnalysisResult } = await generateText({
+      model: aiSDKOpenAI("gpt-4o"),
+      prompt: textAnalysisPrompt,
+    })
 
-    const duplicateResults = await checkForDuplicates(name, description)
+    const textAnalysis = JSON.parse(textAnalysisResult)
 
-    // Analyze image if available
-    let imageAnalysis = {
-      imageSeverity: "none" as const,
-      imageIssues: [] as string[],
-    }
+    // If there's an image, analyze it too
+    let imageAnalysis = { imageSeverity: "none", imageIssues: [] }
 
     if (imageUrl) {
-      imageAnalysis = await analyzeImage(imageUrl)
+      const imageAnalysisPrompt = `
+        Analyze this ice cream flavor image at URL: ${imageUrl}
+        
+        Provide the following in JSON format:
+        1. imageSeverity: Image moderation severity (none, low, medium, high)
+        2. imageIssues: Array of image issues if any
+      `
+
+      const { text: imageAnalysisResult } = await generateText({
+        model: aiSDKOpenAI("gpt-4o"),
+        prompt: imageAnalysisPrompt,
+      })
+
+      imageAnalysis = JSON.parse(imageAnalysisResult)
     }
 
     // Combine results
     return {
-      tags: analysisResults.categories,
-      rarity: analysisResults.rarity,
-      contentSeverity: moderationResults.flagged ? "high" : "none",
-      contentIssues: moderationResults.categories,
-      isDuplicate: duplicateResults.isDuplicate,
-      similarTo: duplicateResults.similarFlavors[0] || null,
-      duplicateConfidence: duplicateResults.duplicateScore,
-      imageSeverity: imageAnalysis.imageSeverity,
-      imageIssues: imageAnalysis.imageIssues,
+      ...textAnalysis,
+      ...imageAnalysis,
     }
   } catch (error) {
     console.error("Error analyzing flavor:", error)
@@ -351,6 +78,180 @@ export async function analyzeFlavor(
       isDuplicate: false,
       similarTo: null,
       duplicateConfidence: 0,
+      imageSeverity: "none",
+      imageIssues: [],
+    }
+  }
+}
+
+// Adding the missing exports that were flagged in the deployment error
+
+/**
+ * Categorizes an ice cream flavor based on its name and description
+ * @param name The flavor name
+ * @param description The flavor description
+ * @returns An array of category tags
+ */
+export async function categorizeFlavor(name: string, description: string): Promise<string[]> {
+  try {
+    const prompt = `
+      Categorize this ice cream flavor:
+      Name: ${name}
+      Description: ${description}
+      
+      Return ONLY an array of category tags in JSON format.
+      Example categories: chocolate, fruit, nuts, vanilla, coffee, caramel, seasonal, alcohol, vegan, etc.
+      Return between 1-5 tags that best describe this flavor.
+    `
+
+    const { text } = await generateText({
+      model: aiSDKOpenAI("gpt-4o"),
+      prompt,
+    })
+
+    const result = JSON.parse(text)
+    return Array.isArray(result) ? result : []
+  } catch (error) {
+    console.error("Error categorizing flavor:", error)
+    // Return safe default if categorization fails
+    return ["uncategorized"]
+  }
+}
+
+/**
+ * Checks if a flavor is potentially a duplicate of existing flavors
+ * @param name The flavor name to check
+ * @param description The flavor description
+ * @param existingFlavors Array of existing flavors to compare against
+ * @returns Object with duplicate detection results
+ */
+export async function checkForDuplicates(
+  name: string,
+  description: string,
+  existingFlavors: Array<{ name: string; description: string }>,
+): Promise<{
+  isDuplicate: boolean
+  similarTo: string | null
+  duplicateConfidence: number
+}> {
+  try {
+    if (!existingFlavors.length) {
+      return {
+        isDuplicate: false,
+        similarTo: null,
+        duplicateConfidence: 0,
+      }
+    }
+
+    const prompt = `
+      Check if this ice cream flavor is a duplicate:
+      Name: ${name}
+      Description: ${description}
+      
+      Existing flavors:
+      ${existingFlavors.map((f) => `- ${f.name}: ${f.description}`).join("\n")}
+      
+      Return ONLY a JSON object with these properties:
+      1. isDuplicate: Boolean indicating if this is likely a duplicate
+      2. similarTo: Name of the most similar flavor if it's a duplicate, null otherwise
+      3. duplicateConfidence: Confidence score for duplicate detection (0-1)
+    `
+
+    const { text } = await generateText({
+      model: aiSDKOpenAI("gpt-4o"),
+      prompt,
+    })
+
+    const result = JSON.parse(text)
+    return {
+      isDuplicate: Boolean(result.isDuplicate),
+      similarTo: result.similarTo || null,
+      duplicateConfidence: Number(result.duplicateConfidence) || 0,
+    }
+  } catch (error) {
+    console.error("Error checking for duplicates:", error)
+    // Return safe default if duplicate check fails
+    return {
+      isDuplicate: false,
+      similarTo: null,
+      duplicateConfidence: 0,
+    }
+  }
+}
+
+/**
+ * Moderates content to check for inappropriate material
+ * @param name The flavor name
+ * @param description The flavor description
+ * @param imageUrl Optional URL to an image to moderate
+ * @returns Moderation results
+ */
+export async function moderateContent(
+  name: string,
+  description: string,
+  imageUrl?: string | null,
+): Promise<{
+  contentSeverity: "none" | "low" | "medium" | "high"
+  contentIssues: string[]
+  imageSeverity: "none" | "low" | "medium" | "high"
+  imageIssues: string[]
+}> {
+  try {
+    // Moderate text content
+    const textModerationPrompt = `
+      Moderate this ice cream flavor content for inappropriate material:
+      Name: ${name}
+      Description: ${description}
+      
+      Return ONLY a JSON object with these properties:
+      1. contentSeverity: Content moderation severity (none, low, medium, high)
+      2. contentIssues: Array of content issues if any (empty array if none)
+    `
+
+    const { text: textModerationResult } = await generateText({
+      model: aiSDKOpenAI("gpt-4o"),
+      prompt: textModerationPrompt,
+    })
+
+    const textModeration = JSON.parse(textModerationResult)
+
+    // Default image moderation result
+    let imageModeration = {
+      imageSeverity: "none" as const,
+      imageIssues: [] as string[],
+    }
+
+    // If there's an image, moderate it too
+    if (imageUrl) {
+      const imageModerationPrompt = `
+        Moderate this ice cream flavor image at URL: ${imageUrl}
+        
+        Return ONLY a JSON object with these properties:
+        1. imageSeverity: Image moderation severity (none, low, medium, high)
+        2. imageIssues: Array of image issues if any (empty array if none)
+      `
+
+      const { text: imageModerationResult } = await generateText({
+        model: aiSDKOpenAI("gpt-4o"),
+        prompt: imageModerationPrompt,
+      })
+
+      imageModeration = JSON.parse(imageModerationResult)
+    }
+
+    // Combine results
+    return {
+      contentSeverity: textModeration.contentSeverity || "none",
+      contentIssues: Array.isArray(textModeration.contentIssues) ? textModeration.contentIssues : [],
+      imageSeverity: imageModeration.imageSeverity || "none",
+      imageIssues: Array.isArray(imageModeration.imageIssues) ? imageModeration.imageIssues : [],
+    }
+  } catch (error) {
+    console.error("Error moderating content:", error)
+    // Return safe defaults if moderation fails
+    return {
+      contentSeverity: "none",
+      contentIssues: [],
       imageSeverity: "none",
       imageIssues: [],
     }
