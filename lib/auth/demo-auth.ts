@@ -40,9 +40,6 @@ export function setDemoUser(email: string): void {
       // Set cookie with SameSite=Lax to work across tabs
       document.cookie = `conedex_demo_user=${email}; path=/; max-age=86400; SameSite=Lax`
 
-      console.log("Demo user set:", email)
-      console.log("Cookie set:", document.cookie)
-
       // Dispatch storage event to notify other tabs
       window.dispatchEvent(
         new StorageEvent("storage", {
@@ -76,7 +73,6 @@ export function getDemoUser(): DemoUser | null {
       }
     }
 
-    console.log("Getting demo user:", email)
     return email ? demoUsers[email] || null : null
   } catch (error) {
     console.error("Error getting demo user:", error)

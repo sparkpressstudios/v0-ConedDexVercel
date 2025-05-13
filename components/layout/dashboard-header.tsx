@@ -47,9 +47,9 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
           <div className="hidden md:flex">
             <nav className="flex items-center gap-6 text-sm">
               <Link
-                href="/dashboard/explorer"
+                href="/dashboard"
                 className={`transition-colors hover:text-foreground/80 ${
-                  pathname === "/dashboard/explorer" ? "text-foreground font-medium" : "text-foreground/60"
+                  pathname === "/dashboard" ? "text-foreground font-medium" : "text-foreground/60"
                 }`}
               >
                 Dashboard

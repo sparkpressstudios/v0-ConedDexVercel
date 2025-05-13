@@ -5,7 +5,6 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client-browser"
 import { useToast } from "@/hooks/use-toast"
-import { getDemoUser, clearDemoUser } from "@/lib/auth/demo-auth"
 
 type User = {
   id: string
@@ -36,20 +35,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Refresh user data from the server
   const refreshUser = useCallback(async () => {
     try {
-      // First check for demo user
-      const demoUser = getDemoUser()
-      if (demoUser) {
-        console.log("Found demo user:", demoUser.email)
-        setUser({
-          id: demoUser.id,
-          email: demoUser.email,
-          role: demoUser.role,
-          name: demoUser.name,
-        })
-        return
-      }
-
-      // If not a demo user, check Supabase auth
       const {
         data: { user: authUser },
         error,
@@ -108,18 +93,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
-    // Listen for storage events (for demo user changes)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "conedex_demo_user") {
-        refreshUser()
-      }
-    }
-
-    window.addEventListener("storage", handleStorageChange)
-
     return () => {
       subscription.unsubscribe()
-      window.removeEventListener("storage", handleStorageChange)
     }
   }, [supabase, refreshUser])
 
@@ -150,13 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       setIsLoading(true)
-
-      // Clear demo user if present
-      clearDemoUser()
-
-      // Also sign out from Supabase
       await supabase.auth.signOut()
-
       setUser(null)
       router.push("/login")
     } catch (error) {
