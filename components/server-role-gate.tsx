@@ -1,6 +1,6 @@
 import type React from "react"
 import { redirect } from "next/navigation"
-import { hasRole } from "@/lib/auth/session"
+import { getUserRole } from "@/lib/auth/session"
 
 interface ServerRoleGateProps {
   children: React.ReactNode
@@ -9,9 +9,9 @@ interface ServerRoleGateProps {
 }
 
 export async function ServerRoleGate({ children, allowedRoles, redirectTo = "/dashboard" }: ServerRoleGateProps) {
-  const hasAccess = await hasRole(allowedRoles)
+  const userRole = await getUserRole()
 
-  if (!hasAccess) {
+  if (!userRole || !allowedRoles.includes(userRole)) {
     return redirect(redirectTo)
   }
 

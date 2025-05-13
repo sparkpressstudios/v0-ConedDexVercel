@@ -1,9 +1,7 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bell, User, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,78 +11,92 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { AdminSidebar } from "@/components/layout/admin-sidebar"
+import { Bell, Menu, Settings, User, LogOut } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { useState } from "react"
 
 export function AdminHeader() {
-  const [notifications, setNotifications] = useState(3)
+  const { user, signOut } = useAuth()
   const pathname = usePathname()
+  const [open, setOpen] = useState(false)
 
-  // Extract the current page title from the pathname
+  // Get the current section from the pathname
   const getPageTitle = () => {
     const path = pathname.split("/").filter(Boolean)
     if (path.length <= 2) return "Admin Dashboard"
 
-    // Handle special cases
-    if (path[2] === "users" && path.length > 3) {
-      return "User Details"
-    }
-    if (path[2] === "shops") {
-      if (path.length === 3) return "Shops Management"
-      if (path[3] === "import") return "Import Shops"
-      if (path[3] === "create") return "Create Shop"
-      if (path.length > 3 && path[4] === "edit") return "Edit Shop"
-      if (path.length > 3) return "Shop Details"
-    }
-
-    // Default cases
-    return path[2].charAt(0).toUpperCase() + path[2].slice(1)
+    // Convert path segments to title case
+    const section = path[2]
+    return section.charAt(0).toUpperCase() + section.slice(1).replace(/-/g, " ")
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-background px-4 md:px-6">
-      <div className="flex items-center gap-2">
-        <h1 className="text-xl font-semibold md:text-2xl">{getPageTitle()}</h1>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          {notifications > 0 && (
-            <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center">
-              {notifications}
-            </Badge>
-          )}
-          <span className="sr-only">Notifications</span>
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="/placeholder.svg?key=5f9q1" alt="Admin" />
-                <AvatarFallback>AD</AvatarFallback>
-              </Avatar>
-              <span className="sr-only">User menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Admin Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/profile">
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/dashboard/settings">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Log out</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+    <header className="sticky top-0 z-40 border-b bg-background">
+      <div className="container flex h-16 items-center justify-between py-4">
+        <div className="flex items-center gap-4">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild className="md:hidden">
+              <Button variant="outline" size="icon" className="h-10 w-10">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[280px] sm:w-[350px] p-0">
+              <AdminSidebar />
+            </SheetContent>
+          </Sheet>
+          <Link href="/dashboard/admin" className="flex items-center gap-2">
+            <span className="text-xl font-bold hidden md:block">ConeDex Admin</span>
+            <span className="text-xl font-bold md:hidden">Admin</span>
+          </Link>
+          <div className="hidden md:block text-lg font-medium">{getPageTitle()}</div>
+        </div>
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" asChild>
+            <Link href="/dashboard/admin/notifications">
+              <Bell className="h-5 w-5" />
+              <span className="sr-only">Notifications</span>
+            </Link>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <User className="h-5 w-5" />
+                <span className="sr-only">User menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>
+                <div className="flex flex-col">
+                  <span>{user?.profile?.full_name || "Admin User"}</span>
+                  <span className="text-xs text-muted-foreground">{user?.email}</span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard">Switch to User Dashboard</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/admin/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Admin Settings</span>
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  signOut?.()
+                  window.location.href = "/"
+                }}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   )
