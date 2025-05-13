@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getSession()
 
   // Check for demo user cookie
-  const demoUser = request.cookies.get("conedex_demo_user")?.value
+  const demoUserEmail = request.cookies.get("conedex_demo_user")?.value
 
   // Get the pathname
   const { pathname } = request.nextUrl
@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
   const shopOwnerRoutes = ["/dashboard/shop"]
 
   // If accessing a protected route without authentication, redirect to login
-  if (protectedRoutes.some((route) => pathname.startsWith(route)) && !session && !demoUser) {
+  if (protectedRoutes.some((route) => pathname.startsWith(route)) && !session && !demoUserEmail) {
     const redirectUrl = new URL("/login", request.url)
     redirectUrl.searchParams.set("redirect", pathname)
     return NextResponse.redirect(redirectUrl)
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
   // If accessing admin routes, check for admin role
   if (adminRoutes.some((route) => pathname.startsWith(route))) {
     // For demo users, check the cookie
-    if (demoUser && demoUser !== "admin@conedex.app") {
+    if (demoUserEmail && demoUserEmail !== "admin@conedex.app") {
       return NextResponse.redirect(new URL("/dashboard", request.url))
     }
 
@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
   // If accessing shop owner routes, check for shop_owner role
   if (shopOwnerRoutes.some((route) => pathname.startsWith(route))) {
     // For demo users, check the cookie
-    if (demoUser && demoUser !== "shopowner@conedex.app" && demoUser !== "admin@conedex.app") {
+    if (demoUserEmail && demoUserEmail !== "shopowner@conedex.app" && demoUserEmail !== "admin@conedex.app") {
       return NextResponse.redirect(new URL("/dashboard", request.url))
     }
 

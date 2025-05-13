@@ -59,9 +59,14 @@ export default function LoginPage() {
 
     try {
       // Check if this is a demo user
-      const demoUser = demoUsers.find((user) => user.email === email && user.password === password)
+      const demoUser = demoUsers.find((user) => user.email === email)
 
       if (demoUser) {
+        // For demo users, we'll just check if the password matches
+        if (password !== demoUser.password) {
+          throw new Error("Invalid demo user credentials")
+        }
+
         // Set demo user in both localStorage and cookie
         setDemoUser(email)
 
@@ -102,7 +107,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center">
               <Image
-                src="https://sjc.microlink.io/gdEib8U5L90kgKDliz_VYrZpWgaMrn8on2Fz9qWnZxr2QrBTWwUfaP3YrUCpSONUwTyQP8FLwdSoJXG2EUflIg.jpeg"
+                src="/placeholder.svg?key=8qfl1"
                 alt="ConeDex Logo"
                 width={64}
                 height={64}

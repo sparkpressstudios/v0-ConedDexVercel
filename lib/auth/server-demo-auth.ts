@@ -15,7 +15,7 @@ export async function getServerDemoUser() {
   return demoUsers[demoUserEmail] || null
 }
 
-export async function setDemoUser(email: string): Promise<void> {
+export async function setServerDemoUser(email: string): Promise<void> {
   const cookieStore = cookies()
 
   // Set the demo user cookie with a 24-hour expiration

@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { setDemoUser } from "@/lib/auth/server-demo-auth"
+import { setServerDemoUser } from "@/lib/auth/server-demo-auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,18 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Set demo user in cookie
-    await setDemoUser(email)
-
-    // Sign in with Supabase
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
+    await setServerDemoUser(email)
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -47,6 +47,8 @@ export function setDemoUser(email: string): void {
           newValue: email,
         }),
       )
+
+      console.log("Demo user set:", email)
     } catch (error) {
       console.error("Error setting demo user:", error)
     }
