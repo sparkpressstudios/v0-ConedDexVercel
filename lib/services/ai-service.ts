@@ -1,4 +1,5 @@
 import OpenAI from "openai"
+import { createClient } from "@/lib/supabase/server"
 
 // Initialize OpenAI client
 let openaiClient: OpenAI | null = null
@@ -23,6 +24,11 @@ function getOpenAIClient(): OpenAI {
             throw new Error("OpenAI API key not configured")
           },
         },
+        moderations: {
+          create: async () => {
+            throw new Error("OpenAI API key not configured")
+          },
+        },
       } as unknown as OpenAI
     }
 
@@ -34,33 +40,64 @@ function getOpenAIClient(): OpenAI {
   return openaiClient
 }
 
+/**
+ * Comprehensive content moderation for flavor submissions
+ * Checks for vulgar language, inappropriate content, and other policy violations
+ */
 export async function moderateContent(text: string): Promise<{
   flagged: boolean
   categories: string[]
   flags: string[]
+  severity: "none" | "low" | "medium" | "high"
 }> {
   try {
     if (!text || text.trim() === "") {
-      return { flagged: false, categories: [], flags: [] }
+      return { flagged: false, categories: [], flags: [], severity: "none" }
     }
 
     const client = getOpenAIClient()
 
+    // First use OpenAI's dedicated moderation endpoint
+    try {
+      const moderationResult = await client.moderations.create({ input: text })
+
+      if (moderationResult.results[0]?.flagged) {
+        // Extract flagged categories
+        const flaggedCategories = Object.entries(moderationResult.results[0].categories)
+          .filter(([_, value]) => value)
+          .map(([key, _]) => key)
+
+        return {
+          flagged: true,
+          categories: [],
+          flags: flaggedCategories,
+          severity: "high", // Direct API flagging is considered high severity
+        }
+      }
+    } catch (error) {
+      console.error("Error using OpenAI moderation API:", error)
+      // Continue with the backup method if moderation API fails
+    }
+
+    // Backup: Use chat completion for more nuanced analysis
     const response = await client.chat.completions.create({
       model: "gpt-4",
       messages: [
         {
           role: "system",
-          content: `You are a content moderation system. Analyze the following text for inappropriate content.
+          content: `You are a content moderation system for an ice cream flavor tracking app. 
+          Analyze the following text for inappropriate content.
           Return a JSON object with the following structure:
           {
             "flagged": boolean,
             "categories": string[],
-            "flags": string[]
+            "flags": string[],
+            "severity": "none" | "low" | "medium" | "high"
           }
           
           Categories should be ice cream flavor categories like "chocolate", "fruit", "vanilla", etc.
           Flags should be reasons for flagging like "profanity", "adult content", "hate speech", etc.
+          Severity should indicate how problematic the content is.
           Only flag content that is truly inappropriate.`,
         },
         {
@@ -73,82 +110,56 @@ export async function moderateContent(text: string): Promise<{
     })
 
     const result = JSON.parse(
-      response.choices[0]?.message?.content || '{"flagged": false, "categories": [], "flags": []}',
+      response.choices[0]?.message?.content || '{"flagged": false, "categories": [], "flags": [], "severity": "none"}',
     )
+
     return {
       flagged: result.flagged || false,
       categories: result.categories || [],
       flags: result.flags || [],
+      severity: result.severity || "none",
     }
   } catch (error) {
     console.error("Error moderating content:", error)
     // Return safe default in case of error
-    return { flagged: false, categories: [], flags: [] }
+    return { flagged: false, categories: [], flags: [], severity: "none" }
   }
 }
 
-export async function analyzeFlavorRarity(
-  flavorName: string,
-  description: string,
-): Promise<{
-  rarity: string
-  score: number
-}> {
-  try {
-    if (!flavorName) {
-      return { rarity: "Common", score: 0.1 }
-    }
-
-    const client = getOpenAIClient()
-
-    const response = await client.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: `You are an ice cream flavor rarity analyzer. Analyze the following ice cream flavor name and description.
-          Return a JSON object with the following structure:
-          {
-            "rarity": string,
-            "score": number
-          }
-          
-          Rarity should be one of: "Common", "Uncommon", "Rare", "Ultra Rare", "Legendary"
-          Score should be a number between 0 and 1 representing how rare the flavor is.`,
-        },
-        {
-          role: "user",
-          content: `Flavor Name: ${flavorName}\nDescription: ${description || "No description provided"}`,
-        },
-      ],
-      temperature: 0.3,
-      response_format: { type: "json_object" },
-    })
-
-    const result = JSON.parse(response.choices[0]?.message?.content || '{"rarity": "Common", "score": 0.1}')
-    return {
-      rarity: result.rarity || "Common",
-      score: result.score || 0.1,
-    }
-  } catch (error) {
-    console.error("Error analyzing flavor rarity:", error)
-    // Return safe default in case of error
-    return { rarity: "Common", score: 0.1 }
-  }
-}
-
+/**
+ * Check for duplicate flavors in the database
+ */
 export async function checkForDuplicates(
   flavorName: string,
   description: string,
   existingFlavors: Array<{ name: string; description: string }> = [],
 ): Promise<{
   isDuplicate: boolean
-  similarityScore: number
-  mostSimilarFlavor: string | null
+  duplicateConfidence: number
+  similarTo: string | null
 }> {
   try {
-    if (!flavorName || existingFlavors.length === 0) {
-      return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
+    if (!flavorName) {
+      return { isDuplicate: false, duplicateConfidence: 0, similarTo: null }
+    }
+
+    // If no existing flavors were provided, fetch them from the database
+    if (existingFlavors.length === 0) {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase.from("flavor_logs").select("name, description").limit(100)
+
+        if (data && data.length > 0) {
+          existingFlavors = data
+        }
+      } catch (error) {
+        console.error("Error fetching existing flavors:", error)
+      }
+    }
+
+    // If still no flavors, return no duplicates
+    if (existingFlavors.length === 0) {
+      return { isDuplicate: false, duplicateConfidence: 0, similarTo: null }
     }
 
     const client = getOpenAIClient()
@@ -166,13 +177,17 @@ export async function checkForDuplicates(
           Return a JSON object with the following structure:
           {
             "isDuplicate": boolean,
-            "similarityScore": number,
-            "mostSimilarFlavor": string
+            "duplicateConfidence": number,
+            "similarTo": string
           }
           
           isDuplicate should be true if the new flavor is very similar to an existing one.
-          similarityScore should be a number between 0 and 1 representing how similar the most similar flavor is.
-          mostSimilarFlavor should be the name of the most similar existing flavor, or null if none are similar.`,
+          duplicateConfidence should be a number between 0 and 1 representing how similar the most similar flavor is.
+          similarTo should be the name of the most similar existing flavor, or null if none are similar.
+          
+          Consider that different shops might have slightly different names for the same flavor.
+          For example, "Chocolate Chip Cookie Dough" and "Cookie Dough Chunk" might be considered duplicates.
+          However, "Strawberry" and "Strawberry Cheesecake" would not be duplicates.`,
         },
         {
           role: "user",
@@ -184,183 +199,177 @@ export async function checkForDuplicates(
     })
 
     const result = JSON.parse(
-      response.choices[0]?.message?.content ||
-        '{"isDuplicate": false, "similarityScore": 0, "mostSimilarFlavor": null}',
+      response.choices[0]?.message?.content || '{"isDuplicate": false, "duplicateConfidence": 0, "similarTo": null}',
     )
+
     return {
       isDuplicate: result.isDuplicate || false,
-      similarityScore: result.similarityScore || 0,
-      mostSimilarFlavor: result.mostSimilarFlavor,
+      duplicateConfidence: result.duplicateConfidence || 0,
+      similarTo: result.similarTo,
     }
   } catch (error) {
     console.error("Error checking for duplicates:", error)
     // Return safe default in case of error
-    return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
+    return { isDuplicate: false, duplicateConfidence: 0, similarTo: null }
   }
 }
 
-export async function categorizeFlavorIngredients(
-  flavorName: string,
-  description: string,
-): Promise<{
-  categories: string[]
-  ingredients: string[]
+/**
+ * Analyze an image to detect inappropriate content
+ */
+export async function analyzeImage(imageUrl: string): Promise<{
+  flagged: boolean
+  imageSeverity: "none" | "low" | "medium" | "high"
+  imageIssues: string[]
+  isIceCream: boolean
+  confidence: number
 }> {
   try {
-    if (!flavorName) {
-      return { categories: [], ingredients: [] }
-    }
-
-    const client = getOpenAIClient()
-
-    const response = await client.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: `You are an ice cream flavor analyzer. Extract categories and ingredients from the flavor name and description.
-          Return a JSON object with the following structure:
-          {
-            "categories": string[],
-            "ingredients": string[]
-          }
-          
-          Categories should be broad flavor categories like "chocolate", "fruit", "vanilla", etc.
-          Ingredients should be specific ingredients mentioned or implied in the flavor.`,
-        },
-        {
-          role: "user",
-          content: `Flavor Name: ${flavorName}\nDescription: ${description || "No description provided"}`,
-        },
-      ],
-      temperature: 0.3,
-      response_format: { type: "json_object" },
-    })
-
-    const result = JSON.parse(response.choices[0]?.message?.content || '{"categories": [], "ingredients": []}')
-    return {
-      categories: result.categories || [],
-      ingredients: result.ingredients || [],
-    }
-  } catch (error) {
-    console.error("Error categorizing flavor ingredients:", error)
-    // Return safe default in case of error
-    return { categories: [], ingredients: [] }
-  }
-}
-
-export async function generateFlavorDescription(flavorName: string): Promise<string> {
-  try {
-    if (!flavorName) {
-      return "A delicious ice cream flavor."
-    }
-
-    const client = getOpenAIClient()
-
-    const response = await client.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: `You are an ice cream flavor description generator. Create a mouthwatering, concise description for the given ice cream flavor name.
-          The description should be 1-2 sentences long and highlight the key flavors and experience.`,
-        },
-        {
-          role: "user",
-          content: `Flavor Name: ${flavorName}`,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 100,
-    })
-
-    return response.choices[0]?.message?.content || "A delicious ice cream flavor."
-  } catch (error) {
-    console.error("Error generating flavor description:", error)
-    // Return safe default in case of error
-    return "A delicious ice cream flavor."
-  }
-}
-
-// Add the missing exports
-export async function analyzeFlavor(
-  flavorName: string,
-  description: string,
-): Promise<{
-  analysis: string
-  rating: number
-  complexity: string
-  seasonality: string[]
-  pairings: string[]
-}> {
-  try {
-    if (!flavorName) {
+    if (!imageUrl) {
       return {
-        analysis: "No flavor to analyze",
-        rating: 0,
-        complexity: "Simple",
-        seasonality: ["Any season"],
-        pairings: ["Any dessert"],
+        flagged: false,
+        imageSeverity: "none",
+        imageIssues: [],
+        isIceCream: true,
+        confidence: 1.0,
       }
     }
 
     const client = getOpenAIClient()
 
     const response = await client.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4-vision-preview",
       messages: [
         {
           role: "system",
-          content: `You are an ice cream flavor analyst. Analyze the following ice cream flavor name and description.
+          content: `You are an image analysis system for an ice cream tracking app.
+          Analyze the provided image and determine:
+          1. If it contains inappropriate content
+          2. If it actually shows ice cream
+          
           Return a JSON object with the following structure:
           {
-            "analysis": string,
-            "rating": number,
-            "complexity": string,
-            "seasonality": string[],
-            "pairings": string[]
+            "flagged": boolean,
+            "imageSeverity": "none" | "low" | "medium" | "high",
+            "imageIssues": string[],
+            "isIceCream": boolean,
+            "confidence": number
           }
           
-          Analysis should be a brief analysis of the flavor profile.
-          Rating should be a number between 1 and 10.
-          Complexity should be one of: "Simple", "Moderate", "Complex", "Very Complex"
-          Seasonality should be an array of seasons when this flavor would be most popular.
-          Pairings should be an array of foods or desserts that would pair well with this flavor.`,
+          flagged should be true if the image contains inappropriate content.
+          imageSeverity should indicate how problematic the content is.
+          imageIssues should list specific issues found.
+          isIceCream should be true if the image appears to contain ice cream.
+          confidence should be a number between 0 and 1 representing confidence in the analysis.`,
         },
         {
           role: "user",
-          content: `Flavor Name: ${flavorName}\nDescription: ${description || "No description provided"}`,
+          content: [
+            { type: "text", text: "Analyze this image of ice cream:" },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
         },
       ],
-      temperature: 0.4,
+      max_tokens: 800,
+      temperature: 0.1,
       response_format: { type: "json_object" },
     })
 
     const result = JSON.parse(
       response.choices[0]?.message?.content ||
-        '{"analysis": "No analysis available", "rating": 5, "complexity": "Simple", "seasonality": ["Any season"], "pairings": ["Any dessert"]}',
+        '{"flagged": false, "imageSeverity": "none", "imageIssues": [], "isIceCream": true, "confidence": 1.0}',
     )
 
     return {
-      analysis: result.analysis || "No analysis available",
-      rating: result.rating || 5,
-      complexity: result.complexity || "Simple",
-      seasonality: result.seasonality || ["Any season"],
-      pairings: result.pairings || ["Any dessert"],
+      flagged: result.flagged || false,
+      imageSeverity: result.imageSeverity || "none",
+      imageIssues: result.imageIssues || [],
+      isIceCream: result.isIceCream !== false, // Default to true if not specified
+      confidence: result.confidence || 1.0,
+    }
+  } catch (error) {
+    console.error("Error analyzing image:", error)
+    // Return safe default in case of error
+    return {
+      flagged: false,
+      imageSeverity: "none",
+      imageIssues: [],
+      isIceCream: true,
+      confidence: 0.5,
+    }
+  }
+}
+
+/**
+ * Comprehensive flavor analysis including categorization, duplicate checking, and moderation
+ */
+export async function analyzeFlavor(
+  flavorName: string,
+  description: string,
+  imageUrl: string | null = null,
+  existingFlavors: Array<{ name: string; description: string }> = [],
+): Promise<{
+  contentSeverity: "none" | "low" | "medium" | "high"
+  contentIssues: string[]
+  imageSeverity: "none" | "low" | "medium" | "high"
+  imageIssues: string[]
+  isDuplicate: boolean
+  duplicateConfidence: number
+  similarTo: string | null
+  tags: string[]
+  rarity: string
+  isIceCream: boolean
+}> {
+  try {
+    // Run all analyses in parallel for efficiency
+    const [contentModeration, duplicateCheck, imageAnalysis, categoryData] = await Promise.all([
+      moderateContent(`${flavorName} ${description}`),
+      checkForDuplicates(flavorName, description, existingFlavors),
+      imageUrl
+        ? analyzeImage(imageUrl)
+        : Promise.resolve({
+            flagged: false,
+            imageSeverity: "none",
+            imageIssues: [],
+            isIceCream: true,
+            confidence: 1.0,
+          }),
+      categorizeFlavor(flavorName, description),
+    ])
+
+    return {
+      contentSeverity: contentModeration.severity,
+      contentIssues: contentModeration.flags,
+      imageSeverity: imageAnalysis.imageSeverity,
+      imageIssues: imageAnalysis.imageIssues,
+      isDuplicate: duplicateCheck.isDuplicate,
+      duplicateConfidence: duplicateCheck.duplicateConfidence,
+      similarTo: duplicateCheck.similarTo,
+      tags: categoryData.tags || [],
+      rarity: categoryData.rarity || "Common",
+      isIceCream: imageAnalysis.isIceCream,
     }
   } catch (error) {
     console.error("Error analyzing flavor:", error)
     // Return safe default in case of error
     return {
-      analysis: "Analysis unavailable at this time",
-      rating: 5,
-      complexity: "Simple",
-      seasonality: ["Any season"],
-      pairings: ["Any dessert"],
+      contentSeverity: "none",
+      contentIssues: [],
+      imageSeverity: "none",
+      imageIssues: [],
+      isDuplicate: false,
+      duplicateConfidence: 0,
+      similarTo: null,
+      tags: [],
+      rarity: "Common",
+      isIceCream: true,
     }
   }
 }
 
+/**
+ * Categorize a flavor based on its name and description
+ */
 export async function categorizeFlavor(
   flavorName: string,
   description: string,
@@ -370,6 +379,7 @@ export async function categorizeFlavor(
   tags: string[]
   allergens: string[]
   dietaryInfo: string[]
+  rarity: string
 }> {
   try {
     if (!flavorName) {
@@ -379,6 +389,7 @@ export async function categorizeFlavor(
         tags: [],
         allergens: [],
         dietaryInfo: [],
+        rarity: "Common",
       }
     }
 
@@ -396,14 +407,16 @@ export async function categorizeFlavor(
             "subCategories": string[],
             "tags": string[],
             "allergens": string[],
-            "dietaryInfo": string[]
+            "dietaryInfo": string[],
+            "rarity": string
           }
           
           mainCategory should be the primary flavor category (e.g., "Chocolate", "Fruit", "Vanilla", "Nut", etc.)
           subCategories should be more specific categories (e.g., "Dark Chocolate", "Berry", "Tropical Fruit", etc.)
           tags should be relevant descriptive tags (e.g., "creamy", "sweet", "tangy", "rich", etc.)
           allergens should list potential allergens (e.g., "nuts", "dairy", "eggs", etc.)
-          dietaryInfo should include dietary considerations (e.g., "vegetarian", "contains gluten", etc.)`,
+          dietaryInfo should include dietary considerations (e.g., "vegetarian", "contains gluten", etc.)
+          rarity should be one of: "Common", "Uncommon", "Rare", "Ultra Rare", "Legendary"`,
         },
         {
           role: "user",
@@ -416,7 +429,7 @@ export async function categorizeFlavor(
 
     const result = JSON.parse(
       response.choices[0]?.message?.content ||
-        '{"mainCategory": "Uncategorized", "subCategories": [], "tags": [], "allergens": [], "dietaryInfo": []}',
+        '{"mainCategory": "Uncategorized", "subCategories": [], "tags": [], "allergens": [], "dietaryInfo": [], "rarity": "Common"}',
     )
 
     return {
@@ -425,6 +438,7 @@ export async function categorizeFlavor(
       tags: result.tags || [],
       allergens: result.allergens || [],
       dietaryInfo: result.dietaryInfo || [],
+      rarity: result.rarity || "Common",
     }
   } catch (error) {
     console.error("Error categorizing flavor:", error)
@@ -435,191 +449,18 @@ export async function categorizeFlavor(
       tags: [],
       allergens: [],
       dietaryInfo: [],
+      rarity: "Common",
     }
   }
 }
 
-// Fallback function for moderateContent when OpenAI is unavailable
-export async function moderateContentFallback(text: string): Promise<{
-  flagged: boolean
-  categories: string[]
-  flags: string[]
-}> {
-  try {
-    if (!text || text.trim() === "") {
-      return { flagged: false, categories: [], flags: [] }
-    }
-
-    const client = getOpenAIClient()
-
-    const response = await client.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: `You are a content moderation system. Analyze the following text for inappropriate content.
-          Return a JSON object with the following structure:
-          {
-            "flagged": boolean,
-            "categories": string[],
-            "flags": string[]
-          }
-          
-          Categories should be ice cream flavor categories like "chocolate", "fruit", "vanilla", etc.
-          Flags should be reasons for flagging like "profanity", "adult content", "hate speech", etc.
-          Only flag content that is truly inappropriate.`,
-        },
-        {
-          role: "user",
-          content: text,
-        },
-      ],
-      temperature: 0.1,
-      response_format: { type: "json_object" },
-    })
-
-    const result = JSON.parse(
-      response.choices[0]?.message?.content || '{"flagged": false, "categories": [], "flags": []}',
-    )
-    return {
-      flagged: result.flagged || false,
-      categories: result.categories || [],
-      flags: result.flags || [],
-    }
-  } catch (error) {
-    console.error("Error moderating content:", error)
-    // Return safe default in case of error
-    return { flagged: false, categories: [], flags: [] }
-  }
+async function analyzeFlavorRarity(flavorName: string, description: string): Promise<string> {
+  return "Common"
 }
 
-// Fallback function for checkForDuplicates when OpenAI is unavailable
-export async function checkForDuplicatesFallback(
-  flavorName: string,
-  description: string,
-  existingFlavors: Array<{ name: string; description: string }> = [],
-): Promise<{
-  isDuplicate: boolean
-  similarityScore: number
-  mostSimilarFlavor: string | null
-}> {
-  try {
-    if (!flavorName || existingFlavors.length === 0) {
-      return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
-    }
-
-    // Simple fallback implementation when OpenAI is unavailable
-    // Just check for exact name matches
-    const exactMatch = existingFlavors.find((f) => f.name.toLowerCase() === flavorName.toLowerCase())
-
-    if (exactMatch) {
-      return {
-        isDuplicate: true,
-        similarityScore: 1.0,
-        mostSimilarFlavor: exactMatch.name,
-      }
-    }
-
-    // Check for partial matches
-    const partialMatches = existingFlavors.filter(
-      (f) =>
-        f.name.toLowerCase().includes(flavorName.toLowerCase()) ||
-        flavorName.toLowerCase().includes(f.name.toLowerCase()),
-    )
-
-    if (partialMatches.length > 0) {
-      return {
-        isDuplicate: true,
-        similarityScore: 0.7,
-        mostSimilarFlavor: partialMatches[0].name,
-      }
-    }
-
-    return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
-  } catch (error) {
-    console.error("Error checking for duplicates:", error)
-    // Return safe default in case of error
-    return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
-  }
+async function generateFlavorDescription(flavorName: string): Promise<string> {
+  return `A delicious flavor of ${flavorName}`
 }
 
-// Fallback function for categorizeFlavor when OpenAI is unavailable
-export async function categorizeFlavorFallback(
-  flavorName: string,
-  description: string,
-): Promise<{
-  mainCategory: string
-  subCategories: string[]
-  tags: string[]
-  allergens: string[]
-  dietaryInfo: string[]
-}> {
-  try {
-    if (!flavorName) {
-      return {
-        mainCategory: "Uncategorized",
-        subCategories: [],
-        tags: [],
-        allergens: [],
-        dietaryInfo: [],
-      }
-    }
-
-    // Simple fallback categorization based on common keywords
-    const lowerName = flavorName.toLowerCase()
-    const lowerDesc = description?.toLowerCase() || ""
-
-    // Determine main category
-    let mainCategory = "Uncategorized"
-    if (lowerName.includes("chocolate") || lowerDesc.includes("chocolate")) {
-      mainCategory = "Chocolate"
-    } else if (lowerName.includes("vanilla") || lowerDesc.includes("vanilla")) {
-      mainCategory = "Vanilla"
-    } else if (
-      lowerName.includes("strawberry") ||
-      lowerName.includes("raspberry") ||
-      lowerName.includes("blueberry") ||
-      lowerDesc.includes("strawberry") ||
-      lowerDesc.includes("raspberry") ||
-      lowerDesc.includes("blueberry")
-    ) {
-      mainCategory = "Fruit"
-    } else if (lowerName.includes("mint") || lowerDesc.includes("mint")) {
-      mainCategory = "Mint"
-    } else if (
-      lowerName.includes("cookie") ||
-      lowerName.includes("dough") ||
-      lowerDesc.includes("cookie") ||
-      lowerDesc.includes("dough")
-    ) {
-      mainCategory = "Cookie"
-    }
-
-    // Simple allergen detection
-    const allergens = []
-    if (lowerName.includes("nut") || lowerDesc.includes("nut")) {
-      allergens.push("nuts")
-    }
-    if (lowerName.includes("dairy") || lowerDesc.includes("dairy") || mainCategory !== "Sorbet") {
-      allergens.push("dairy")
-    }
-
-    return {
-      mainCategory,
-      subCategories: [],
-      tags: [mainCategory.toLowerCase()],
-      allergens,
-      dietaryInfo: allergens.length === 0 ? ["allergen-free"] : [],
-    }
-  } catch (error) {
-    console.error("Error categorizing flavor:", error)
-    // Return safe default in case of error
-    return {
-      mainCategory: "Uncategorized",
-      subCategories: [],
-      tags: [],
-      allergens: [],
-      dietaryInfo: [],
-    }
-  }
-}
+// Export other existing functions
+export { analyzeFlavorRarity, generateFlavorDescription }

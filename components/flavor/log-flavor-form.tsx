@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import { getUserLocation, getNearbyShops } from "@/lib/services/location-service"
-import { categorizeFlavor, checkForDuplicates, moderateContent } from "@/lib/services/ai-service"
+import { categorizeFlavor, checkForDuplicates, moderateContent, analyzeImage } from "@/lib/services/ai-service"
 import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { flavorLogFormSchema, validateForm } from "@/lib/utils/form-validation"
 import { updateLeaderboardOnFlavorLog } from "@/lib/utils/leaderboard-utils"
@@ -67,6 +67,12 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [step, setStep] = useState<"location" | "details" | "review">("location")
   const [error, setError] = useState<string | null>(null)
+
+  // AI moderation state
+  const [isCheckingContent, setIsCheckingContent] = useState(false)
+  const [moderationResult, setModerationResult] = useState<any>(null)
+  const [duplicateCheckResult, setDuplicateCheckResult] = useState<any>(null)
+  const [imageAnalysisResult, setImageAnalysisResult] = useState<any>(null)
 
   // Clean up video stream when component unmounts
   useEffect(() => {
@@ -140,7 +146,7 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
   }
 
   // Handle file upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0]
 
@@ -165,7 +171,44 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
       }
 
       setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
+      const previewUrl = URL.createObjectURL(file)
+      setImagePreview(previewUrl)
+
+      // If not in demo mode, analyze the image
+      if (!demoMode) {
+        await analyzeUploadedImage(previewUrl)
+      }
+    }
+  }
+
+  // Analyze uploaded image
+  const analyzeUploadedImage = async (imageUrl: string) => {
+    if (demoMode) return
+
+    try {
+      setIsCheckingContent(true)
+      const result = await analyzeImage(imageUrl)
+      setImageAnalysisResult(result)
+
+      if (result.flagged) {
+        toast({
+          title: "Image flagged",
+          description: `The image may contain inappropriate content: ${result.imageIssues.join(", ")}`,
+          variant: "destructive",
+        })
+      }
+
+      if (!result.isIceCream) {
+        toast({
+          title: "Image may not be ice cream",
+          description: "The uploaded image doesn't appear to contain ice cream. Please upload an image of the flavor.",
+          variant: "warning",
+        })
+      }
+    } catch (error) {
+      console.error("Error analyzing image:", error)
+    } finally {
+      setIsCheckingContent(false)
     }
   }
 
@@ -196,7 +239,7 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
     }
   }
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current
       const canvas = canvasRef.current
@@ -208,12 +251,18 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
         context.drawImage(video, 0, 0, canvas.width, canvas.height)
 
         canvas.toBlob(
-          (blob) => {
+          async (blob) => {
             if (blob) {
               const file = new File([blob], "flavor-photo.jpg", { type: "image/jpeg" })
               setImageFile(file)
-              setImagePreview(URL.createObjectURL(blob))
+              const previewUrl = URL.createObjectURL(blob)
+              setImagePreview(previewUrl)
               stopCamera()
+
+              // If not in demo mode, analyze the image
+              if (!demoMode) {
+                await analyzeUploadedImage(previewUrl)
+              }
             }
           },
           "image/jpeg",
@@ -229,6 +278,58 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
       setVideoStream(null)
     }
     setIsUsingCamera(false)
+  }
+
+  // Check for vulgar content
+  const checkForVulgarContent = async () => {
+    if (demoMode) return true
+
+    try {
+      setIsCheckingContent(true)
+      const result = await moderateContent(`${name} ${description} ${notes}`)
+      setModerationResult(result)
+
+      if (result.flagged) {
+        toast({
+          title: "Content flagged",
+          description: `Your submission contains inappropriate content: ${result.flags.join(", ")}`,
+          variant: "destructive",
+        })
+        return false
+      }
+      return true
+    } catch (error) {
+      console.error("Error checking for vulgar content:", error)
+      return true // Continue if the check fails
+    } finally {
+      setIsCheckingContent(false)
+    }
+  }
+
+  // Check for duplicate flavors
+  const checkForDuplicateFlavors = async () => {
+    if (demoMode) return true
+
+    try {
+      setIsCheckingContent(true)
+      const result = await checkForDuplicates(name, description)
+      setDuplicateCheckResult(result)
+
+      if (result.isDuplicate && result.duplicateConfidence > 0.8) {
+        toast({
+          title: "Possible duplicate",
+          description: `This flavor appears to be similar to "${result.similarTo}"`,
+          variant: "warning",
+        })
+        // Don't block submission, just warn
+      }
+      return true
+    } catch (error) {
+      console.error("Error checking for duplicates:", error)
+      return true // Continue if the check fails
+    } finally {
+      setIsCheckingContent(false)
+    }
   }
 
   // Validate form data
@@ -264,6 +365,23 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
     setError(null)
 
     try {
+      // First validate the form data
+      if (!validateFormData()) {
+        setIsSubmitting(false)
+        return
+      }
+
+      // Check for vulgar content
+      const contentIsClean = await checkForVulgarContent()
+      if (!contentIsClean) {
+        setIsSubmitting(false)
+        return
+      }
+
+      // Check for duplicate flavors
+      await checkForDuplicateFlavors()
+      // We don't block on duplicates, just warn
+
       if (demoMode) {
         // In demo mode, simulate submission
         await new Promise((resolve) => setTimeout(resolve, 1500))
@@ -333,21 +451,22 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
 
       // Use AI to analyze the flavor
       const categoryData = await categorizeFlavor(name, description)
-      const duplicateCheck = await checkForDuplicates(name, description)
-      const moderationResult = await moderateContent(name, description)
 
-      // Handle potential issues
-      if (moderationResult.flagged) {
-        setError(`Your flavor submission was rejected: Inappropriate Content`)
-        setIsSubmitting(false)
-        return
+      // If image analysis flagged the image, warn but don't block
+      if (imageAnalysisResult?.flagged) {
+        toast({
+          title: "Image may be inappropriate",
+          description: "Your image has been flagged for review by a moderator.",
+          variant: "warning",
+        })
       }
 
-      // If it's a potential duplicate, warn the user but allow them to continue
-      if (duplicateCheck.isDuplicate) {
+      // If it's not ice cream, warn but don't block
+      if (imageUrl && imageAnalysisResult && !imageAnalysisResult.isIceCream) {
         toast({
-          title: "Possible Duplicate",
-          description: "This flavor might be similar to one already logged.",
+          title: "Image may not be ice cream",
+          description: "Your image doesn't appear to contain ice cream. It will be reviewed by a moderator.",
+          variant: "warning",
         })
       }
 
@@ -363,7 +482,8 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
         shop_id: selectedShop,
         image_url: imageUrl,
         category: categoryData.mainCategory,
-        duplicate: duplicateCheck.isDuplicate,
+        duplicate: duplicateCheckResult?.isDuplicate || false,
+        moderation_status: moderationResult?.flagged || imageAnalysisResult?.flagged ? "pending" : "approved",
       }
 
       const { data, error: insertError } = await supabase.from("flavor_logs").insert([flavorData]).select().single()
@@ -503,11 +623,22 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
                       onClick={() => {
                         setImageFile(null)
                         setImagePreview(null)
+                        setImageAnalysisResult(null)
                       }}
                     >
                       <X className="h-4 w-4" />
                       <span className="sr-only">Remove image</span>
                     </Button>
+
+                    {imageAnalysisResult && !imageAnalysisResult.isIceCream && (
+                      <Alert variant="warning" className="mt-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Warning</AlertTitle>
+                        <AlertDescription>
+                          This image may not contain ice cream. Please upload an image of the flavor.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -556,10 +687,35 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
                 </Alert>
               )}
 
-              <Button disabled={isSubmitting}>
+              {moderationResult?.flagged && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Inappropriate Content Detected</AlertTitle>
+                  <AlertDescription>
+                    Your submission contains content that violates our guidelines: {moderationResult.flags.join(", ")}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {duplicateCheckResult?.isDuplicate && duplicateCheckResult.duplicateConfidence > 0.8 && (
+                <Alert variant="warning">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Possible Duplicate</AlertTitle>
+                  <AlertDescription>
+                    This flavor appears to be similar to "{duplicateCheckResult.similarTo}" with{" "}
+                    {Math.round(duplicateCheckResult.duplicateConfidence * 100)}% confidence.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Button disabled={isSubmitting || isCheckingContent}>
                 {isSubmitting ? (
                   <>
                     Submitting <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                  </>
+                ) : isCheckingContent ? (
+                  <>
+                    Checking Content <Loader2 className="ml-2 h-4 w-4 animate-spin" />
                   </>
                 ) : (
                   "Submit"
