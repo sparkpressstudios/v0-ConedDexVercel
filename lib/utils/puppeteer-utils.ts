@@ -20,10 +20,10 @@ export const puppeteerService = {
     }
   },
 
-  generatePDF: async (html: string): Promise<Buffer> => {
+  generatePDF: async (html: string): Promise<Uint8Array> => {
     console.log("Generating PDF (mock)")
     // Return an empty buffer as a mock
-    return Buffer.from("")
+    return new Uint8Array(0)
   },
 
   close: async () => {
