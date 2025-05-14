@@ -25,29 +25,291 @@ import {
 import Link from "next/link"
 import Image from "next/image"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getDemoUser } from "@/lib/auth/session"
+import { cookies } from "next/headers"
 
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export default async function DashboardPage() {
   const supabase = createServerClient()
+  const cookieStore = cookies()
+  const demoUserEmail = cookieStore.get("conedex_demo_user")?.value
+  const isDemoUser = !!demoUserEmail
 
   let user = null
   let profile = null
+  const flavorLogs = []
+  let uniqueFlavors = 0
+  let uniqueShops = 0
+  let badgesCount = 0
+  let leaderboardRank = 0
+  let flavorRecommendations = []
+  let nearbyShops = []
+  let achievements = []
+  let tasteProfile = {
+    sweet: 0,
+    creamy: 0,
+    fruity: 0,
+    nutty: 0,
+    chocolate: 0,
+  }
+  let trendingFlavors = []
+  let seasonalFlavors = []
+  let communityFlavors = []
 
   try {
-    // Get the current user
-    const {
-      data: { user: currentUser },
-    } = await supabase.auth.getUser()
-    user = currentUser
+    if (isDemoUser) {
+      // Use demo data for demo users
+      const demoUser = getDemoUser()
+      user = demoUser
+      profile = {
+        id: demoUser?.id,
+        username: demoUserEmail?.split("@")[0] || "demo",
+        full_name: demoUser?.name || "Demo User",
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${demoUser?.name || "Demo"}`,
+        role: demoUser?.role || "explorer",
+      }
 
-    if (user) {
-      // Get the user's profile
-      const { data: userProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-      profile = userProfile
+      // Demo stats
+      uniqueFlavors = 20
+      uniqueShops = 8
+      badgesCount = 5
+      leaderboardRank = 42
+
+      // Demo taste profile
+      tasteProfile = {
+        sweet: 75,
+        creamy: 60,
+        fruity: 45,
+        nutty: 30,
+        chocolate: 85,
+      }
+    } else {
+      // Get the current user
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser()
+      user = currentUser
+
+      if (user) {
+        // Get the user's profile
+        const { data: userProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+        profile = userProfile
+
+        // Get flavor logs count
+        const { count: logsCount } = await supabase
+          .from("flavor_logs")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+
+        // Get unique flavors count
+        const { data: flavorLogsData } = await supabase.from("flavor_logs").select("flavor_id").eq("user_id", user.id)
+
+        if (flavorLogsData) {
+          uniqueFlavors = new Set(flavorLogsData.map((log) => log.flavor_id)).size
+        }
+
+        // Get unique shops count
+        const { data: shopLogsData } = await supabase.from("flavor_logs").select("shop_id").eq("user_id", user.id)
+
+        if (shopLogsData) {
+          uniqueShops = new Set(shopLogsData.map((log) => log.shop_id).filter(Boolean)).size
+        }
+
+        // Get badges count
+        const { count: userBadgesCount } = await supabase
+          .from("user_badges")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+
+        badgesCount = userBadgesCount || 0
+
+        // Get leaderboard rank
+        const { data: leaderboardData } = await supabase
+          .from("leaderboard_entries")
+          .select("position")
+          .eq("user_id", user.id)
+          .eq("metric_id", "flavors_logged")
+          .order("position", { ascending: true })
+          .limit(1)
+
+        if (leaderboardData && leaderboardData.length > 0) {
+          leaderboardRank = leaderboardData[0].position
+        } else {
+          leaderboardRank = 0
+        }
+
+        // Get flavor recommendations based on user's taste
+        const { data: recommendations } = await supabase
+          .from("flavors")
+          .select(`
+            id,
+            name,
+            rating,
+            shops:shop_id (
+              name
+            ),
+            image_url
+          `)
+          .order("rating", { ascending: false })
+          .limit(3)
+
+        if (recommendations) {
+          flavorRecommendations = recommendations.map((flavor) => ({
+            name: flavor.name,
+            shop: flavor.shops?.name || "Unknown Shop",
+            rating: flavor.rating || 4.5,
+            image: flavor.image_url || "/placeholder.svg",
+          }))
+        }
+
+        // Get nearby shops
+        // This would ideally use the user's location, but for now we'll just get top-rated shops
+        const { data: topShops } = await supabase
+          .from("shops")
+          .select("name, rating, id")
+          .order("rating", { ascending: false })
+          .limit(3)
+
+        if (topShops) {
+          nearbyShops = topShops.map((shop, index) => ({
+            name: shop.name,
+            distance: (index + 1) * 0.4, // Mock distance
+            flavors: 10 + index * 5, // Mock flavor count
+            rating: shop.rating || 4.5,
+          }))
+        }
+
+        // Get achievements in progress
+        // This would come from a real achievements system
+        achievements = [
+          {
+            name: "Flavor Explorer",
+            description: `Try ${Math.max(10, uniqueFlavors + 5)} different flavors`,
+            progress:
+              uniqueFlavors > 0 ? Math.min(Math.floor((uniqueFlavors / Math.max(10, uniqueFlavors + 5)) * 100), 90) : 0,
+            icon: <IceCream className="h-5 w-5" />,
+          },
+          {
+            name: "Shop Hopper",
+            description: `Visit ${Math.max(5, uniqueShops + 2)} different shops`,
+            progress:
+              uniqueShops > 0 ? Math.min(Math.floor((uniqueShops / Math.max(5, uniqueShops + 2)) * 100), 90) : 0,
+            icon: <MapPin className="h-5 w-5" />,
+          },
+          {
+            name: "Review Master",
+            description: "Leave 15 detailed reviews",
+            progress: Math.min(Math.floor(((flavorLogsData?.length || 0) / 15) * 100), 90),
+            icon: <Star className="h-5 w-5" />,
+          },
+        ]
+
+        // Get taste profile based on user's flavor logs
+        // This would require more complex analysis in a real app
+        const { data: userLogs } = await supabase
+          .from("flavor_logs")
+          .select(`
+            flavors:flavor_id (
+              category,
+              base_type,
+              tags
+            )
+          `)
+          .eq("user_id", user.id)
+
+        if (userLogs && userLogs.length > 0) {
+          // Count flavor categories
+          const categories = userLogs.reduce(
+            (acc, log) => {
+              const category = log.flavors?.category?.toLowerCase()
+              if (category) {
+                // Map categories to taste profile properties
+                if (category.includes("sweet") || category.includes("candy")) acc.sweet++
+                if (category.includes("cream") || category.includes("milk")) acc.creamy++
+                if (category.includes("fruit") || category.includes("berry")) acc.fruity++
+                if (category.includes("nut") || category.includes("almond") || category.includes("pecan")) acc.nutty++
+                if (category.includes("chocolate") || category.includes("cocoa")) acc.chocolate++
+              }
+              return acc
+            },
+            { sweet: 0, creamy: 0, fruity: 0, nutty: 0, chocolate: 0 },
+          )
+
+          // Convert counts to percentages
+          const total = Object.values(categories).reduce((sum, count) => sum + count, 0) || 1
+          tasteProfile = {
+            sweet: Math.round((categories.sweet / total) * 100) || 20,
+            creamy: Math.round((categories.creamy / total) * 100) || 30,
+            fruity: Math.round((categories.fruity / total) * 100) || 25,
+            nutty: Math.round((categories.nutty / total) * 100) || 15,
+            chocolate: Math.round((categories.chocolate / total) * 100) || 40,
+          }
+        }
+
+        // Get trending flavors
+        const { data: trending } = await supabase
+          .from("flavors")
+          .select("name, category")
+          .order("created_at", { ascending: false })
+          .limit(7)
+
+        if (trending) {
+          trendingFlavors = trending.map((f) => f.name)
+        }
+
+        // Get seasonal flavors
+        const currentMonth = new Date().getMonth()
+        let seasonalCategory = "classic"
+
+        // Determine season based on month
+        if (currentMonth >= 2 && currentMonth <= 4) seasonalCategory = "spring"
+        else if (currentMonth >= 5 && currentMonth <= 7) seasonalCategory = "summer"
+        else if (currentMonth >= 8 && currentMonth <= 10) seasonalCategory = "fall"
+        else seasonalCategory = "winter"
+
+        const { data: seasonal } = await supabase
+          .from("flavors")
+          .select("name, category")
+          .ilike("category", `%${seasonalCategory}%`)
+          .limit(4)
+
+        if (seasonal && seasonal.length > 0) {
+          seasonalFlavors = seasonal
+        } else {
+          // Fallback seasonal flavors
+          seasonalFlavors = [
+            { name: "Pumpkin Spice", category: "fall" },
+            { name: "Cranberry", category: "winter" },
+            { name: "Gingerbread", category: "winter" },
+            { name: "Pistachio", category: "spring" },
+          ]
+        }
+
+        // Get community favorites
+        const { data: community } = await supabase
+          .from("flavor_logs")
+          .select(`
+            count,
+            flavors:flavor_id (
+              name
+            )
+          `)
+          .order("count", { ascending: false })
+          .limit(3)
+
+        if (community) {
+          communityFlavors = community.map((item, index) => ({
+            name: item.flavors?.name || "Unknown Flavor",
+            count: 100 - index * 15,
+            badge: index === 0 ? "Top Pick" : index === 1 ? "Popular" : "Trending",
+          }))
+        }
+      }
     }
   } catch (error) {
-    console.error("Error fetching user data:", error)
+    console.error("Error fetching dashboard data:", error)
   }
 
   // Get current date
@@ -74,81 +336,6 @@ export default async function DashboardPage() {
         date.getFullYear() === today.getFullYear(),
     }
   })
-
-  // Sample data for flavor recommendations
-  const flavorRecommendations = [
-    {
-      name: "Strawberry Cheesecake",
-      shop: "Scoops Ahoy",
-      rating: 4.8,
-      image: "/strawberry-ice-cream-scoop.png",
-    },
-    {
-      name: "Mint Chocolate Chip",
-      shop: "Frozen Delights",
-      rating: 4.7,
-      image: "/mint-chocolate-chip-scoop.png",
-    },
-    {
-      name: "Salted Caramel",
-      shop: "Sweet Treats",
-      rating: 4.9,
-      image: "/chocolate-ice-cream-scoop.png",
-    },
-  ]
-
-  // Sample data for nearby shops
-  const nearbyShops = [
-    {
-      name: "Scoops Ahoy",
-      distance: 0.8,
-      flavors: 24,
-      rating: 4.5,
-    },
-    {
-      name: "Frozen Delights",
-      distance: 1.2,
-      flavors: 18,
-      rating: 4.3,
-    },
-    {
-      name: "Sweet Treats",
-      distance: 1.5,
-      flavors: 30,
-      rating: 4.7,
-    },
-  ]
-
-  // Sample data for achievements
-  const achievements = [
-    {
-      name: "Flavor Explorer",
-      description: "Try 10 different flavors",
-      progress: 80,
-      icon: <IceCream className="h-5 w-5" />,
-    },
-    {
-      name: "Shop Hopper",
-      description: "Visit 5 different shops",
-      progress: 60,
-      icon: <MapPin className="h-5 w-5" />,
-    },
-    {
-      name: "Review Master",
-      description: "Leave 15 detailed reviews",
-      progress: 40,
-      icon: <Star className="h-5 w-5" />,
-    },
-  ]
-
-  // Sample data for taste profile
-  const tasteProfile = {
-    sweet: 75,
-    creamy: 60,
-    fruity: 45,
-    nutty: 30,
-    chocolate: 85,
-  }
 
   return (
     <div className="space-y-6">
@@ -262,7 +449,7 @@ export default async function DashboardPage() {
                   <IceCream className="h-6 w-6 text-orange-500" />
                 </div>
                 <h3 className="text-sm font-medium text-gray-600">Flavors Logged</h3>
-                <p className="text-2xl font-bold mt-1 text-gray-900">35</p>
+                <p className="text-2xl font-bold mt-1 text-gray-900">{uniqueFlavors}</p>
                 <p className="text-xs text-green-600 mt-1">+3 this week</p>
               </div>
             </CardContent>
@@ -275,7 +462,7 @@ export default async function DashboardPage() {
                   <MapPin className="h-6 w-6 text-coral-500" />
                 </div>
                 <h3 className="text-sm font-medium text-gray-600">Shops Visited</h3>
-                <p className="text-2xl font-bold mt-1 text-gray-900">12</p>
+                <p className="text-2xl font-bold mt-1 text-gray-900">{uniqueShops}</p>
                 <p className="text-xs text-green-600 mt-1">+1 this week</p>
               </div>
             </CardContent>
@@ -288,7 +475,7 @@ export default async function DashboardPage() {
                   <Award className="h-6 w-6 text-teal-500" />
                 </div>
                 <h3 className="text-sm font-medium text-gray-600">Badges Earned</h3>
-                <p className="text-2xl font-bold mt-1 text-gray-900">8</p>
+                <p className="text-2xl font-bold mt-1 text-gray-900">{badgesCount}</p>
                 <p className="text-xs text-orange-600 mt-1">2 in progress</p>
               </div>
             </CardContent>
@@ -301,7 +488,7 @@ export default async function DashboardPage() {
                   <TrendingUp className="h-6 w-6 text-purple-500" />
                 </div>
                 <h3 className="text-sm font-medium text-gray-600">Leaderboard Rank</h3>
-                <p className="text-2xl font-bold mt-1 text-gray-900">#42</p>
+                <p className="text-2xl font-bold mt-1 text-gray-900">#{leaderboardRank || "N/A"}</p>
                 <p className="text-xs text-green-600 mt-1">Up 3 spots</p>
               </div>
             </CardContent>
@@ -313,53 +500,61 @@ export default async function DashboardPage() {
       <div>
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Explorer Tools</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="border border-gray-100 shadow-sm bg-coral-50">
-            <CardContent className="p-4">
-              <div className="flex flex-col items-center text-center">
-                <div className="p-2 bg-coral-500 rounded-lg text-white mb-3">
-                  <Search className="h-5 w-5" />
+          <Link href="/dashboard/conedex">
+            <Card className="border border-gray-100 shadow-sm bg-coral-50 hover:bg-coral-100 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex flex-col items-center text-center">
+                  <div className="p-2 bg-coral-500 rounded-lg text-white mb-3">
+                    <Search className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Flavor Finder</span>
+                  <p className="text-xs text-gray-500 mt-1">Discover new flavors</p>
                 </div>
-                <span className="font-medium text-gray-800">Flavor Finder</span>
-                <p className="text-xs text-gray-500 mt-1">Discover new flavors</p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border border-gray-100 shadow-sm bg-orange-50">
-            <CardContent className="p-4">
-              <div className="flex flex-col items-center text-center">
-                <div className="p-2 bg-orange-500 rounded-lg text-white mb-3">
-                  <Compass className="h-5 w-5" />
+          <Link href="/dashboard/shops/map">
+            <Card className="border border-gray-100 shadow-sm bg-orange-50 hover:bg-orange-100 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex flex-col items-center text-center">
+                  <div className="p-2 bg-orange-500 rounded-lg text-white mb-3">
+                    <Compass className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Shop Radar</span>
+                  <p className="text-xs text-gray-500 mt-1">Find nearby shops</p>
                 </div>
-                <span className="font-medium text-gray-800">Shop Radar</span>
-                <p className="text-xs text-gray-500 mt-1">Find nearby shops</p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border border-gray-100 shadow-sm bg-teal-50">
-            <CardContent className="p-4">
-              <div className="flex flex-col items-center text-center">
-                <div className="p-2 bg-teal-500 rounded-lg text-white mb-3">
-                  <ThumbsUp className="h-5 w-5" />
+          <Link href="/dashboard/my-conedex">
+            <Card className="border border-gray-100 shadow-sm bg-teal-50 hover:bg-teal-100 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex flex-col items-center text-center">
+                  <div className="p-2 bg-teal-500 rounded-lg text-white mb-3">
+                    <ThumbsUp className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Taste Matcher</span>
+                  <p className="text-xs text-gray-500 mt-1">Personalized recommendations</p>
                 </div>
-                <span className="font-medium text-gray-800">Taste Matcher</span>
-                <p className="text-xs text-gray-500 mt-1">Personalized recommendations</p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card className="border border-gray-100 shadow-sm bg-purple-50">
-            <CardContent className="p-4">
-              <div className="flex flex-col items-center text-center">
-                <div className="p-2 bg-purple-500 rounded-lg text-white mb-3">
-                  <Camera className="h-5 w-5" />
+          <Link href="/dashboard/log-flavor">
+            <Card className="border border-gray-100 shadow-sm bg-purple-50 hover:bg-purple-100 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex flex-col items-center text-center">
+                  <div className="p-2 bg-purple-500 rounded-lg text-white mb-3">
+                    <Camera className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Flavor Snap</span>
+                  <p className="text-xs text-gray-500 mt-1">Share your discoveries</p>
                 </div>
-                <span className="font-medium text-gray-800">Flavor Snap</span>
-                <p className="text-xs text-gray-500 mt-1">Share your discoveries</p>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 
@@ -375,27 +570,34 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {flavorRecommendations.map((flavor, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="h-12 w-12 rounded-md overflow-hidden flex-shrink-0">
-                    <Image
-                      src={flavor.image || "/placeholder.svg"}
-                      alt={flavor.name}
-                      width={48}
-                      height={48}
-                      className="h-full w-full object-cover"
-                    />
+              {flavorRecommendations.length > 0 ? (
+                flavorRecommendations.map((flavor, index) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-md overflow-hidden flex-shrink-0">
+                      <Image
+                        src={flavor.image || "/placeholder.svg"}
+                        alt={flavor.name}
+                        width={48}
+                        height={48}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{flavor.name}</p>
+                      <p className="text-sm text-gray-500 truncate">at {flavor.shop}</p>
+                    </div>
+                    <div className="flex items-center">
+                      <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                      <span className="ml-1 text-sm font-medium">{flavor.rating}</span>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{flavor.name}</p>
-                    <p className="text-sm text-gray-500 truncate">at {flavor.shop}</p>
-                  </div>
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                    <span className="ml-1 text-sm font-medium">{flavor.rating}</span>
-                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Heart className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Log more flavors to get personalized recommendations!</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
           <CardFooter>
@@ -415,23 +617,30 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {nearbyShops.map((shop, index) => (
-                <div key={index} className="flex items-center gap-4">
-                  <div className="p-2 rounded-md bg-orange-100 flex-shrink-0">
-                    <MapPin className="h-5 w-5 text-orange-500" />
+              {nearbyShops.length > 0 ? (
+                nearbyShops.map((shop, index) => (
+                  <div key={index} className="flex items-center gap-4">
+                    <div className="p-2 rounded-md bg-orange-100 flex-shrink-0">
+                      <MapPin className="h-5 w-5 text-orange-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{shop.name}</p>
+                      <p className="text-sm text-gray-500 truncate">
+                        {shop.distance} miles • {shop.flavors} flavors
+                      </p>
+                    </div>
+                    <div className="flex items-center">
+                      <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                      <span className="ml-1 text-sm font-medium">{shop.rating}</span>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{shop.name}</p>
-                    <p className="text-sm text-gray-500 truncate">
-                      {shop.distance} miles • {shop.flavors} flavors
-                    </p>
-                  </div>
-                  <div className="flex items-center">
-                    <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                    <span className="ml-1 text-sm font-medium">{shop.rating}</span>
-                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <MapPin className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Enable location services to see nearby shops!</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
           <CardFooter>
@@ -454,21 +663,28 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {achievements.map((achievement, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-md bg-purple-100">{achievement.icon}</div>
-                      <div>
-                        <p className="font-medium">{achievement.name}</p>
-                        <p className="text-xs text-gray-500">{achievement.description}</p>
+              {achievements.length > 0 ? (
+                achievements.map((achievement, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-md bg-purple-100">{achievement.icon}</div>
+                        <div>
+                          <p className="font-medium">{achievement.name}</p>
+                          <p className="text-xs text-gray-500">{achievement.description}</p>
+                        </div>
                       </div>
+                      <Badge variant="outline">{achievement.progress}%</Badge>
                     </div>
-                    <Badge variant="outline">{achievement.progress}%</Badge>
+                    <Progress value={achievement.progress} className="h-2" />
                   </div>
-                  <Progress value={achievement.progress} className="h-2" />
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Award className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Start your ice cream journey to earn achievements!</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
           <CardFooter>
@@ -487,53 +703,60 @@ export default async function DashboardPage() {
             <CardDescription>Based on your flavor history</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Sweet</span>
-                  <span className="text-sm text-gray-500">{tasteProfile.sweet}%</span>
+            {Object.values(tasteProfile).some((value) => value > 0) ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Sweet</span>
+                    <span className="text-sm text-gray-500">{tasteProfile.sweet}%</span>
+                  </div>
+                  <Progress value={tasteProfile.sweet} className="h-2 bg-gray-100">
+                    <div className="h-full bg-orange-400 rounded-full" style={{ width: `${tasteProfile.sweet}%` }} />
+                  </Progress>
                 </div>
-                <Progress value={tasteProfile.sweet} className="h-2 bg-gray-100">
-                  <div className="h-full bg-orange-400 rounded-full" style={{ width: `${tasteProfile.sweet}%` }} />
-                </Progress>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Creamy</span>
-                  <span className="text-sm text-gray-500">{tasteProfile.creamy}%</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Creamy</span>
+                    <span className="text-sm text-gray-500">{tasteProfile.creamy}%</span>
+                  </div>
+                  <Progress value={tasteProfile.creamy} className="h-2 bg-gray-100">
+                    <div className="h-full bg-yellow-400 rounded-full" style={{ width: `${tasteProfile.creamy}%` }} />
+                  </Progress>
                 </div>
-                <Progress value={tasteProfile.creamy} className="h-2 bg-gray-100">
-                  <div className="h-full bg-yellow-400 rounded-full" style={{ width: `${tasteProfile.creamy}%` }} />
-                </Progress>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Fruity</span>
-                  <span className="text-sm text-gray-500">{tasteProfile.fruity}%</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Fruity</span>
+                    <span className="text-sm text-gray-500">{tasteProfile.fruity}%</span>
+                  </div>
+                  <Progress value={tasteProfile.fruity} className="h-2 bg-gray-100">
+                    <div className="h-full bg-pink-400 rounded-full" style={{ width: `${tasteProfile.fruity}%` }} />
+                  </Progress>
                 </div>
-                <Progress value={tasteProfile.fruity} className="h-2 bg-gray-100">
-                  <div className="h-full bg-pink-400 rounded-full" style={{ width: `${tasteProfile.fruity}%` }} />
-                </Progress>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Nutty</span>
-                  <span className="text-sm text-gray-500">{tasteProfile.nutty}%</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Nutty</span>
+                    <span className="text-sm text-gray-500">{tasteProfile.nutty}%</span>
+                  </div>
+                  <Progress value={tasteProfile.nutty} className="h-2 bg-gray-100">
+                    <div className="h-full bg-amber-400 rounded-full" style={{ width: `${tasteProfile.nutty}%` }} />
+                  </Progress>
                 </div>
-                <Progress value={tasteProfile.nutty} className="h-2 bg-gray-100">
-                  <div className="h-full bg-amber-400 rounded-full" style={{ width: `${tasteProfile.nutty}%` }} />
-                </Progress>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Chocolate</span>
-                  <span className="text-sm text-gray-500">{tasteProfile.chocolate}%</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Chocolate</span>
+                    <span className="text-sm text-gray-500">{tasteProfile.chocolate}%</span>
+                  </div>
+                  <Progress value={tasteProfile.chocolate} className="h-2 bg-gray-100">
+                    <div className="h-full bg-brown-400 rounded-full" style={{ width: `${tasteProfile.chocolate}%` }} />
+                  </Progress>
                 </div>
-                <Progress value={tasteProfile.chocolate} className="h-2 bg-gray-100">
-                  <div className="h-full bg-brown-400 rounded-full" style={{ width: `${tasteProfile.chocolate}%` }} />
-                </Progress>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Zap className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">Log more flavors to build your taste profile!</p>
+              </div>
+            )}
           </CardContent>
           <CardFooter>
             <Button asChild variant="outline" className="w-full">
@@ -560,92 +783,72 @@ export default async function DashboardPage() {
               <TabsTrigger value="community">Community Favorites</TabsTrigger>
             </TabsList>
             <TabsContent value="trending">
-              <div className="h-[200px] flex items-end justify-between space-x-2">
-                {["Strawberry", "Chocolate", "Vanilla", "Mint Chip", "Cookie", "Mango", "Coffee"].map((flavor, i) => {
-                  const height = 30 + Math.floor(Math.random() * 60)
-                  return (
-                    <div key={flavor} className="flex flex-col items-center flex-1">
-                      <div
-                        className={`w-full rounded-t-sm ${flavor === "Mint Chip" ? "bg-orange-500" : "bg-teal-400"}`}
-                        style={{ height: `${height}%` }}
-                      ></div>
-                      <span className="text-xs text-gray-500 mt-2 truncate w-full text-center">{flavor}</span>
-                    </div>
-                  )
-                })}
-              </div>
+              {trendingFlavors.length > 0 ? (
+                <div className="h-[200px] flex items-end justify-between space-x-2">
+                  {trendingFlavors.map((flavor, i) => {
+                    const height = 30 + Math.floor(Math.random() * 60)
+                    return (
+                      <div key={flavor} className="flex flex-col items-center flex-1">
+                        <div
+                          className={`w-full rounded-t-sm ${i === 2 ? "bg-orange-500" : "bg-teal-400"}`}
+                          style={{ height: `${height}%` }}
+                        ></div>
+                        <span className="text-xs text-gray-500 mt-2 truncate w-full text-center">{flavor}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Trending data is being calculated!</p>
+                </div>
+              )}
             </TabsContent>
             <TabsContent value="seasonal">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="flex flex-col items-center p-3 bg-orange-50 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center mb-2">
-                    <IceCream className="h-6 w-6 text-orange-500" />
-                  </div>
-                  <p className="font-medium text-center">Pumpkin Spice</p>
-                  <p className="text-xs text-gray-500 text-center">Fall favorite</p>
+              {seasonalFlavors.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {seasonalFlavors.map((flavor, index) => (
+                    <div key={index} className="flex flex-col items-center p-3 bg-orange-50 rounded-lg">
+                      <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center mb-2">
+                        <IceCream className="h-6 w-6 text-orange-500" />
+                      </div>
+                      <p className="font-medium text-center">{flavor.name}</p>
+                      <p className="text-xs text-gray-500 text-center">{flavor.category} favorite</p>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex flex-col items-center p-3 bg-red-50 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-2">
-                    <IceCream className="h-6 w-6 text-red-500" />
-                  </div>
-                  <p className="font-medium text-center">Cranberry</p>
-                  <p className="text-xs text-gray-500 text-center">Holiday special</p>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Thermometer className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Seasonal flavors coming soon!</p>
                 </div>
-                <div className="flex flex-col items-center p-3 bg-amber-50 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center mb-2">
-                    <IceCream className="h-6 w-6 text-amber-500" />
-                  </div>
-                  <p className="font-medium text-center">Gingerbread</p>
-                  <p className="text-xs text-gray-500 text-center">Winter classic</p>
-                </div>
-                <div className="flex flex-col items-center p-3 bg-green-50 rounded-lg">
-                  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mb-2">
-                    <IceCream className="h-6 w-6 text-green-500" />
-                  </div>
-                  <p className="font-medium text-center">Pistachio</p>
-                  <p className="text-xs text-gray-500 text-center">Year-round favorite</p>
-                </div>
-              </div>
+              )}
             </TabsContent>
             <TabsContent value="community">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-purple-500" />
+              {communityFlavors.length > 0 ? (
+                <div className="space-y-4">
+                  {communityFlavors.map((flavor, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                          <Users className="h-5 w-5 text-purple-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{flavor.name}</p>
+                          <p className="text-xs text-gray-500">Logged by {flavor.count} explorers this month</p>
+                        </div>
+                      </div>
+                      <Badge className="bg-purple-500">{flavor.badge}</Badge>
                     </div>
-                    <div>
-                      <p className="font-medium">Chocolate Fudge Brownie</p>
-                      <p className="text-xs text-gray-500">Logged by 128 explorers this month</p>
-                    </div>
-                  </div>
-                  <Badge className="bg-purple-500">Top Pick</Badge>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-purple-500" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Cookies and Cream</p>
-                      <p className="text-xs text-gray-500">Logged by 112 explorers this month</p>
-                    </div>
-                  </div>
-                  <Badge className="bg-purple-500">Popular</Badge>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">Community data is being gathered!</p>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-purple-500" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Strawberry Cheesecake</p>
-                      <p className="text-xs text-gray-500">Logged by 98 explorers this month</p>
-                    </div>
-                  </div>
-                  <Badge className="bg-purple-500">Trending</Badge>
-                </div>
-              </div>
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

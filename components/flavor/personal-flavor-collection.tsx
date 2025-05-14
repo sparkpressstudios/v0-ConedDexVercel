@@ -11,127 +11,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IceCream, Search, Star, Calendar, MapPin } from "lucide-react"
 import { useCachedUserLogs } from "@/hooks/use-cached-data"
 import { cn } from "@/lib/utils"
-
-// Demo data for flavor logs
-const demoFlavorLogs = [
-  {
-    id: "log1",
-    flavor_id: "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
-    user_id: "user1",
-    shop_id: "shop1",
-    rating: 4.5,
-    notes: "Absolutely delicious! The vanilla flavor was rich and creamy.",
-    photo_url: "https://images.unsplash.com/photo-1570197788417-0e82375c9371",
-    visit_date: "2023-06-15T14:30:00Z",
-    created_at: "2023-06-15T14:30:00Z",
-    flavors: {
-      name: "Vanilla Bean Dream",
-      base_type: "dairy",
-      image_url: "https://images.unsplash.com/photo-1570197788417-0e82375c9371",
-      category: "classic",
-      rarity: "common",
-    },
-    shops: {
-      name: "Sweet Scoops Ice Cream",
-      id: "shop1",
-    },
-  },
-  {
-    id: "log2",
-    flavor_id: "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
-    user_id: "user1",
-    shop_id: "shop1",
-    rating: 5,
-    notes: "The best chocolate ice cream I've ever had! Rich and fudgy.",
-    photo_url: "https://images.unsplash.com/photo-1563805042-7684c019e1cb",
-    visit_date: "2023-06-10T16:45:00Z",
-    created_at: "2023-06-10T16:45:00Z",
-    flavors: {
-      name: "Chocolate Fudge Brownie",
-      base_type: "dairy",
-      image_url: "https://images.unsplash.com/photo-1563805042-7684c019e1cb",
-      category: "chocolate",
-      rarity: "common",
-    },
-    shops: {
-      name: "Sweet Scoops Ice Cream",
-      id: "shop1",
-    },
-  },
-  {
-    id: "log3",
-    flavor_id: "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
-    user_id: "user1",
-    shop_id: "shop2",
-    rating: 4,
-    notes: "Very refreshing strawberry flavor with real fruit pieces.",
-    photo_url: "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f",
-    visit_date: "2023-06-05T12:15:00Z",
-    created_at: "2023-06-05T12:15:00Z",
-    flavors: {
-      name: "Strawberry Fields",
-      base_type: "dairy",
-      image_url: "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f",
-      category: "fruit",
-      rarity: "common",
-    },
-    shops: {
-      name: "Frosty's Delights",
-      id: "shop2",
-    },
-  },
-]
-
-// Add more demo data
-const extraDemoFlavorLogs = [
-  {
-    id: "log4",
-    flavor_id: "d4e5f6g7-8h9i-0j1k-2l3m-4n5o6p7q8r9s",
-    user_id: "user1",
-    shop_id: "shop3",
-    rating: 4.8,
-    notes: "Incredible mint chocolate chip! Perfect balance of mint and chocolate.",
-    photo_url: "https://images.unsplash.com/photo-1505394033641-40c6ad1178d7",
-    visit_date: "2023-05-28T15:20:00Z",
-    created_at: "2023-05-28T15:20:00Z",
-    flavors: {
-      name: "Mint Chocolate Chip",
-      base_type: "dairy",
-      image_url: "https://images.unsplash.com/photo-1505394033641-40c6ad1178d7",
-      category: "chocolate",
-      rarity: "common",
-    },
-    shops: {
-      name: "Minty Fresh Ice Cream",
-      id: "shop3",
-    },
-  },
-  {
-    id: "log5",
-    flavor_id: "e5f6g7h8-9i0j-1k2l-3m4n-5o6p7q8r9s0t",
-    user_id: "user1",
-    shop_id: "shop4",
-    rating: 5,
-    notes: "The best cookie dough ice cream I've ever had! Generous chunks of cookie dough.",
-    photo_url: "https://images.unsplash.com/photo-1563805042-7684c019e1cb",
-    visit_date: "2023-05-20T13:10:00Z",
-    created_at: "2023-05-20T13:10:00Z",
-    flavors: {
-      name: "Cookie Dough Delight",
-      base_type: "dairy",
-      image_url: "https://images.unsplash.com/photo-1563805042-7684c019e1cb",
-      category: "cookies",
-      rarity: "uncommon",
-    },
-    shops: {
-      name: "Cookie Monster's Creamery",
-      id: "shop4",
-    },
-  },
-]
-
-// Combine all demo data
-const allDemoFlavorLogs = [...demoFlavorLogs, ...extraDemoFlavorLogs]
+import { useToast } from "@/components/ui/use-toast"
+import { useSupabase } from "@/components/providers/supabase-provider"
 
 // Rarity colors for badges
 const rarityColors = {
@@ -142,8 +23,19 @@ const rarityColors = {
   legendary: "bg-amber-100 text-amber-800",
 }
 
+type Flavor = {
+  id: string
+  name: string
+  description: string
+  image_url?: string
+  created_at: string
+  rating?: number
+}
+
 export default function PersonalFlavorCollection({ userId, isDemoUser = false }) {
   const router = useRouter()
+  const { supabase } = useSupabase()
+  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
   const [sortBy, setSortBy] = useState("recent")
   const [filterCategory, setFilterCategory] = useState("all")
@@ -151,6 +43,7 @@ export default function PersonalFlavorCollection({ userId, isDemoUser = false })
   const [flavorLogs, setFlavorLogs] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [refreshData, setRefreshData] = useState(false)
 
   // Use the cached data hook for real users
   const {
@@ -160,42 +53,104 @@ export default function PersonalFlavorCollection({ userId, isDemoUser = false })
   } = useCachedUserLogs(isDemoUser ? undefined : userId)
 
   useEffect(() => {
-    // If we're using a demo user, set the demo data
+    const fetchFlavorLogs = async () => {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        if (isDemoUser) {
+          // If it's a demo user, skip fetching from Supabase
+          setIsLoading(false)
+          return
+        }
+
+        if (userId) {
+          const { data, error } = await supabase
+            .from("flavor_logs")
+            .select(
+              `
+              id,
+              flavor_id,
+              user_id,
+              shop_id,
+              rating,
+              notes,
+              photo_url,
+              visit_date,
+              created_at,
+              flavors (
+                name,
+                base_type,
+                image_url,
+                category,
+                rarity
+              ),
+              shops (
+                name,
+                id
+              )
+            `,
+            )
+            .eq("user_id", userId)
+
+          if (error) {
+            console.error("Error fetching flavor logs:", error)
+            setError(error)
+            toast({
+              title: "Error",
+              description: "Failed to fetch flavor logs.",
+              variant: "destructive",
+            })
+          } else {
+            setFlavorLogs(data || [])
+          }
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching flavor logs:", err)
+        setError(err)
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred while fetching flavor logs.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (!isDemoUser) {
+      fetchFlavorLogs()
+    }
+  }, [userId, supabase, isDemoUser, toast, refreshData])
+
+  useEffect(() => {
     if (isDemoUser) {
-      setFlavorLogs(allDemoFlavorLogs)
       setIsLoading(false)
       return
     }
 
-    // If we have data from the cache, use it
     if (userLogs) {
       setFlavorLogs(userLogs)
       setIsLoading(false)
       return
     }
 
-    // If we have an error from the cache, set it
     if (cacheError) {
       console.error("Error fetching user logs:", cacheError)
       setError(cacheError)
       setIsLoading(false)
-      // Fallback to demo data
-      setFlavorLogs(allDemoFlavorLogs)
       return
     }
 
-    // If we're still loading from the cache, wait
     if (cacheLoading) {
       setIsLoading(true)
       return
     }
 
-    // If we don't have data or an error, and we're not loading, set demo data as fallback
     if (!userLogs && !cacheError && !cacheLoading) {
-      setFlavorLogs(allDemoFlavorLogs)
       setIsLoading(false)
     }
-  }, [isDemoUser, userLogs, cacheLoading, cacheError, userId])
+  }, [isDemoUser, userLogs, cacheLoading, cacheError])
 
   // Extract unique categories from logs
   const categories = ["all", ...new Set(flavorLogs.map((log) => log.flavors?.category).filter(Boolean))]

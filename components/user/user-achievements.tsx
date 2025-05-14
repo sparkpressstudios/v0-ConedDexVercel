@@ -1,128 +1,190 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle, Award } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Award, Trophy, Star, Medal, TrendingUp, Clock, Share2 } from "lucide-react"
-import { cn } from "@/lib/utils"
 
-// Sample data - in a real app, this would come from an API
-const recentAchievements = [
-  {
-    id: 1,
-    name: "Flavor Explorer",
-    description: "Tried 10 different flavors",
-    icon: <Star className="h-5 w-5" />,
-    date: "2023-04-15",
-    points: 50,
-    unlocked: true,
-  },
-  {
-    id: 2,
-    name: "Shop Hopper",
-    description: "Visited 5 different ice cream shops",
-    icon: <Trophy className="h-5 w-5" />,
-    date: "2023-04-10",
-    points: 75,
-    unlocked: true,
-  },
-  {
-    id: 3,
-    name: "Review Master",
-    description: "Left 15 detailed reviews",
-    icon: <Medal className="h-5 w-5" />,
-    date: "2023-04-05",
-    points: 100,
-    unlocked: true,
-  },
-]
-
-const inProgressAchievements = [
-  {
-    id: 4,
-    name: "Flavor Connoisseur",
-    description: "Try 25 different flavors",
-    icon: <Award className="h-5 w-5" />,
-    progress: 60,
-    points: 150,
-    unlocked: false,
-  },
-  {
-    id: 5,
-    name: "Ice Cream Aficionado",
-    description: "Visit 15 different ice cream shops",
-    icon: <TrendingUp className="h-5 w-5" />,
-    progress: 40,
-    points: 200,
-    unlocked: false,
-  },
-  {
-    id: 6,
-    name: "Seasonal Specialist",
-    description: "Try all seasonal flavors in a year",
-    icon: <Clock className="h-5 w-5" />,
-    progress: 25,
-    points: 300,
-    unlocked: false,
-  },
-]
-
-interface AchievementCardProps {
-  achievement: {
-    id: number
-    name: string
-    description: string
-    icon: React.ReactNode
-    date?: string
-    progress?: number
-    points: number
-    unlocked: boolean
-  }
+type Achievement = {
+  id: string
+  name: string
+  description: string
+  image_url?: string
+  completed: boolean
+  progress: number
+  total_required: number
 }
 
-function AchievementCard({ achievement }: AchievementCardProps) {
+export function UserAchievementsComponent() {
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
+
+  useEffect(() => {
+    async function loadAchievements() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Get current user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          setError("User not authenticated")
+          setLoading(false)
+          return
+        }
+
+        // Get user's achievements
+        const { data: userAchievements, error: achievementsError } = await supabase
+          .from("user_achievements")
+          .select(`
+            achievement_id,
+            completed,
+            progress,
+            achievements:achievement_id (
+              id,
+              name,
+              description,
+              image_url,
+              required_count
+            )
+          `)
+          .eq("user_id", user.id)
+          .order("completed", { ascending: false })
+
+        if (achievementsError) {
+          throw new Error(achievementsError.message)
+        }
+
+        if (!userAchievements || userAchievements.length === 0) {
+          // If no achievements found, get all available achievements and set progress to 0
+          const { data: allAchievements, error: allAchievementsError } = await supabase
+            .from("achievements")
+            .select("id, name, description, image_url, required_count")
+            .limit(5)
+
+          if (allAchievementsError) {
+            throw new Error(allAchievementsError.message)
+          }
+
+          const formattedAchievements =
+            allAchievements?.map((achievement) => ({
+              id: achievement.id,
+              name: achievement.name,
+              description: achievement.description,
+              image_url: achievement.image_url,
+              completed: false,
+              progress: 0,
+              total_required: achievement.required_count,
+            })) || []
+
+          setAchievements(formattedAchievements)
+          setLoading(false)
+          return
+        }
+
+        // Format achievements
+        const formattedAchievements = userAchievements.map((ua) => {
+          const achievement = ua.achievements as any
+          return {
+            id: achievement.id,
+            name: achievement.name,
+            description: achievement.description,
+            image_url: achievement.image_url,
+            completed: ua.completed,
+            progress: ua.progress,
+            total_required: achievement.required_count,
+          }
+        })
+
+        setAchievements(formattedAchievements.slice(0, 5))
+      } catch (err) {
+        console.error("Error loading achievements:", err)
+        setError(err instanceof Error ? err.message : "Failed to load achievements")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadAchievements()
+  }, [supabase])
+
   return (
-    <Card
-      className={cn(
-        "h-full transition-all duration-300",
-        achievement.unlocked ? "border-amber-200 bg-amber-50/30" : "",
-      )}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                "p-2 rounded-full",
-                achievement.unlocked ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600",
-              )}
-            >
-              {achievement.icon}
-            </div>
-            <CardTitle className="text-base font-medium">{achievement.name}</CardTitle>
-          </div>
-          <Badge variant={achievement.unlocked ? "default" : "outline"}>{achievement.points} pts</Badge>
-        </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>My Achievements</CardTitle>
+        <CardDescription>Track your ConeDex progress</CardDescription>
       </CardHeader>
       <CardContent>
-        <CardDescription>{achievement.description}</CardDescription>
-
-        {achievement.unlocked ? (
-          <div className="mt-2 text-sm text-muted-foreground">
-            Unlocked on {new Date(achievement.date!).toLocaleDateString()}
+        {loading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="flex items-center space-x-4">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-[140px]" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                </div>
+                <Skeleton className="h-2 w-full" />
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : achievements.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <p>No achievements available yet.</p>
+            <p className="mt-2">Start exploring to unlock achievements!</p>
           </div>
         ) : (
-          <div className="mt-2">
-            <div className="flex justify-between text-sm mb-1">
-              <span>Progress</span>
-              <span>{achievement.progress}%</span>
-            </div>
-            <Progress value={achievement.progress} className="h-2" />
+          <div className="space-y-4">
+            {achievements.map((achievement) => (
+              <div key={achievement.id} className="space-y-2">
+                <div className="flex items-center space-x-3">
+                  <div
+                    className={`h-10 w-10 rounded-full flex items-center justify-center ${achievement.completed ? "bg-green-100" : "bg-muted"}`}
+                  >
+                    {achievement.image_url ? (
+                      <img
+                        src={achievement.image_url || "/placeholder.svg"}
+                        alt={achievement.name}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <Award
+                        className={`h-5 w-5 ${achievement.completed ? "text-green-600" : "text-muted-foreground"}`}
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">{achievement.name}</h4>
+                      <span className="text-xs font-medium">
+                        {achievement.progress}/{achievement.total_required}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{achievement.description}</p>
+                  </div>
+                </div>
+                <Progress
+                  value={(achievement.progress / achievement.total_required) * 100}
+                  className="h-2"
+                  indicatorClassName={achievement.completed ? "bg-green-500" : undefined}
+                />
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
@@ -130,68 +192,7 @@ function AchievementCard({ achievement }: AchievementCardProps) {
   )
 }
 
+// Add default export
 export default function UserAchievements() {
-  const totalPoints = recentAchievements.reduce((sum, achievement) => sum + achievement.points, 0)
-  const [showShareDialog, setShowShareDialog] = useState(false)
-
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <CardTitle>Your Achievements</CardTitle>
-            <CardDescription>Track your progress and earn rewards</CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-base px-3 py-1">
-              <Trophy className="h-4 w-4 mr-1 text-amber-500" />
-              {totalPoints} Points
-            </Badge>
-            <Button variant="outline" size="sm" onClick={() => setShowShareDialog(true)}>
-              <Share2 className="h-4 w-4 mr-1" />
-              Share
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="recent">
-          <TabsList className="mb-4">
-            <TabsTrigger value="recent">Recent</TabsTrigger>
-            <TabsTrigger value="in-progress">In Progress</TabsTrigger>
-            <TabsTrigger value="all">All Achievements</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="recent">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {recentAchievements.map((achievement) => (
-                <AchievementCard key={achievement.id} achievement={achievement} />
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="in-progress">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {inProgressAchievements.map((achievement) => (
-                <AchievementCard key={achievement.id} achievement={achievement} />
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="all">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[...recentAchievements, ...inProgressAchievements].map((achievement) => (
-                <AchievementCard key={achievement.id} achievement={achievement} />
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-      <CardFooter>
-        <Button variant="outline" className="w-full">
-          View Achievement History
-        </Button>
-      </CardFooter>
-    </Card>
-  )
+  return <UserAchievementsComponent />
 }
