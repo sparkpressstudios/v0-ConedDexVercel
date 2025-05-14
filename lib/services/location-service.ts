@@ -1,7 +1,6 @@
-// This file handles location-related services
 import { createClient } from "@/lib/supabase/client"
 
-// Get the user's current location
+// Get the user's current location with high accuracy
 export async function getUserLocation(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -9,6 +8,7 @@ export async function getUserLocation(): Promise<GeolocationPosition> {
       return
     }
 
+    // Use high accuracy and a shorter timeout for real-time location checks
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve(position)
@@ -17,7 +17,11 @@ export async function getUserLocation(): Promise<GeolocationPosition> {
         console.error("Geolocation error:", error)
         reject(new Error(`Unable to get your location: ${getGeolocationErrorMessage(error.code)}`))
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0, // Don't use cached position
+      },
     )
   })
 }
@@ -138,6 +142,7 @@ export async function getShopDetails(placeId: string): Promise<any> {
           place_id: data.id,
           name: data.name,
           formatted_address: data.address,
+          vicinity: data.address,
           geometry: {
             location: {
               lat: data.latitude,
@@ -180,7 +185,7 @@ export async function getShopDetails(placeId: string): Promise<any> {
   }
 }
 
-// Calculate distance between two coordinates in meters
+// Calculate distance between two coordinates in meters using the Haversine formula
 export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3 // Earth's radius in meters
   const φ1 = (lat1 * Math.PI) / 180
@@ -196,7 +201,7 @@ export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2
 }
 
 // Check if user is near a specific shop
-export async function isUserNearShop(shopId: string, maxDistance = 100): Promise<boolean> {
+export async function isUserNearShop(shopId: string, maxDistance = 30.48): Promise<boolean> {
   try {
     // Get shop details
     const shopDetails = await getShopDetails(shopId)
