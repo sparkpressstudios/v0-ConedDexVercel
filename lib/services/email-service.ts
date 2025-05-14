@@ -30,11 +30,45 @@ export interface EmailData {
   data?: Record<string, any>
 }
 
-// Import the browser-compatible email service
-import { sendEmail, sendTemplatedEmail } from "./sendgrid-email-service"
+// Mock email service for browser compatibility
+export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+  try {
+    console.log(`[Mock] Sending email to ${to} with subject: ${subject}`)
+    // In a real implementation, this would call an API endpoint
+    return true
+  } catch (error) {
+    console.error("Error sending email:", error)
+    return false
+  }
+}
+
+export async function sendTemplatedEmail(
+  to: string,
+  templateName: string,
+  data: Record<string, any>,
+): Promise<boolean> {
+  try {
+    console.log(`[Mock] Sending templated email "${templateName}" to ${to} with data:`, data)
+    // In a real implementation, this would call an API endpoint
+    return true
+  } catch (error) {
+    console.error("Error sending templated email:", error)
+    return false
+  }
+}
+
+export async function sendBulkEmail(recipients: string[], subject: string, html: string): Promise<boolean> {
+  try {
+    console.log(`[Mock] Sending bulk email to ${recipients.length} recipients with subject: ${subject}`)
+    // In a real implementation, this would call an API endpoint
+    return true
+  } catch (error) {
+    console.error("Error sending bulk email:", error)
+    return false
+  }
+}
 
 // Re-export the functions
-export { sendEmail, sendTemplatedEmail }
 
 // Add any additional email-related functions here
 export async function sendWelcomeEmail(email: string, name: string) {

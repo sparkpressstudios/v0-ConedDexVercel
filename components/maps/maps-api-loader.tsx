@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
-import Script from "next/script"
+import { getGoogleMapsScriptUrl } from "@/app/actions/maps-key-actions"
 
 interface MapsApiLoaderProps {
   children: React.ReactNode
@@ -13,7 +12,6 @@ interface MapsApiLoaderProps {
 
 export default function MapsApiLoader({ children, libraries = ["places"], callback = "initMap" }: MapsApiLoaderProps) {
   const [isLoaded, setIsLoaded] = useState(false)
-  const [scriptSrc, setScriptSrc] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -28,26 +26,33 @@ export default function MapsApiLoader({ children, libraries = ["places"], callba
       setIsLoaded(true)
     }
 
-    // Get the script URL from our API
-    const fetchScriptUrl = async () => {
+    // Get the script URL from our server action
+    const loadMapsApi = async () => {
       try {
-        const librariesParam = libraries.join(",")
-        const response = await fetch(`/api/maps/loader?libraries=${librariesParam}`)
-        const data = await response.json()
+        const scriptUrl = await getGoogleMapsScriptUrl(libraries)
 
-        if (data.error) {
-          setError(data.error)
-          return
+        // Create and append script
+        const script = document.createElement("script")
+        script.src = scriptUrl
+        script.async = true
+        script.defer = true
+
+        script.onload = () => {
+          // The callback will handle setting isLoaded
         }
 
-        setScriptSrc(data.apiUrl)
+        script.onerror = () => {
+          setError("Failed to load Google Maps API")
+        }
+
+        document.head.appendChild(script)
       } catch (err) {
         setError("Failed to get Maps API URL")
         console.error("Error fetching Maps API URL:", err)
       }
     }
 
-    fetchScriptUrl()
+    loadMapsApi()
 
     return () => {
       // Clean up
@@ -61,13 +66,6 @@ export default function MapsApiLoader({ children, libraries = ["places"], callba
 
   return (
     <>
-      {scriptSrc && (
-        <Script
-          src={scriptSrc}
-          strategy="afterInteractive"
-          onError={() => setError("Failed to load Google Maps API")}
-        />
-      )}
       <div className={isLoaded ? "block" : "hidden"}>{children}</div>
       {!isLoaded && (
         <div className="flex items-center justify-center p-4">

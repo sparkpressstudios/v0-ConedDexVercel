@@ -1,41 +1,38 @@
 "use client"
 
 import { useState } from "react"
-import { FileText, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { generateShopReport } from "@/app/actions/generate-shop-report"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "@/components/ui/use-toast"
 
-interface ShopReportGeneratorProps {
-  shopId: string
-  shopName: string
-}
-
-export function ShopReportGenerator({ shopId, shopName }: ShopReportGeneratorProps) {
+export function ShopReportGenerator({ shopId }: { shopId: string }) {
   const [isGenerating, setIsGenerating] = useState(false)
-  const [reportUrl, setReportUrl] = useState<string | null>(null)
-  const { toast } = useToast()
+  const [reportData, setReportData] = useState<any>(null)
 
   const handleGenerateReport = async () => {
     setIsGenerating(true)
     try {
       const result = await generateShopReport(shopId)
 
-      if (result.success && result.url) {
-        setReportUrl(result.url)
+      if (result.success) {
+        setReportData(result.data)
         toast({
           title: "Report Generated",
-          description: "Your shop report has been generated successfully.",
+          description: "Shop report has been generated successfully.",
         })
       } else {
-        throw new Error(result.error || "Failed to generate report")
+        toast({
+          title: "Error",
+          description: result.error || "Failed to generate report",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error generating report:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate report",
+        description: "An unexpected error occurred",
         variant: "destructive",
       })
     } finally {
@@ -46,42 +43,54 @@ export function ShopReportGenerator({ shopId, shopName }: ShopReportGeneratorPro
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Shop Report
-        </CardTitle>
-        <CardDescription>Generate a comprehensive PDF report for {shopName}</CardDescription>
+        <CardTitle>Shop Report Generator</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-sm text-muted-foreground">
-          The report includes shop details, flavor listings, and performance metrics. Perfect for sharing with team
-          members or for your records.
-        </p>
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={handleGenerateReport} disabled={isGenerating}>
-          {isGenerating ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Report
-            </>
-          )}
-        </Button>
-
-        {reportUrl && (
-          <Button asChild>
-            <a href={reportUrl} download target="_blank" rel="noopener noreferrer">
-              <Download className="mr-2 h-4 w-4" />
-              Download Report
-            </a>
+        <div className="space-y-4">
+          <Button onClick={handleGenerateReport} disabled={isGenerating}>
+            {isGenerating ? "Generating..." : "Generate Report"}
           </Button>
-        )}
-      </CardFooter>
+
+          {reportData && (
+            <div className="mt-4 p-4 border rounded-md bg-gray-50">
+              <h3 className="text-lg font-medium">Report Preview</h3>
+              <div className="mt-2">
+                <p>
+                  <strong>Shop:</strong> {reportData.shop.name}
+                </p>
+                <p>
+                  <strong>Generated At:</strong> {new Date(reportData.generatedAt).toLocaleString()}
+                </p>
+                <p>
+                  <strong>Total Flavors:</strong> {reportData.summary.totalFlavors}
+                </p>
+                <p>
+                  <strong>Total Reviews:</strong> {reportData.summary.totalReviews}
+                </p>
+                <p>
+                  <strong>Average Rating:</strong> {reportData.summary.averageRating.toFixed(1)}/5
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="mt-2"
+                onClick={() => {
+                  // Download as JSON
+                  const dataStr = JSON.stringify(reportData, null, 2)
+                  const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
+
+                  const linkElement = document.createElement("a")
+                  linkElement.setAttribute("href", dataUri)
+                  linkElement.setAttribute("download", `shop-report-${shopId}.json`)
+                  linkElement.click()
+                }}
+              >
+                Download Report
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
     </Card>
   )
 }

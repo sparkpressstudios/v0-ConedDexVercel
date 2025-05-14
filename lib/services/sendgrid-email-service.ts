@@ -97,31 +97,15 @@ export class SendGridEmailService {
   }
 }
 
-// Helper functions
-export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
-  try {
-    // For v0.dev preview, we'll mock the email sending functionality
-    console.log(`Email would be sent to: ${to}`)
-    console.log(`Subject: ${subject}`)
-    console.log(`Content: ${html}`)
-
-    // In production, you would use the SendGrid API directly
-    // This is just a placeholder that works in the browser preview
-    return {
-      success: true,
-      message: "Email sent successfully (preview mode)",
-    }
-  } catch (error) {
-    console.error("Error sending email:", error)
-    return {
-      success: false,
-      message: "Failed to send email",
-    }
-  }
+// Mock email service for browser compatibility
+export function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+  console.log(`[Mock] Sending email to ${to} with subject: ${subject}`)
+  return Promise.resolve(true)
 }
 
-export async function sendBatchEmails(recipients: string[], subject: string, html: string): Promise<boolean> {
-  return SendGridEmailService.getInstance().sendBatchEmails(recipients, subject, html)
+export function sendBatchEmails(recipients: string[], subject: string, html: string) {
+  console.log(`[Mock] Sending batch email to ${recipients.length} recipients with subject: ${subject}`)
+  return Promise.resolve(true)
 }
 
 export async function sendTemplatedEmail({
@@ -232,31 +216,20 @@ export function generatePasswordResetEmail(resetToken: string): { subject: strin
   return { subject, html }
 }
 
-export function generateNewsletterEmail(subject: string, content: string): { subject: string; html: string } {
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>${subject}</title>
-    </head>
-    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background-color: #f8a100; padding: 20px; text-align: center; border-radius: 5px 5px 0 0;">
-        <h1>${subject}</h1>
+export function generateNewsletterEmail(subject: string, content: string) {
+  return {
+    subject,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #333;">${subject}</h1>
+        <div style="line-height: 1.6; color: #444;">
+          ${content}
+        </div>
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
+          <p>You're receiving this email because you subscribed to our newsletter.</p>
+          <p>To unsubscribe, click <a href="#" style="color: #999;">here</a>.</p>
+        </div>
       </div>
-      <div style="padding: 20px; background-color: #fff; border: 1px solid #ddd; border-top: none; border-radius: 0 0 5px 5px;">
-        ${content}
-        <p>Happy scooping!</p>
-        <p>The ConeDex Team</p>
-      </div>
-      <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #999;">
-        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
-        <p>You received this newsletter because you subscribed to ConeDex updates.</p>
-        <p>You can manage your email preferences in your account settings.</p>
-      </div>
-    </body>
-    </html>
-  `
-
-  return { subject, html }
+    `,
+  }
 }

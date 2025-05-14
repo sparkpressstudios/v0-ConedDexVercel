@@ -1,57 +1,38 @@
 "use client"
 
 import { useState } from "react"
-import { FileText, Download, Loader2, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { generateFlavorCatalog } from "@/app/actions/generate-flavor-catalog"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "@/components/ui/use-toast"
 
-interface FlavorCatalogGeneratorProps {
-  shopId: string
-  shopName: string
-}
-
-export function FlavorCatalogGenerator({ shopId, shopName }: FlavorCatalogGeneratorProps) {
+export function FlavorCatalogGenerator({ shopId }: { shopId: string }) {
   const [isGenerating, setIsGenerating] = useState(false)
-  const [catalogUrl, setCatalogUrl] = useState<string | null>(null)
-  const [showOptions, setShowOptions] = useState(false)
-  const [options, setOptions] = useState({
-    includeImages: true,
-    includeDescriptions: true,
-    includePricing: false,
-    customTitle: "",
-    customFooter: "",
-  })
-  const { toast } = useToast()
+  const [catalogData, setCatalogData] = useState<any>(null)
 
   const handleGenerateCatalog = async () => {
     setIsGenerating(true)
     try {
-      const result = await generateFlavorCatalog({
-        shopId,
-        ...options,
-      })
+      const result = await generateFlavorCatalog(shopId)
 
-      if (result.success && result.url) {
-        setCatalogUrl(result.url)
+      if (result.success) {
+        setCatalogData(result.data)
         toast({
           title: "Catalog Generated",
-          description: "Your flavor catalog has been generated successfully.",
+          description: "Flavor catalog has been generated successfully.",
         })
       } else {
-        throw new Error(result.error || "Failed to generate catalog")
+        toast({
+          title: "Error",
+          description: result.error || "Failed to generate catalog",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error generating catalog:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate catalog",
+        description: "An unexpected error occurred",
         variant: "destructive",
       })
     } finally {
@@ -59,124 +40,69 @@ export function FlavorCatalogGenerator({ shopId, shopName }: FlavorCatalogGenera
     }
   }
 
-  const handleOptionChange = (key: keyof typeof options, value: any) => {
-    setOptions((prev) => ({
-      ...prev,
-      [key]: value,
-    }))
-  }
-
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Flavor Catalog
-        </CardTitle>
-        <CardDescription>Generate a professional PDF catalog of your flavors</CardDescription>
+        <CardTitle>Flavor Catalog Generator</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Create a beautifully formatted catalog of all flavors offered by {shopName}. Perfect for sharing with
-          customers or printing for your shop.
-        </p>
-
-        <Collapsible open={showOptions} onOpenChange={setShowOptions} className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Catalog Options</h4>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Settings2 className="h-4 w-4 mr-2" />
-                {showOptions ? "Hide Options" : "Show Options"}
-              </Button>
-            </CollapsibleTrigger>
-          </div>
-          <CollapsibleContent className="space-y-4">
-            <Separator />
-            <div className="space-y-4">
-              <div className="flex items-start space-x-2">
-                <Checkbox
-                  id="includeImages"
-                  checked={options.includeImages}
-                  onCheckedChange={(checked) => handleOptionChange("includeImages", checked)}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="includeImages">Include Images</Label>
-                  <p className="text-sm text-muted-foreground">Show flavor images in the catalog</p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <Checkbox
-                  id="includeDescriptions"
-                  checked={options.includeDescriptions}
-                  onCheckedChange={(checked) => handleOptionChange("includeDescriptions", checked)}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="includeDescriptions">Include Descriptions</Label>
-                  <p className="text-sm text-muted-foreground">Show flavor descriptions in the catalog</p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-2">
-                <Checkbox
-                  id="includePricing"
-                  checked={options.includePricing}
-                  onCheckedChange={(checked) => handleOptionChange("includePricing", checked)}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label htmlFor="includePricing">Include Pricing</Label>
-                  <p className="text-sm text-muted-foreground">Show flavor prices in the catalog</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="customTitle">Custom Title (Optional)</Label>
-                <Input
-                  id="customTitle"
-                  placeholder={`Flavor Catalog: ${shopName}`}
-                  value={options.customTitle}
-                  onChange={(e) => handleOptionChange("customTitle", e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="customFooter">Custom Footer (Optional)</Label>
-                <Input
-                  id="customFooter"
-                  placeholder={`Generated by ConeDex | ${shopName} Flavor Catalog`}
-                  value={options.customFooter}
-                  onChange={(e) => handleOptionChange("customFooter", e.target.value)}
-                />
-              </div>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={handleGenerateCatalog} disabled={isGenerating}>
-          {isGenerating ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Catalog
-            </>
-          )}
-        </Button>
-
-        {catalogUrl && (
-          <Button asChild>
-            <a href={catalogUrl} download target="_blank" rel="noopener noreferrer">
-              <Download className="mr-2 h-4 w-4" />
-              Download Catalog
-            </a>
+      <CardContent>
+        <div className="space-y-4">
+          <Button onClick={handleGenerateCatalog} disabled={isGenerating}>
+            {isGenerating ? "Generating..." : "Generate Catalog"}
           </Button>
-        )}
-      </CardFooter>
+
+          {catalogData && (
+            <div className="mt-4 p-4 border rounded-md bg-gray-50">
+              <h3 className="text-lg font-medium">Catalog Preview</h3>
+              <div className="mt-2">
+                <p>
+                  <strong>Shop:</strong> {catalogData.shop.name}
+                </p>
+                <p>
+                  <strong>Generated At:</strong> {new Date(catalogData.generatedAt).toLocaleString()}
+                </p>
+                <p>
+                  <strong>Total Flavors:</strong> {catalogData.flavors.length}
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <h4 className="font-medium">Flavors:</h4>
+                <ul className="mt-2 space-y-2">
+                  {catalogData.flavors.slice(0, 5).map((flavor: any) => (
+                    <li key={flavor.id} className="text-sm">
+                      <span className="font-medium">{flavor.name}</span>
+                      {flavor.special && (
+                        <span className="ml-2 text-xs bg-yellow-100 px-2 py-0.5 rounded">Special</span>
+                      )}
+                    </li>
+                  ))}
+                  {catalogData.flavors.length > 5 && (
+                    <li className="text-sm text-gray-500">And {catalogData.flavors.length - 5} more...</li>
+                  )}
+                </ul>
+              </div>
+
+              <Button
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  // Download as JSON
+                  const dataStr = JSON.stringify(catalogData, null, 2)
+                  const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(dataStr)
+
+                  const linkElement = document.createElement("a")
+                  linkElement.setAttribute("href", dataUri)
+                  linkElement.setAttribute("download", `flavor-catalog-${shopId}.json`)
+                  linkElement.click()
+                }}
+              >
+                Download Catalog
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
     </Card>
   )
 }
