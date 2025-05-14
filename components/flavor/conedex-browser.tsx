@@ -1,208 +1,116 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Search } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import Link from "next/link"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Search, Filter, IceCream } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
 
-type Flavor = {
-  id: string
-  name: string
-  description: string
-  image_url?: string
-  popularity: number
-  is_logged?: boolean
-}
-
-export function ConeDexBrowserComponent() {
-  const [flavors, setFlavors] = useState<Flavor[]>([])
-  const [filteredFlavors, setFilteredFlavors] = useState<Flavor[]>([])
+export function ConeDexBrowser() {
+  const [flavors, setFlavors] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
-    async function loadFlavors() {
+    async function fetchFlavors() {
       try {
         setLoading(true)
-        setError(null)
+        const { data, error } = await supabase.from("flavors").select("*").order("name").limit(10)
 
-        // Get current user
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) {
-          setError("User not authenticated")
-          setLoading(false)
-          return
-        }
-
-        // Get all flavors with popularity count
-        const { data: allFlavors, error: flavorsError } = await supabase
-          .from("flavors")
-          .select(`
-            id, 
-            name, 
-            description, 
-            image_url,
-            popularity
-          `)
-          .order("popularity", { ascending: false })
-          .limit(20)
-
-        if (flavorsError) {
-          throw new Error(flavorsError.message)
-        }
-
-        if (!allFlavors) {
-          setFlavors([])
-          setFilteredFlavors([])
-          setLoading(false)
-          return
-        }
-
-        // Get user's logged flavors
-        const { data: userFlavors, error: userFlavorsError } = await supabase
-          .from("user_flavor_logs")
-          .select("flavor_id")
-          .eq("user_id", user.id)
-
-        if (userFlavorsError) {
-          throw new Error(userFlavorsError.message)
-        }
-
-        const userFlavorIds = new Set(userFlavors?.map((f) => f.flavor_id) || [])
-
-        // Mark flavors that user has logged
-        const processedFlavors = allFlavors.map((flavor) => ({
-          ...flavor,
-          is_logged: userFlavorIds.has(flavor.id),
-        }))
-
-        setFlavors(processedFlavors)
-        setFilteredFlavors(processedFlavors)
-      } catch (err) {
-        console.error("Error loading flavors:", err)
-        setError(err instanceof Error ? err.message : "Failed to load flavors")
+        if (error) throw error
+        setFlavors(data || [])
+      } catch (error) {
+        console.error("Error fetching flavors:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    loadFlavors()
+    fetchFlavors()
   }, [supabase])
 
-  // Filter flavors when search query changes
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredFlavors(flavors)
-      return
-    }
-
-    const query = searchQuery.toLowerCase()
-    const filtered = flavors.filter(
-      (flavor) => flavor.name.toLowerCase().includes(query) || flavor.description.toLowerCase().includes(query),
-    )
-
-    setFilteredFlavors(filtered)
-  }, [searchQuery, flavors])
+  const filteredFlavors = flavors.filter((flavor) => flavor.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>ConeDex Browser</CardTitle>
-        <CardDescription>Explore and discover ice cream flavors</CardDescription>
+        <CardDescription>Explore ice cream flavors in our database</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="relative mb-4">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search flavors..."
-            className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+        <div className="flex items-center space-x-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search flavors..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Button variant="outline" size="icon">
+            <Filter className="h-4 w-4" />
+            <span className="sr-only">Filter</span>
+          </Button>
         </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="p-3 border rounded-md">
-                <div className="flex items-center space-x-3">
-                  <Skeleton className="h-12 w-12 rounded-md" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-full" />
-                  </div>
-                </div>
+        <Tabs defaultValue="all">
+          <TabsList className="mb-4">
+            <TabsTrigger value="all">All Flavors</TabsTrigger>
+            <TabsTrigger value="popular">Popular</TabsTrigger>
+            <TabsTrigger value="new">New</TabsTrigger>
+          </TabsList>
+          <TabsContent value="all" className="space-y-4">
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700"></div>
               </div>
-            ))}
-          </div>
-        ) : error ? (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : filteredFlavors.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground">
-            <p>No flavors found matching your search.</p>
-            <p className="mt-2">Try a different search term or explore more shops!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {filteredFlavors.map((flavor) => (
-              <div
-                key={flavor.id}
-                className={`p-3 border rounded-md ${flavor.is_logged ? "bg-primary/5 border-primary/20" : ""}`}
-              >
-                <div className="flex items-start space-x-3">
-                  <div className="h-12 w-12 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                    {flavor.image_url ? (
-                      <img
-                        src={flavor.image_url || "/placeholder.svg"}
-                        alt={flavor.name}
-                        className="h-12 w-12 rounded-md object-cover"
-                      />
-                    ) : (
-                      <span className="text-lg font-bold text-primary">{flavor.name.charAt(0)}</span>
-                    )}
+            ) : filteredFlavors.length > 0 ? (
+              filteredFlavors.map((flavor) => (
+                <div key={flavor.id} className="flex items-center gap-3 p-3 rounded-lg border">
+                  <div className="h-12 w-12 rounded-md bg-orange-100 flex items-center justify-center">
+                    <IceCream className="h-6 w-6 text-orange-500" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium truncate">{flavor.name}</h4>
-                      {flavor.is_logged && (
-                        <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">Logged</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{flavor.description}</p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-muted-foreground">Popularity: {flavor.popularity}</span>
-                      <Link href={`/dashboard/flavors/${flavor.id}`}>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                          View Details
-                        </Button>
-                      </Link>
-                    </div>
+                    <h3 className="font-medium truncate">{flavor.name}</h3>
+                    <p className="text-sm text-muted-foreground truncate">{flavor.category || "Classic"}</p>
                   </div>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/dashboard/flavors/${flavor.id}`}>View</Link>
+                  </Button>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <IceCream className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No flavors found</p>
               </div>
-            ))}
-          </div>
-        )}
+            )}
+          </TabsContent>
+          <TabsContent value="popular">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Popular flavors coming soon</p>
+            </div>
+          </TabsContent>
+          <TabsContent value="new">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">New flavors coming soon</p>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
+      <CardFooter>
+        <Button asChild variant="outline" className="w-full">
+          <Link href="/dashboard/flavors">View All Flavors</Link>
+        </Button>
+      </CardFooter>
     </Card>
   )
 }
 
-// Add default export
-export default function ConeDexBrowser() {
-  return <ConeDexBrowserComponent />
-}
+export default ConeDexBrowser

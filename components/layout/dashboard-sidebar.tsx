@@ -3,35 +3,19 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  LayoutDashboard,
-  Store,
-  IceCream,
-  Users,
-  Award,
-  Menu,
-  X,
-  BarChart,
-  LogOut,
-  FileText,
-  Mail,
-  Lock,
-  HardDrive,
-} from "lucide-react"
+import { LayoutDashboard, Store, IceCream, Award, Menu, X, LogOut, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 
 export function DashboardSidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const { user, signOut } = useAuth()
-  const supabase = createClient()
   const userRole = user?.role || "explorer"
 
-  // Navigation items
+  // Simplified navigation items - only include working pages
   const navItems = [
     {
       icon: <LayoutDashboard className="h-5 w-5" />,
@@ -40,8 +24,8 @@ export function DashboardSidebar() {
     },
     {
       icon: <IceCream className="h-5 w-5" />,
-      href: "/dashboard/conedex",
-      label: "ConeDex",
+      href: "/dashboard/flavors",
+      label: "Flavors",
     },
     {
       icon: <Store className="h-5 w-5" />,
@@ -49,54 +33,32 @@ export function DashboardSidebar() {
       label: "Shops",
     },
     {
-      icon: <FileText className="h-5 w-5" />,
-      href: "/dashboard/flavors",
-      label: "Flavors",
-    },
-    {
-      icon: <Users className="h-5 w-5" />,
-      href: "/dashboard/teams",
-      label: "Teams",
-    },
-    {
       icon: <Award className="h-5 w-5" />,
       href: "/dashboard/badges",
       label: "Badges",
     },
     {
-      icon: <Mail className="h-5 w-5" />,
-      href: "/dashboard/notifications",
-      label: "Messages",
-    },
-    {
-      icon: <Lock className="h-5 w-5" />,
+      icon: <Settings className="h-5 w-5" />,
       href: "/dashboard/settings",
       label: "Settings",
     },
   ]
 
-  // Admin-specific items
-  if (userRole === "admin") {
-    navItems.push(
-      {
-        icon: <HardDrive className="h-5 w-5" />,
-        href: "/dashboard/admin",
-        label: "Admin",
-      },
-      {
-        icon: <BarChart className="h-5 w-5" />,
-        href: "/dashboard/admin/analytics",
-        label: "Analytics",
-      },
-    )
-  }
-
-  // Shop owner-specific items
+  // Add shop owner specific item if user is a shop owner
   if (userRole === "shop_owner") {
     navItems.push({
       icon: <Store className="h-5 w-5" />,
       href: "/dashboard/shop",
       label: "My Shop",
+    })
+  }
+
+  // Add admin specific item if user is an admin
+  if (userRole === "admin") {
+    navItems.push({
+      icon: <LayoutDashboard className="h-5 w-5" />,
+      href: "/dashboard/admin",
+      label: "Admin",
     })
   }
 

@@ -15,6 +15,11 @@ export function InstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false)
 
   useEffect(() => {
+    // Only run this in production to avoid development console noise
+    if (process.env.NODE_ENV !== "production") {
+      return
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent Chrome 67 and earlier from automatically showing the prompt
       e.preventDefault()
@@ -22,9 +27,6 @@ export function InstallPrompt() {
       setDeferredPrompt(e as BeforeInstallPromptEvent)
       // Show the install button
       setShowPrompt(true)
-
-      // Log for debugging
-      console.log("Install prompt captured and ready to be shown")
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
@@ -45,23 +47,14 @@ export function InstallPrompt() {
 
   const handleInstallClick = () => {
     if (!deferredPrompt) {
-      console.warn("Install prompt not available")
       return
     }
-
-    // Log before showing the prompt
-    console.log("Showing install prompt...")
 
     // Show the install prompt
     deferredPrompt.prompt()
 
     // Wait for the user to respond to the prompt
     deferredPrompt.userChoice.then((choiceResult) => {
-      if (choiceResult.outcome === "accepted") {
-        console.log("User accepted the install prompt")
-      } else {
-        console.log("User dismissed the install prompt")
-      }
       // Clear the saved prompt since it can't be used again
       setDeferredPrompt(null)
       setShowPrompt(false)
