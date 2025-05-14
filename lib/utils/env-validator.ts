@@ -122,17 +122,19 @@ export function isFeatureAvailable(feature: "email" | "maps" | "payments" | "ai"
  */
 export function checkEnvironmentVariables(): void {
   const { valid, missing } = validateRequiredEnvVars()
+  const isProduction = process.env.NODE_ENV === "production"
 
-  if (!valid) {
+  // Only show warnings in production or if explicitly requested
+  if (!valid && (isProduction || process.env.NEXT_PUBLIC_SHOW_ENV_WARNINGS === "true")) {
     console.warn(`⚠️ Missing environment variables: ${missing.join(", ")}`)
     console.warn("Some features may not work correctly without these variables.")
+  } else if (!valid) {
+    // In development, just log once to console in a less alarming way
+    console.log("Note: Some environment variables are not set. This is normal in development.")
   }
 
-  // Check for optional client variables in production
-  const isProduction = process.env.NODE_ENV === "production"
-  const isClient = typeof window !== "undefined"
-
-  if (isProduction && isClient) {
+  // Check for optional client variables only in production
+  if (isProduction && typeof window !== "undefined") {
     const optionalClientVars = [
       "NEXT_PUBLIC_SUPABASE_URL",
       "NEXT_PUBLIC_SUPABASE_ANON_KEY",
@@ -143,7 +145,7 @@ export function checkEnvironmentVariables(): void {
 
     const missingOptional = optionalClientVars.filter((varName) => !process.env[varName])
 
-    if (missingOptional.length > 0) {
+    if (missingOptional.length > 0 && process.env.NEXT_PUBLIC_SHOW_ENV_WARNINGS === "true") {
       console.log("Note: Some optional client environment variables are not set:", missingOptional.join(", "))
     }
   }

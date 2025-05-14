@@ -22,9 +22,21 @@ export function InstallPrompt() {
       setDeferredPrompt(e as BeforeInstallPromptEvent)
       // Show the install button
       setShowPrompt(true)
+
+      // Log for debugging
+      console.log("Install prompt captured and ready to be shown")
     }
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
+
+    // Check if the app is already installed
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches || (window.navigator as any).standalone === true
+
+    if (isStandalone) {
+      // App is already installed, don't show the prompt
+      setShowPrompt(false)
+    }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt)
@@ -32,7 +44,13 @@ export function InstallPrompt() {
   }, [])
 
   const handleInstallClick = () => {
-    if (!deferredPrompt) return
+    if (!deferredPrompt) {
+      console.warn("Install prompt not available")
+      return
+    }
+
+    // Log before showing the prompt
+    console.log("Showing install prompt...")
 
     // Show the install prompt
     deferredPrompt.prompt()
