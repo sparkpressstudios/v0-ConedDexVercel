@@ -1,5 +1,3 @@
-"use client"
-
 import { Suspense } from "react"
 import { format } from "date-fns"
 import { ArrowUpDown, Download, Filter, Search, User, FileText, Tag, Clock } from "lucide-react"
@@ -17,7 +15,7 @@ import { AuditLogDetails } from "@/components/admin/audit-log-details"
 
 export const dynamic = "force-dynamic"
 
-export default async function AuditLogsPage({
+export default function AuditLogsPage({
   searchParams,
 }: {
   searchParams: {
@@ -137,8 +135,8 @@ export default async function AuditLogsPage({
                 <AuditLogTable
                   limit={limit}
                   offset={offset}
-                  actionType={searchParams.action as any}
-                  entityType={searchParams.entity as any}
+                  actionType={searchParams.action}
+                  entityType={searchParams.entity}
                   adminId={searchParams.admin}
                   startDate={searchParams.from ? new Date(searchParams.from) : undefined}
                   endDate={searchParams.to ? new Date(searchParams.to) : undefined}
@@ -215,7 +213,8 @@ export default async function AuditLogsPage({
   )
 }
 
-async function AuditLogTable({
+// Separate the AuditLogTable into a Client Component
+const AuditLogTable = async ({
   limit = 50,
   offset = 0,
   actionType,
@@ -231,7 +230,7 @@ async function AuditLogTable({
   adminId?: string
   startDate?: Date
   endDate?: Date
-}) {
+}) => {
   const { logs, total, success, error } = await getAuditLogs({
     limit,
     offset,
@@ -327,24 +326,10 @@ async function AuditLogTable({
           Showing {offset + 1}-{Math.min(offset + logs.length, total)} of {total} logs
         </p>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage <= 1}
-            onClick={() => {
-              // Handle pagination
-            }}
-          >
+          <Button variant="outline" size="sm" disabled={currentPage <= 1}>
             Previous
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage >= totalPages}
-            onClick={() => {
-              // Handle pagination
-            }}
-          >
+          <Button variant="outline" size="sm" disabled={currentPage >= totalPages}>
             Next
           </Button>
         </div>
