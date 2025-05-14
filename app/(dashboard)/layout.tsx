@@ -96,17 +96,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 function renderDashboardLayout(children: React.ReactNode, profile: any) {
   return (
     <GlobalErrorBoundary>
-      <div className="flex min-h-screen flex-col">
-        <DashboardHeader user={profile} />
-        <div className="flex flex-1">
-          <div className="hidden md:block">
-            <DashboardSidebar />
-          </div>
+      <div className="flex h-screen flex-col md:flex-row bg-white">
+        <DashboardSidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <DashboardHeader user={profile} />
           <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+          <Toaster />
+          <OfflineIndicator />
+          <InstallPrompt />
         </div>
-        <Toaster />
-        <OfflineIndicator />
-        <InstallPrompt />
       </div>
     </GlobalErrorBoundary>
   )
@@ -119,8 +117,8 @@ function renderErrorLayout(children: React.ReactNode, errorMessage = "Dashboard 
       <div className="flex min-h-screen flex-col">
         <header className="border-b bg-background h-16 flex items-center px-6">
           <div className="flex items-center gap-2">
-            <div className="rounded-full bg-primary p-1">
-              <IceCream className="h-6 w-6 text-primary-foreground" />
+            <div className="rounded-full bg-purple-900 p-1">
+              <IceCream className="h-6 w-6 text-white" />
             </div>
             <span className="text-xl font-bold">ConeDex</span>
           </div>

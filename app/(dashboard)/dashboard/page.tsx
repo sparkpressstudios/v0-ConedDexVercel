@@ -1,456 +1,344 @@
+import { createServerClient } from "@/lib/supabase/server"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import {
+  IceCream,
+  Trash2,
+  Music,
+  ImageIcon,
+  ChevronRight,
+  ChevronLeft,
+  BarChart,
+  Activity,
+  Zap,
+  Shield,
+  RefreshCw,
+} from "lucide-react"
+
 export const dynamic = "force-dynamic"
 
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { IceCream, MapPin, Award, Star, Compass, TrendingUp, Users } from "lucide-react"
-import Link from "next/link"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import type { Database } from "@/lib/database.types"
-import { getDemoUser } from "@/lib/auth/session"
-import { Shell } from "@/components/shell"
-import { LogFlavorButton } from "@/components/flavor/log-flavor-button"
-import Image from "next/image"
-
 export default async function DashboardPage() {
+  const supabase = createServerClient()
+
+  let user = null
+  let profile = null
+
   try {
-    // Check for demo user first
-    const demoUser = getDemoUser()
+    // Get the current user
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser()
+    user = currentUser
 
-    // If we have a demo user, render a simplified dashboard
-    if (demoUser) {
-      return renderDashboardForUser({
-        id: demoUser.id,
-        role: demoUser.role,
-        username: demoUser.email.split("@")[0],
-        full_name: demoUser.name,
-        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${demoUser.name.replace(" ", "")}`,
-      })
+    if (user) {
+      // Get the user's profile
+      const { data: userProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+      profile = userProfile
     }
-
-    // Try to get the Supabase client
-    let supabase
-    try {
-      supabase = createServerComponentClient<Database>({ cookies })
-    } catch (error) {
-      console.error("Failed to create Supabase client:", error)
-      return renderErrorState("Failed to initialize database connection")
-    }
-
-    // Try to get the user
-    let user
-    try {
-      const { data, error } = await supabase.auth.getUser()
-      if (error) throw error
-      user = data.user
-    } catch (error) {
-      console.error("Failed to get user:", error)
-      return renderErrorState("Authentication error")
-    }
-
-    // If no user, render the error state
-    if (!user) {
-      return renderErrorState("User not authenticated")
-    }
-
-    // Try to get the user profile
-    let profile
-    try {
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
-      if (error) throw error
-      profile = data
-    } catch (error) {
-      console.error("Failed to get profile:", error)
-
-      // Create a basic profile if we couldn't get one
-      profile = {
-        id: user.id,
-        role: "explorer",
-        username: user.email?.split("@")[0] || "User",
-        full_name: user.email?.split("@")[0] || "User",
-        avatar_url: null,
-      }
-    }
-
-    return renderDashboardForUser(profile)
   } catch (error) {
-    console.error("Dashboard page error:", error)
-    return renderErrorState("Unexpected error")
-  }
-}
-
-// Helper function to render the dashboard for a user
-function renderDashboardForUser(profile: any) {
-  const userRole = profile.role || "explorer"
-  const isExplorer = userRole === "explorer"
-  const isShopOwner = userRole === "shop_owner"
-  const isAdmin = userRole === "admin"
-
-  // Explorer-themed dashboard with vibrant colors
-  if (isExplorer) {
-    return (
-      <div className="space-y-8">
-        {/* Explorer Hero Section with Original Design */}
-        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-strawberry-400 via-mint-400 to-blueberry-400 p-8 text-white shadow-lg">
-          <div className="absolute inset-0 bg-black/5"></div>
-          <div className="relative z-10">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 border-2 border-white/50">
-                <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt={profile?.username || "User"} />
-                <AvatarFallback className="bg-white/20 text-white">
-                  {profile?.username?.substring(0, 2).toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">
-                  Welcome back, {profile?.full_name || profile?.username || "Ice Cream Explorer"}!
-                </h1>
-                <p className="mt-1 text-white/80">
-                  {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-                </p>
-              </div>
-            </div>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <LogFlavorButton variant="secondary" className="bg-white text-strawberry-500 hover:bg-white/90" />
-              <Button asChild variant="outline" className="bg-white/10 text-white hover:bg-white/20">
-                <Link href="/dashboard/shops">
-                  <MapPin className="mr-2 h-4 w-4" />
-                  Find Shops
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          {/* Decorative ice cream cone illustration */}
-          <div className="absolute -bottom-10 right-10 h-32 w-32 opacity-20">
-            <Image
-              src="/colorful-ice-cream-cones.png"
-              alt="Ice Cream Cones"
-              width={128}
-              height={128}
-              className="object-contain"
-            />
-          </div>
-
-          <div className="absolute -bottom-6 -right-6 h-32 w-32 rounded-full bg-white/10 blur-3xl"></div>
-          <div className="absolute -top-8 -left-8 h-32 w-32 rounded-full bg-white/10 blur-3xl"></div>
-        </div>
-
-        {/* Explorer Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card className="bg-gradient-to-br from-strawberry-50 to-white border-strawberry-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-strawberry-700">Flavors Logged</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold text-strawberry-600">12</div>
-                <IceCream className="h-5 w-5 text-strawberry-400" />
-              </div>
-              <p className="mt-2 text-xs text-strawberry-600/80">3 new this week</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-mint-50 to-white border-mint-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-mint-700">Shops Visited</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold text-mint-600">8</div>
-                <MapPin className="h-5 w-5 text-mint-400" />
-              </div>
-              <p className="mt-2 text-xs text-mint-600/80">1 new this week</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-blueberry-50 to-white border-blueberry-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-blueberry-700">Badges Earned</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold text-blueberry-600">5</div>
-                <Award className="h-5 w-5 text-blueberry-400" />
-              </div>
-              <p className="mt-2 text-xs text-blueberry-600/80">New badge available!</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-vanilla-50 to-white border-vanilla-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-vanilla-800">Leaderboard Rank</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold text-vanilla-700">#42</div>
-                <TrendingUp className="h-5 w-5 text-vanilla-500" />
-              </div>
-              <p className="mt-2 text-xs text-vanilla-700/80">Up 3 spots this week</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="border-strawberry-100 hover:border-strawberry-200 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-strawberry-700">Explore Flavors</CardTitle>
-              <IceCream className="h-4 w-4 text-strawberry-500" />
-            </CardHeader>
-            <CardContent className="pt-4">
-              <Button asChild variant="default" className="w-full bg-strawberry-500 hover:bg-strawberry-600">
-                <Link href="/dashboard/conedex">Browse ConeDex</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-mint-100 hover:border-mint-200 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-mint-700">Find Shops</CardTitle>
-              <MapPin className="h-4 w-4 text-mint-500" />
-            </CardHeader>
-            <CardContent className="pt-4">
-              <Button asChild variant="default" className="w-full bg-mint-500 hover:bg-mint-600">
-                <Link href="/dashboard/shops">Discover Shops</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-blueberry-100 hover:border-blueberry-200 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-blueberry-700">View Leaderboard</CardTitle>
-              <Award className="h-4 w-4 text-blueberry-500" />
-            </CardHeader>
-            <CardContent className="pt-4">
-              <Button asChild variant="default" className="w-full bg-blueberry-500 hover:bg-blueberry-600">
-                <Link href="/dashboard/leaderboard">See Rankings</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-vanilla-100 hover:border-vanilla-200 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-vanilla-800">Your Profile</CardTitle>
-              <Star className="h-4 w-4 text-vanilla-600" />
-            </CardHeader>
-            <CardContent className="pt-4">
-              <Button asChild variant="default" className="w-full bg-vanilla-500 hover:bg-vanilla-600">
-                <Link href="/dashboard/profile">View Profile</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Recent Activity and Recommendations */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center text-strawberry-700">
-                <Compass className="mr-2 h-5 w-5 text-strawberry-500" />
-                Nearby Adventures
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-4">
-                <li className="flex items-start gap-3">
-                  <div className="rounded-md bg-mint-100 p-2">
-                    <MapPin className="h-4 w-4 text-mint-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Scoops Ahoy</p>
-                    <p className="text-sm text-muted-foreground">0.8 miles away • 24 flavors</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="rounded-md bg-blueberry-100 p-2">
-                    <MapPin className="h-4 w-4 text-blueberry-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Frozen Delights</p>
-                    <p className="text-sm text-muted-foreground">1.2 miles away • 18 flavors</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="rounded-md bg-strawberry-100 p-2">
-                    <MapPin className="h-4 w-4 text-strawberry-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Sweet Treats</p>
-                    <p className="text-sm text-muted-foreground">1.5 miles away • 30 flavors</p>
-                  </div>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center text-blueberry-700">
-                <Users className="mr-2 h-5 w-5 text-blueberry-500" />
-                Community Favorites
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-4">
-                <li className="flex items-start gap-3">
-                  <div className="rounded-md bg-strawberry-100 p-2">
-                    <IceCream className="h-4 w-4 text-strawberry-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Strawberry Cheesecake</p>
-                    <p className="text-sm text-muted-foreground">Trending this week • 42 logs</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="rounded-md bg-mint-100 p-2">
-                    <IceCream className="h-4 w-4 text-mint-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Mint Chocolate Chip</p>
-                    <p className="text-sm text-muted-foreground">Popular year-round • 38 logs</p>
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="rounded-md bg-chocolate-100 p-2">
-                    <IceCream className="h-4 w-4 text-chocolate-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">Chocolate Fudge Brownie</p>
-                    <p className="text-sm text-muted-foreground">Classic favorite • 35 logs</p>
-                  </div>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
+    console.error("Error fetching user data:", error)
   }
 
-  // Shop owner and admin dashboards remain the same
+  // Get current date
+  const today = new Date()
+  const currentMonth = today.toLocaleString("default", { month: "long" })
+  const currentDay = today.getDate()
+  const currentYear = today.getFullYear()
+
+  // Create week dates
+  const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  const currentDayOfWeek = today.getDay() // 0 is Sunday, 1 is Monday, etc.
+  const startOfWeek = new Date(today)
+  startOfWeek.setDate(today.getDate() - ((currentDayOfWeek || 7) - 1)) // Adjust to Monday
+
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(startOfWeek)
+    date.setDate(startOfWeek.getDate() + i)
+    return {
+      day: weekDays[i],
+      date: date.getDate(),
+      isToday:
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear(),
+    }
+  })
+
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 p-8 text-white shadow-lg">
-        <div className="absolute inset-0 bg-black/10"></div>
-        <div className="relative z-10">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16 border-2 border-white/50">
-              <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} alt={profile?.username || "User"} />
-              <AvatarFallback className="bg-white/20 text-white">
-                {profile?.username?.substring(0, 2).toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                Welcome back, {profile?.full_name || profile?.username || "Ice Cream Explorer"}!
-              </h1>
-              <p className="mt-1 text-white/80">
-                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-              </p>
-            </div>
-          </div>
-          <div className="mt-6 flex flex-wrap gap-3">
-            {userRole === "explorer" && (
-              <LogFlavorButton variant="secondary" className="bg-white text-purple-700 hover:bg-white/90" />
-            )}
-            {userRole === "shop_owner" && (
-              <Button asChild variant="secondary" className="bg-white text-purple-700 hover:bg-white/90">
-                <Link href="/dashboard/shop">
-                  <IceCream className="mr-2 h-4 w-4" />
-                  Manage Shop
-                </Link>
-              </Button>
-            )}
-            <Button asChild variant="outline" className="bg-white/10 text-white hover:bg-white/20">
-              <Link href="/dashboard/shops">
-                <MapPin className="mr-2 h-4 w-4" />
-                Find Shops
-              </Link>
+    <div className="space-y-6">
+      {/* Date Navigation */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <h2 className="text-lg font-medium text-gray-700">
+            {currentMonth} {currentDay}-{currentDay + 6}
+          </h2>
+          <div className="flex items-center space-x-1">
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
-        <div className="absolute -bottom-6 -right-6 h-32 w-32 rounded-full bg-white/10 blur-3xl"></div>
-        <div className="absolute -top-8 -left-8 h-32 w-32 rounded-full bg-white/10 blur-3xl"></div>
+        <Button variant="outline" className="text-sm">
+          Month
+        </Button>
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Explore Flavors</CardTitle>
-            <IceCream className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <Button asChild variant="default" className="w-full">
-              <Link href="/dashboard/conedex">Browse ConeDex</Link>
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Week Calendar */}
+      <div className="grid grid-cols-7 gap-2 text-center">
+        {weekDates.map((item) => (
+          <div key={item.day} className="flex flex-col items-center">
+            <span className="text-sm text-gray-500">{item.day}</span>
+            <div
+              className={cn(
+                "mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm",
+                item.isToday ? "bg-coral-500 text-white" : "text-gray-700",
+              )}
+            >
+              {item.date}
+            </div>
+            <div className="mt-1 h-1 w-1 rounded-full bg-orange-500"></div>
+          </div>
+        ))}
+      </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Find Shops</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <Button asChild variant="default" className="w-full">
-              <Link href="/dashboard/shops">Discover Shops</Link>
+      {/* Weekly Reports */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Weekly Reports</h2>
+          <div className="flex space-x-2">
+            <Button variant="ghost" size="sm" className="text-sm text-gray-500">
+              Today
             </Button>
-          </CardContent>
-        </Card>
+            <Button variant="ghost" size="sm" className="text-sm font-medium text-purple-600">
+              Week
+            </Button>
+            <Button variant="ghost" size="sm" className="text-sm text-gray-500">
+              Month
+            </Button>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">View Leaderboard</CardTitle>
-            <Award className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <Button asChild variant="default" className="w-full">
-              <Link href="/dashboard/leaderboard">See Rankings</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border border-gray-100 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-3 p-3 bg-orange-100 rounded-lg">
+                  <IceCream className="h-6 w-6 text-orange-500" />
+                </div>
+                <h3 className="text-sm font-medium text-gray-600">Flavors Logged</h3>
+                <p className="text-2xl font-bold mt-1 text-gray-900">35</p>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Your Profile</CardTitle>
-            <Star className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="pt-4">
-            <Button asChild variant="default" className="w-full">
-              <Link href="/dashboard/profile">View Profile</Link>
-            </Button>
-          </CardContent>
-        </Card>
+          <Card className="border border-gray-100 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-3 p-3 bg-coral-100 rounded-lg">
+                  <Music className="h-6 w-6 text-coral-500" />
+                </div>
+                <h3 className="text-sm font-medium text-gray-600">Shops Visited</h3>
+                <p className="text-2xl font-bold mt-1 text-gray-900">1.25</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-100 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-3 p-3 bg-teal-100 rounded-lg">
+                  <Trash2 className="h-6 w-6 text-teal-500" />
+                </div>
+                <h3 className="text-sm font-medium text-gray-600">Reviews Posted</h3>
+                <p className="text-2xl font-bold mt-1 text-gray-900">16.35</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-100 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="mb-3 p-3 bg-purple-100 rounded-lg">
+                  <ImageIcon className="h-6 w-6 text-purple-500" />
+                </div>
+                <h3 className="text-sm font-medium text-gray-600">Photos Shared</h3>
+                <p className="text-2xl font-bold mt-1 text-gray-900">12.10</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Other Functions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Other Functions</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="border border-gray-100 shadow-sm bg-coral-50">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-2 bg-coral-500 rounded-lg text-white mr-3">
+                    <BarChart className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Optimization</span>
+                </div>
+                <div className="w-10 h-6 bg-coral-500 rounded-full flex items-center p-1">
+                  <div className="w-4 h-4 bg-white rounded-full"></div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-100 shadow-sm bg-orange-50">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-2 bg-orange-500 rounded-lg text-white mr-3">
+                    <Zap className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Smart Scan</span>
+                </div>
+                <div className="w-10 h-6 bg-orange-500 rounded-full flex items-center justify-end p-1">
+                  <div className="w-4 h-4 bg-white rounded-full"></div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-100 shadow-sm bg-teal-50">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-2 bg-teal-500 rounded-lg text-white mr-3">
+                    <Shield className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Malware</span>
+                </div>
+                <div className="w-10 h-6 bg-teal-500 rounded-full flex items-center p-1">
+                  <div className="w-4 h-4 bg-white rounded-full"></div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-gray-100 shadow-sm bg-gray-50">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-2 bg-gray-400 rounded-lg text-white mr-3">
+                    <RefreshCw className="h-5 w-5" />
+                  </div>
+                  <span className="font-medium text-gray-800">Updater</span>
+                </div>
+                <div className="w-10 h-6 bg-gray-400 rounded-full flex items-center p-1">
+                  <div className="w-4 h-4 bg-white rounded-full"></div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Statistics of Tasting</h2>
+          <Card className="border border-gray-100 shadow-sm h-[calc(100%-2rem)]">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-xs text-gray-500">CURRENT FRIDAY</p>
+                  <p className="text-2xl font-bold">58%</p>
+                </div>
+                <div className="flex space-x-2">
+                  <Button variant="ghost" size="sm" className="p-1">
+                    <BarChart className="h-5 w-5 text-orange-500" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="p-1">
+                    <Activity className="h-5 w-5 text-gray-400" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="h-40 flex items-end justify-between space-x-2">
+                {["MO", "TU", "WE", "TH", "FR", "SA", "SU"].map((day, i) => (
+                  <div key={day} className="flex flex-col items-center flex-1">
+                    <div
+                      className={`w-full rounded-t-sm ${
+                        day === "TH" ? "bg-orange-500 h-32" : `bg-teal-400 h-${12 + Math.floor(Math.random() * 20)}`
+                      }`}
+                    ></div>
+                    <span className="text-xs text-gray-500 mt-2">{day}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Updating Monitoring */}
+      <div>
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Updating Monitoring</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="border border-gray-100 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800">System Files</h3>
+                  <p className="text-sm text-gray-500">December {currentYear}</p>
+                </div>
+                <div className="relative h-16 w-16">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-lg font-bold text-gray-800">25%</span>
+                  </div>
+                  <svg className="h-16 w-16 transform -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#f3f4f6" strokeWidth="10" />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#f43f5e"
+                      strokeWidth="10"
+                      strokeDasharray="251.2"
+                      strokeDashoffset="188.4"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-gray-100 shadow-sm bg-purple-900 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">Applications</h3>
+                  <p className="text-sm text-purple-300">December {currentYear}</p>
+                </div>
+                <div className="relative h-16 w-16">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-lg font-bold">50%</span>
+                  </div>
+                  <svg className="h-16 w-16 transform -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#6d28d9" strokeWidth="10" />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      fill="none"
+                      stroke="#f97316"
+                      strokeWidth="10"
+                      strokeDasharray="251.2"
+                      strokeDashoffset="125.6"
+                    />
+                  </svg>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
 }
 
-// Helper function to render the error state
-function renderErrorState(errorMessage = "We're having trouble loading your dashboard") {
-  return (
-    <Shell layout="centered">
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <div className="rounded-full bg-red-100 p-3 text-red-600 mb-4">
-          <IceCream className="h-6 w-6" />
-        </div>
-        <h2 className="text-2xl font-bold mb-2">Dashboard Temporarily Unavailable</h2>
-        <p className="text-muted-foreground mb-6 max-w-md">
-          {errorMessage}. We're working to resolve this issue as quickly as possible.
-        </p>
-        <div className="space-y-3 w-full max-w-xs">
-          <Button asChild variant="default" className="w-full">
-            <Link href="/dashboard">Refresh Dashboard</Link>
-          </Button>
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/">Return to Home</Link>
-          </Button>
-        </div>
-      </div>
-    </Shell>
-  )
+// Helper function for conditional class names
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(" ")
 }
