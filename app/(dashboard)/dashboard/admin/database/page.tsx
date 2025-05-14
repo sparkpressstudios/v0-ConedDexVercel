@@ -14,63 +14,80 @@ export default function DatabasePage() {
   const [isExecuting, setIsExecuting] = useState(false)
   const [sqlQuery, setSqlQuery] = useState("SELECT * FROM users LIMIT 10;")
   const [queryResults, setQueryResults] = useState<any[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handleExecuteQuery = () => {
     setIsExecuting(true)
+    setError(null)
+
     // Simulate API call
     setTimeout(() => {
-      setIsExecuting(false)
-      // Mock results
-      setQueryResults([
-        {
-          id: "usr_1",
-          username: "john_smith",
-          email: "john.smith@example.com",
-          role: "explorer",
-          created_at: "2023-05-12",
-        },
-        {
-          id: "usr_2",
-          username: "sarah_j",
-          email: "sarah@icecreamheaven.com",
-          role: "shop_owner",
-          created_at: "2023-06-03",
-        },
-        {
-          id: "usr_3",
-          username: "michael_c",
-          email: "michael.chen@example.com",
-          role: "explorer",
-          created_at: "2023-04-18",
-        },
-        {
-          id: "usr_4",
-          username: "emma_w",
-          email: "emma@frostybites.com",
-          role: "shop_owner",
-          created_at: "2023-07-22",
-        },
-        {
-          id: "usr_5",
-          username: "alex_r",
-          email: "alex.rodriguez@example.com",
-          role: "admin",
-          created_at: "2023-03-10",
-        },
-      ])
-      toast({
-        title: "Query executed",
-        description: "SQL query executed successfully.",
-      })
+      try {
+        setIsExecuting(false)
+        // Mock results
+        setQueryResults([
+          {
+            id: "usr_1",
+            username: "john_smith",
+            email: "john.smith@example.com",
+            role: "explorer",
+            created_at: "2023-05-12",
+          },
+          {
+            id: "usr_2",
+            username: "sarah_j",
+            email: "sarah@icecreamheaven.com",
+            role: "shop_owner",
+            created_at: "2023-06-03",
+          },
+          {
+            id: "usr_3",
+            username: "michael_c",
+            email: "michael.chen@example.com",
+            role: "explorer",
+            created_at: "2023-04-18",
+          },
+          {
+            id: "usr_4",
+            username: "emma_w",
+            email: "emma@frostybites.com",
+            role: "shop_owner",
+            created_at: "2023-07-22",
+          },
+          {
+            id: "usr_5",
+            username: "alex_r",
+            email: "alex.rodriguez@example.com",
+            role: "admin",
+            created_at: "2023-03-10",
+          },
+        ])
+        toast({
+          title: "Query executed",
+          description: "SQL query executed successfully.",
+        })
+      } catch (err) {
+        setError("Failed to execute query. Please check your syntax and try again.")
+        console.error("Query execution error:", err)
+      }
     }, 1000)
   }
 
   const handleCopyQuery = () => {
-    navigator.clipboard.writeText(sqlQuery)
-    toast({
-      title: "Copied to clipboard",
-      description: "SQL query copied to clipboard.",
-    })
+    try {
+      navigator.clipboard.writeText(sqlQuery)
+      toast({
+        title: "Copied to clipboard",
+        description: "SQL query copied to clipboard.",
+      })
+    } catch (err) {
+      console.error("Failed to copy to clipboard:", err)
+      toast({
+        title: "Copy failed",
+        description: "Failed to copy to clipboard. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -115,7 +132,7 @@ export default function DatabasePage() {
                       <Copy className="h-4 w-4" />
                       <span className="sr-only">Copy</span>
                     </Button>
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" onClick={() => setSqlQuery("SELECT * FROM users LIMIT 10;")}>
                       <RefreshCw className="h-4 w-4" />
                       <span className="sr-only">Reset</span>
                     </Button>
@@ -140,6 +157,10 @@ export default function DatabasePage() {
                     className="font-mono text-sm min-h-[150px] border-0 focus-visible:ring-0 resize-none p-4"
                   />
                 </div>
+
+                {error && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-md text-red-800 text-sm">{error}</div>
+                )}
 
                 {queryResults && (
                   <div className="overflow-x-auto">

@@ -1,310 +1,790 @@
 "use client"
 
 import { useState } from "react"
-import { Save } from "lucide-react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import { z } from "zod"
+import { Save, Upload, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const generalFormSchema = z.object({
+  siteName: z.string().min(2, {
+    message: "Site name must be at least 2 characters.",
+  }),
+  siteDescription: z.string().optional(),
+  contactEmail: z.string().email({
+    message: "Please enter a valid email address.",
+  }),
+  supportEmail: z.string().email({
+    message: "Please enter a valid email address.",
+  }),
+  logoUrl: z
+    .string()
+    .url({
+      message: "Please enter a valid URL.",
+    })
+    .optional(),
+  faviconUrl: z
+    .string()
+    .url({
+      message: "Please enter a valid URL.",
+    })
+    .optional(),
+})
+
+const featuresFormSchema = z.object({
+  enableUserRegistration: z.boolean().default(true),
+  enableShopClaims: z.boolean().default(true),
+  enableReviews: z.boolean().default(true),
+  enableFlavors: z.boolean().default(true),
+  enableBadges: z.boolean().default(true),
+  enableLeaderboard: z.boolean().default(true),
+  enablePushNotifications: z.boolean().default(true),
+  enableOfflineMode: z.boolean().default(true),
+  maxFlavorsPerShop: z.string().regex(/^\d+$/, {
+    message: "Please enter a valid number.",
+  }),
+  maxImagesPerFlavor: z.string().regex(/^\d+$/, {
+    message: "Please enter a valid number.",
+  }),
+})
+
+const moderationFormSchema = z.object({
+  enableAutoModeration: z.boolean().default(true),
+  moderationLevel: z.enum(["low", "medium", "high"]),
+  requireApprovalForNewShops: z.boolean().default(false),
+  requireApprovalForNewFlavors: z.boolean().default(false),
+  requireApprovalForReviews: z.boolean().default(false),
+  flaggedWords: z.string().optional(),
+})
+
+const maintenanceFormSchema = z.object({
+  maintenanceMode: z.boolean().default(false),
+  maintenanceMessage: z.string().optional(),
+  scheduledMaintenanceStart: z.string().optional(),
+  scheduledMaintenanceEnd: z.string().optional(),
+})
 
 export default function SettingsPage() {
-  const [isSaving, setIsSaving] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSave = () => {
-    setIsSaving(true)
+  // General Settings Form
+  const generalForm = useForm<z.infer<typeof generalFormSchema>>({
+    resolver: zodResolver(generalFormSchema),
+    defaultValues: {
+      siteName: "ConeDex",
+      siteDescription: "The ultimate ice cream flavor discovery platform",
+      contactEmail: "contact@conedex.com",
+      supportEmail: "support@conedex.com",
+      logoUrl: "https://example.com/logo.png",
+      faviconUrl: "https://example.com/favicon.ico",
+    },
+  })
+
+  // Features Form
+  const featuresForm = useForm<z.infer<typeof featuresFormSchema>>({
+    resolver: zodResolver(featuresFormSchema),
+    defaultValues: {
+      enableUserRegistration: true,
+      enableShopClaims: true,
+      enableReviews: true,
+      enableFlavors: true,
+      enableBadges: true,
+      enableLeaderboard: true,
+      enablePushNotifications: true,
+      enableOfflineMode: true,
+      maxFlavorsPerShop: "100",
+      maxImagesPerFlavor: "5",
+    },
+  })
+
+  // Moderation Form
+  const moderationForm = useForm<z.infer<typeof moderationFormSchema>>({
+    resolver: zodResolver(moderationFormSchema),
+    defaultValues: {
+      enableAutoModeration: true,
+      moderationLevel: "medium",
+      requireApprovalForNewShops: true,
+      requireApprovalForNewFlavors: false,
+      requireApprovalForReviews: false,
+      flaggedWords: "inappropriate, offensive, explicit",
+    },
+  })
+
+  // Maintenance Form
+  const maintenanceForm = useForm<z.infer<typeof maintenanceFormSchema>>({
+    resolver: zodResolver(maintenanceFormSchema),
+    defaultValues: {
+      maintenanceMode: false,
+      maintenanceMessage: "We're currently performing scheduled maintenance. Please check back soon.",
+      scheduledMaintenanceStart: "",
+      scheduledMaintenanceEnd: "",
+    },
+  })
+
+  function onSubmitGeneral(values: z.infer<typeof generalFormSchema>) {
+    setIsSubmitting(true)
     // Simulate API call
     setTimeout(() => {
-      setIsSaving(false)
+      console.log(values)
       toast({
-        title: "Settings saved",
-        description: "Your settings have been saved successfully.",
+        title: "Settings updated",
+        description: "Your general settings have been updated successfully.",
       })
+      setIsSubmitting(false)
+    }, 1000)
+  }
+
+  function onSubmitFeatures(values: z.infer<typeof featuresFormSchema>) {
+    setIsSubmitting(true)
+    // Simulate API call
+    setTimeout(() => {
+      console.log(values)
+      toast({
+        title: "Features updated",
+        description: "Your feature settings have been updated successfully.",
+      })
+      setIsSubmitting(false)
+    }, 1000)
+  }
+
+  function onSubmitModeration(values: z.infer<typeof moderationFormSchema>) {
+    setIsSubmitting(true)
+    // Simulate API call
+    setTimeout(() => {
+      console.log(values)
+      toast({
+        title: "Moderation settings updated",
+        description: "Your moderation settings have been updated successfully.",
+      })
+      setIsSubmitting(false)
+    }, 1000)
+  }
+
+  function onSubmitMaintenance(values: z.infer<typeof maintenanceFormSchema>) {
+    setIsSubmitting(true)
+    // Simulate API call
+    setTimeout(() => {
+      console.log(values)
+      toast({
+        title: "Maintenance settings updated",
+        description: "Your maintenance settings have been updated successfully.",
+      })
+      setIsSubmitting(false)
     }, 1000)
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">System Settings</h1>
-          <p className="text-muted-foreground">Configure platform-wide settings and preferences</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold">Platform Settings</h1>
+        <p className="text-muted-foreground">Manage global settings for the ConeDex platform</p>
       </div>
 
       <Tabs defaultValue="general">
-        <TabsList className="w-full grid grid-cols-2 md:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          <TabsTrigger value="features">Features</TabsTrigger>
+          <TabsTrigger value="moderation">Moderation</TabsTrigger>
+          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>Manage basic platform configuration</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="site-name">Platform Name</Label>
-                <Input id="site-name" defaultValue="ConeDex" />
-              </div>
+        {/* General Settings */}
+        <TabsContent value="general" className="space-y-6 mt-6">
+          <Form {...generalForm}>
+            <form onSubmit={generalForm.handleSubmit(onSubmitGeneral)} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>General Settings</CardTitle>
+                  <CardDescription>Configure basic platform settings and contact information</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={generalForm.control}
+                      name="siteName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Site Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormDescription>The name of your platform as it appears to users</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="contact-email">Contact Email</Label>
-                  <Input id="contact-email" type="email" defaultValue="support@conedex.app" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="support-phone">Support Phone (Optional)</Label>
-                  <Input id="support-phone" type="tel" />
-                </div>
-              </div>
+                    <FormField
+                      control={generalForm.control}
+                      name="contactEmail"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Contact Email</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="email" />
+                          </FormControl>
+                          <FormDescription>Primary contact email for the platform</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="site-description">Platform Description</Label>
-                <Textarea
-                  id="site-description"
-                  defaultValue="ConeDex is the ultimate platform for ice cream enthusiasts to discover, log, and share their favorite flavors and shops."
-                  className="min-h-[100px]"
-                />
-              </div>
+                  <FormField
+                    control={generalForm.control}
+                    name="siteDescription"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Site Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder="Enter a brief description of your platform"
+                            className="resize-none"
+                          />
+                        </FormControl>
+                        <FormDescription>A short description used in search results and metadata</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="maintenance-mode">Maintenance Mode</Label>
-                  <Switch id="maintenance-mode" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, the site will display a maintenance message to all users except admins.
-                </p>
-              </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={generalForm.control}
+                      name="supportEmail"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Support Email</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="email" />
+                          </FormControl>
+                          <FormDescription>Email address for user support inquiries</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-              <div className="space-y-2">
-                <Label>User Registration</Label>
-                <RadioGroup defaultValue="open">
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="open" id="registration-open" />
-                    <Label htmlFor="registration-open">Open to everyone</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="invite" id="registration-invite" />
-                    <Label htmlFor="registration-invite">Invite only</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="closed" id="registration-closed" />
-                    <Label htmlFor="registration-closed">Closed</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2">
-              <Button variant="outline">Reset</Button>
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Changes"}
-                {!isSaving && <Save className="ml-2 h-4 w-4" />}
-              </Button>
-            </CardFooter>
-          </Card>
-        </TabsContent>
+                    <div className="space-y-4">
+                      <FormField
+                        control={generalForm.control}
+                        name="logoUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Logo URL</FormLabel>
+                            <div className="flex gap-2">
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <Button type="button" variant="outline" size="icon">
+                                <Upload className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-        <TabsContent value="appearance" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance Settings</CardTitle>
-              <CardDescription>Customize the look and feel of the platform</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>Theme Colors</Label>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-full bg-mint-500"></div>
-                    <span className="text-xs">Mint</span>
+                      <FormField
+                        control={generalForm.control}
+                        name="faviconUrl"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Favicon URL</FormLabel>
+                            <div className="flex gap-2">
+                              <FormControl>
+                                <Input {...field} />
+                              </FormControl>
+                              <Button type="button" variant="outline" size="icon">
+                                <Upload className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-full bg-strawberry-500"></div>
-                    <span className="text-xs">Strawberry</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-full bg-blueberry-500"></div>
-                    <span className="text-xs">Blueberry</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-full bg-chocolate-500"></div>
-                    <span className="text-xs">Chocolate</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-full bg-vanilla-500"></div>
-                    <span className="text-xs">Vanilla</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-10 w-10 rounded-full bg-gray-500"></div>
-                    <span className="text-xs">Custom</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="dark-mode">Dark Mode Default</Label>
-                  <Switch id="dark-mode" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, new users will see the dark theme by default.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="logo-upload">Logo Upload</Label>
-                <div className="flex items-center gap-4">
-                  <div className="h-16 w-16 rounded-md border flex items-center justify-center">
-                    <IceCream className="h-8 w-8 text-mint-500" />
-                  </div>
-                  <Button variant="outline" size="sm">
-                    Upload New Logo
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" type="button">
+                    Reset
                   </Button>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2">
-              <Button variant="outline">Reset</Button>
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Changes"}
-                {!isSaving && <Save className="ml-2 h-4 w-4" />}
-              </Button>
-            </CardFooter>
-          </Card>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+          </Form>
         </TabsContent>
 
-        <TabsContent value="notifications" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Settings</CardTitle>
-              <CardDescription>Configure system-wide notification preferences</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Configure system email notifications</p>
-                  </div>
-                  <Switch id="email-notifications" defaultChecked />
-                </div>
+        {/* Features Settings */}
+        <TabsContent value="features" className="space-y-6 mt-6">
+          <Form {...featuresForm}>
+            <form onSubmit={featuresForm.handleSubmit(onSubmitFeatures)} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Feature Settings</CardTitle>
+                  <CardDescription>Enable or disable platform features</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={featuresForm.control}
+                      name="enableUserRegistration"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">User Registration</FormLabel>
+                            <FormDescription>Allow new users to register on the platform</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">Push Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Configure system push notifications</p>
-                  </div>
-                  <Switch id="push-notifications" defaultChecked />
-                </div>
+                    <FormField
+                      control={featuresForm.control}
+                      name="enableShopClaims"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Shop Claims</FormLabel>
+                            <FormDescription>Allow shop owners to claim their shops</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-base">In-App Notifications</Label>
-                    <p className="text-sm text-muted-foreground">Configure system in-app notifications</p>
-                  </div>
-                  <Switch id="in-app-notifications" defaultChecked />
-                </div>
-              </div>
+                    <FormField
+                      control={featuresForm.control}
+                      name="enableReviews"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Reviews</FormLabel>
+                            <FormDescription>Allow users to leave reviews for shops and flavors</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
 
-              <div className="space-y-2">
-                <Label htmlFor="notification-email">Notification From Email</Label>
-                <Input id="notification-email" type="email" defaultValue="notifications@conedex.app" />
-                <p className="text-sm text-muted-foreground">
-                  This email will be used as the sender for all system notifications.
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2">
-              <Button variant="outline">Reset</Button>
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Changes"}
-                {!isSaving && <Save className="ml-2 h-4 w-4" />}
-              </Button>
-            </CardFooter>
-          </Card>
+                    <FormField
+                      control={featuresForm.control}
+                      name="enableFlavors"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Flavor Logging</FormLabel>
+                            <FormDescription>Allow users to log and discover ice cream flavors</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={featuresForm.control}
+                      name="enableBadges"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Badges</FormLabel>
+                            <FormDescription>Enable achievement badges for users</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={featuresForm.control}
+                      name="enableLeaderboard"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Leaderboard</FormLabel>
+                            <FormDescription>Enable user and shop leaderboards</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={featuresForm.control}
+                      name="enablePushNotifications"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Push Notifications</FormLabel>
+                            <FormDescription>Enable push notifications for users</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={featuresForm.control}
+                      name="enableOfflineMode"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Offline Mode</FormLabel>
+                            <FormDescription>Enable offline functionality for the PWA</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={featuresForm.control}
+                      name="maxFlavorsPerShop"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Flavors Per Shop</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="number" min="1" />
+                          </FormControl>
+                          <FormDescription>Maximum number of flavors a shop can have</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={featuresForm.control}
+                      name="maxImagesPerFlavor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Max Images Per Flavor</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="number" min="1" />
+                          </FormControl>
+                          <FormDescription>Maximum number of images per flavor</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" type="button">
+                    Reset
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+          </Form>
         </TabsContent>
 
-        <TabsContent value="advanced" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanced Settings</CardTitle>
-              <CardDescription>Configure advanced system settings</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="debug-mode">Debug Mode</Label>
-                  <Switch id="debug-mode" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, additional debugging information will be logged.
-                </p>
-              </div>
+        {/* Moderation Settings */}
+        <TabsContent value="moderation" className="space-y-6 mt-6">
+          <Form {...moderationForm}>
+            <form onSubmit={moderationForm.handleSubmit(onSubmitModeration)} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Moderation Settings</CardTitle>
+                  <CardDescription>Configure content moderation and approval settings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <FormField
+                    control={moderationForm.control}
+                    name="enableAutoModeration"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Auto-Moderation</FormLabel>
+                          <FormDescription>Enable AI-powered automatic content moderation</FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="api-access">Public API Access</Label>
-                  <Switch id="api-access" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, the public API will be accessible to third-party applications.
-                </p>
-              </div>
+                  <FormField
+                    control={moderationForm.control}
+                    name="moderationLevel"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Moderation Level</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select moderation level" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="low">Low - Only flag obvious violations</SelectItem>
+                            <SelectItem value="medium">Medium - Standard moderation</SelectItem>
+                            <SelectItem value="high">High - Strict moderation</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>Set the sensitivity level for content moderation</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="space-y-2">
-                <Label htmlFor="cache-ttl">Cache TTL (seconds)</Label>
-                <Input id="cache-ttl" type="number" defaultValue="3600" />
-                <p className="text-sm text-muted-foreground">
-                  Time to live for cached data in seconds. Set to 0 to disable caching.
-                </p>
-              </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <FormField
+                      control={moderationForm.control}
+                      name="requireApprovalForNewShops"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Approve New Shops</FormLabel>
+                            <FormDescription>Require manual approval for new shops</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
 
-              <div className="space-y-2">
-                <Label htmlFor="rate-limit">API Rate Limit (requests per minute)</Label>
-                <Input id="rate-limit" type="number" defaultValue="60" />
-                <p className="text-sm text-muted-foreground">
-                  Maximum number of API requests allowed per minute per IP address.
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter className="flex justify-end gap-2">
-              <Button variant="outline">Reset</Button>
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Changes"}
-                {!isSaving && <Save className="ml-2 h-4 w-4" />}
-              </Button>
-            </CardFooter>
-          </Card>
+                    <FormField
+                      control={moderationForm.control}
+                      name="requireApprovalForNewFlavors"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Approve New Flavors</FormLabel>
+                            <FormDescription>Require manual approval for new flavors</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={moderationForm.control}
+                      name="requireApprovalForReviews"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Approve Reviews</FormLabel>
+                            <FormDescription>Require manual approval for reviews</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={moderationForm.control}
+                    name="flaggedWords"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Flagged Words</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder="Enter comma-separated list of words to flag"
+                            className="min-h-[100px]"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Content containing these words will be automatically flagged for review
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" type="button">
+                    Reset
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+          </Form>
+        </TabsContent>
+
+        {/* Maintenance Settings */}
+        <TabsContent value="maintenance" className="space-y-6 mt-6">
+          <Form {...maintenanceForm}>
+            <form onSubmit={maintenanceForm.handleSubmit(onSubmitMaintenance)} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Maintenance Settings</CardTitle>
+                  <CardDescription>Configure maintenance mode and scheduled downtime</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <FormField
+                    control={maintenanceForm.control}
+                    name="maintenanceMode"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Maintenance Mode</FormLabel>
+                          <FormDescription>Enable maintenance mode to temporarily disable the platform</FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={maintenanceForm.control}
+                    name="maintenanceMessage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Maintenance Message</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder="Enter message to display during maintenance"
+                            className="min-h-[100px]"
+                          />
+                        </FormControl>
+                        <FormDescription>Message displayed to users during maintenance mode</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                      control={maintenanceForm.control}
+                      name="scheduledMaintenanceStart"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Scheduled Start</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="datetime-local" />
+                          </FormControl>
+                          <FormDescription>When scheduled maintenance will begin</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={maintenanceForm.control}
+                      name="scheduledMaintenanceEnd"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Scheduled End</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="datetime-local" />
+                          </FormControl>
+                          <FormDescription>When scheduled maintenance will end</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button variant="outline" type="button">
+                    Reset
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </form>
+          </Form>
         </TabsContent>
       </Tabs>
     </div>
-  )
-}
-
-function IceCream({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M12 17c5 0 8-2.69 8-6H4c0 3.31 3 6 8 6Zm-4 4h8m-4-3v3M5.14 11a3.5 3.5 0 1 1 6.71 0M12.14 11a3.5 3.5 0 1 1 6.71 0M15.5 6.5a3.5 3.5 0 1 0-7 0" />
-    </svg>
   )
 }

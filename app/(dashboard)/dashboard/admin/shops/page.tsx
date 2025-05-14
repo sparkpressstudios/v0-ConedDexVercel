@@ -1,9 +1,29 @@
-import Link from "next/link"
-import { Search, MoreHorizontal, Plus, MapPin, Phone, Globe, Store, Filter } from "lucide-react"
-import { Button } from "@/components/ui/button"
+"use client"
+
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Search,
+  Plus,
+  Download,
+  Filter,
+  ArrowUpDown,
+  MoreHorizontal,
+  Edit,
+  Trash,
+  Eye,
+  MapPin,
+  Star,
+  StarOff,
+} from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,282 +32,574 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { createServerClient } from "@/lib/supabase/server"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatDistanceToNow } from "date-fns"
 
-export const dynamic = "force-dynamic"
+export default function ShopsPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [shops, setShops] = useState<any[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [activeTab, setActiveTab] = useState("all")
 
-export default async function ShopsManagementPage({ searchParams }: { searchParams: { q?: string; status?: string } }) {
-  const supabase = await createServerClient()
+  useEffect(() => {
+    const fetchShops = async () => {
+      try {
+        setIsLoading(true)
+        const supabase = createClient()
 
-  // Get query parameters
-  const searchQuery = searchParams.q || ""
-  const statusFilter = searchParams.status || "all"
+        // In a real app, we'd fetch from the database
+        // For now, let's use mock data
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
-  // Build the query
-  let query = supabase.from("shops").select(`
-    *,
-    owner:owner_id(id, email, full_name),
-    reviews:reviews(count)
-  `)
+        const mockShops = [
+          {
+            id: "shop_1",
+            name: "Creamy Delights",
+            address: "123 Main St, New York, NY",
+            status: "active",
+            is_claimed: true,
+            is_verified: true,
+            is_featured: true,
+            owner_id: "usr_2",
+            owner_name: "Sarah Johnson",
+            created_at: "2023-05-12T10:30:00Z",
+            flavor_count: 24,
+            rating: 4.7,
+            review_count: 56,
+          },
+          {
+            id: "shop_2",
+            name: "Frosty Scoops",
+            address: "456 Elm St, Chicago, IL",
+            status: "active",
+            is_claimed: true,
+            is_verified: true,
+            is_featured: false,
+            owner_id: "usr_4",
+            owner_name: "Emma Wilson",
+            created_at: "2023-06-03T09:15:00Z",
+            flavor_count: 18,
+            rating: 4.5,
+            review_count: 42,
+          },
+          {
+            id: "shop_3",
+            name: "Sweet Treats Ice Cream",
+            address: "789 Oak Ave, Los Angeles, CA",
+            status: "active",
+            is_claimed: false,
+            is_verified: false,
+            is_featured: false,
+            owner_id: null,
+            owner_name: null,
+            created_at: "2023-04-18T14:45:00Z",
+            flavor_count: 0,
+            rating: 4.2,
+            review_count: 28,
+          },
+          {
+            id: "shop_4",
+            name: "Scoops Delight",
+            address: "321 Pine St, Seattle, WA",
+            status: "active",
+            is_claimed: true,
+            is_verified: false,
+            is_featured: false,
+            owner_id: "usr_7",
+            owner_name: "David Kim",
+            created_at: "2023-07-22T16:20:00Z",
+            flavor_count: 15,
+            rating: 4.3,
+            review_count: 31,
+          },
+          {
+            id: "shop_5",
+            name: "Glacier Ice Cream",
+            address: "555 Maple Dr, Denver, CO",
+            status: "active",
+            is_claimed: false,
+            is_verified: false,
+            is_featured: false,
+            owner_id: null,
+            owner_name: null,
+            created_at: "2023-03-10T08:30:00Z",
+            flavor_count: 0,
+            rating: 4.0,
+            review_count: 19,
+          },
+          {
+            id: "shop_6",
+            name: "Frozen Bliss",
+            address: "888 Cedar Ln, Austin, TX",
+            status: "inactive",
+            is_claimed: false,
+            is_verified: false,
+            is_featured: false,
+            owner_id: null,
+            owner_name: null,
+            created_at: "2023-08-05T11:10:00Z",
+            flavor_count: 0,
+            rating: 3.8,
+            review_count: 12,
+          },
+          {
+            id: "shop_7",
+            name: "Chill Zone",
+            address: "222 Birch Rd, Miami, FL",
+            status: "active",
+            is_claimed: true,
+            is_verified: true,
+            is_featured: true,
+            owner_id: "usr_9",
+            owner_name: "Robert Garcia",
+            created_at: "2023-05-30T13:45:00Z",
+            flavor_count: 22,
+            rating: 4.8,
+            review_count: 64,
+          },
+          {
+            id: "shop_8",
+            name: "Arctic Treats",
+            address: "777 Walnut Blvd, Boston, MA",
+            status: "pending_review",
+            is_claimed: true,
+            is_verified: false,
+            is_featured: false,
+            owner_id: "usr_11",
+            owner_name: "Jennifer Taylor",
+            created_at: "2023-07-14T10:20:00Z",
+            flavor_count: 0,
+            rating: 0,
+            review_count: 0,
+          },
+        ]
 
-  // Apply filters
-  if (searchQuery) {
-    query = query.ilike("name", `%${searchQuery}%`)
+        setShops(mockShops)
+      } catch (err) {
+        console.error("Error fetching shops:", err)
+        setError("Failed to load shops. Please try again.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchShops()
+  }, [])
+
+  // Filter shops based on search query and active tab
+  const filteredShops = shops.filter((shop) => {
+    const matchesSearch =
+      shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      shop.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (shop.owner_name && shop.owner_name.toLowerCase().includes(searchQuery.toLowerCase()))
+
+    if (activeTab === "all") return matchesSearch
+    if (activeTab === "claimed") return matchesSearch && shop.is_claimed
+    if (activeTab === "unclaimed") return matchesSearch && !shop.is_claimed
+    if (activeTab === "verified") return matchesSearch && shop.is_verified
+    if (activeTab === "featured") return matchesSearch && shop.is_featured
+
+    return matchesSearch
+  })
+
+  const handleViewShop = (shopId: string) => {
+    router.push(`/dashboard/admin/shops/${shopId}`)
   }
 
-  if (statusFilter === "claimed") {
-    query = query.not("owner_id", "is", null)
-  } else if (statusFilter === "unclaimed") {
-    query = query.is("owner_id", null)
-  } else if (statusFilter === "pending") {
-    query = query.eq("status", "pending")
+  const handleEditShop = (shopId: string) => {
+    router.push(`/dashboard/admin/shops/${shopId}/edit`)
   }
 
-  // Execute the query
-  const { data: shops, error } = await query.order("created_at", { ascending: false })
+  const handleDeleteShop = (shopId: string) => {
+    // In a real app, we'd call an API to delete the shop
+    alert(`Delete shop ${shopId} (This would be a confirmation modal in the real app)`)
+  }
+
+  const handleToggleFeatured = (shopId: string, currentStatus: boolean) => {
+    // In a real app, we'd call an API to toggle featured status
+    alert(`${currentStatus ? "Remove from" : "Add to"} featured shops: ${shopId}`)
+  }
+
+  if (isLoading) {
+    return <ShopsPageSkeleton />
+  }
 
   if (error) {
-    console.error("Error fetching shops:", error)
+    return (
+      <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+        <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Shops</h2>
+        <p className="text-red-700">{error}</p>
+        <button
+          className="mt-4 px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
-  // Count shops by status
-  const claimedCount = shops?.filter((shop) => shop.owner_id).length || 0
-  const unclaimedCount = shops?.filter((shop) => !shop.owner_id).length || 0
-  const pendingCount = shops?.filter((shop) => shop.status === "pending").length || 0
-
   return (
-    <div className="flex flex-col gap-6">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold">Shop Management</h1>
-          <p className="text-muted-foreground">Manage ice cream shops in the ConeDex platform</p>
+          <p className="text-muted-foreground">Manage and monitor ice cream shops</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button asChild className="w-full sm:w-auto">
-            <Link href="/dashboard/admin/shops/import">
-              <Plus className="mr-2 h-4 w-4" />
-              Import Shops
-            </Link>
+        <div className="flex gap-2">
+          <Button variant="outline" className="w-full sm:w-auto">
+            <Download className="mr-2 h-4 w-4" />
+            Export
           </Button>
-          <Button variant="outline" asChild className="w-full sm:w-auto">
-            <Link href="/dashboard/admin/shops/create">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Shop Manually
-            </Link>
+          <Button className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" />
+            Add Shop
           </Button>
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex w-full max-w-sm items-center space-x-2">
-          <form action="/dashboard/admin/shops" method="GET">
-            <div className="flex w-full max-w-sm items-center space-x-2">
-              <Input
-                name="q"
-                placeholder="Search shops..."
-                className="w-full"
-                type="search"
-                defaultValue={searchQuery}
-              />
-              <Button type="submit" size="icon" variant="ghost">
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
-            {statusFilter !== "all" && <input type="hidden" name="status" value={statusFilter} />}
-          </form>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Search shops..."
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Filter className="mr-2 h-4 w-4" />
-                Filter
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Filter by</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/admin/shops">All Shops</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/admin/shops?status=claimed">Claimed Shops</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/admin/shops?status=unclaimed">Unclaimed Shops</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/admin/shops?status=pending">Pending Approval</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <Button variant="outline" className="sm:ml-auto">
+          <Filter className="mr-2 h-4 w-4" />
+          Filter
+        </Button>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue={statusFilter === "all" ? "all" : statusFilter}>
-        <TabsList className="w-full grid grid-cols-4">
-          <TabsTrigger value="all" asChild>
-            <Link href="/dashboard/admin/shops">All</Link>
-          </TabsTrigger>
-          <TabsTrigger value="claimed" asChild>
-            <Link href="/dashboard/admin/shops?status=claimed">
-              Claimed {claimedCount > 0 && <Badge className="ml-2">{claimedCount}</Badge>}
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="unclaimed" asChild>
-            <Link href="/dashboard/admin/shops?status=unclaimed">
-              Unclaimed {unclaimedCount > 0 && <Badge className="ml-2">{unclaimedCount}</Badge>}
-            </Link>
-          </TabsTrigger>
-          <TabsTrigger value="pending" asChild>
-            <Link href="/dashboard/admin/shops?status=pending">
-              Pending {pendingCount > 0 && <Badge className="ml-2">{pendingCount}</Badge>}
-            </Link>
-          </TabsTrigger>
+      <Tabs defaultValue="all" onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="all">All Shops</TabsTrigger>
+          <TabsTrigger value="claimed">Claimed</TabsTrigger>
+          <TabsTrigger value="unclaimed">Unclaimed</TabsTrigger>
+          <TabsTrigger value="verified">Verified</TabsTrigger>
+          <TabsTrigger value="featured">Featured</TabsTrigger>
         </TabsList>
 
-        <TabsContent value={statusFilter === "all" ? "all" : statusFilter} className="mt-6">
-          <div className="grid gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {shops && shops.length > 0 ? (
-              shops.map((shop) => (
-                <ShopCard
-                  key={shop.id}
-                  id={shop.id}
-                  name={shop.name}
-                  address={`${shop.address || ""}, ${shop.city || ""}, ${shop.state || ""}`}
-                  imageUrl={shop.image_url}
-                  phone={shop.phone}
-                  website={shop.website}
-                  isClaimed={!!shop.owner_id}
-                  ownerName={shop.owner?.full_name}
-                  reviewCount={shop.reviews?.[0]?.count || 0}
-                  createdAt={shop.created_at}
-                />
-              ))
-            ) : (
-              <div className="col-span-full flex h-40 flex-col items-center justify-center text-center text-muted-foreground">
-                <Store className="mb-2 h-8 w-8" />
-                <p>No shops found. Import shops or add them manually.</p>
-              </div>
-            )}
-          </div>
+        <TabsContent value="all" className="mt-6">
+          <ShopsTable
+            shops={filteredShops}
+            onView={handleViewShop}
+            onEdit={handleEditShop}
+            onDelete={handleDeleteShop}
+            onToggleFeatured={handleToggleFeatured}
+          />
+        </TabsContent>
+
+        <TabsContent value="claimed" className="mt-6">
+          <ShopsTable
+            shops={filteredShops}
+            onView={handleViewShop}
+            onEdit={handleEditShop}
+            onDelete={handleDeleteShop}
+            onToggleFeatured={handleToggleFeatured}
+          />
+        </TabsContent>
+
+        <TabsContent value="unclaimed" className="mt-6">
+          <ShopsTable
+            shops={filteredShops}
+            onView={handleViewShop}
+            onEdit={handleEditShop}
+            onDelete={handleDeleteShop}
+            onToggleFeatured={handleToggleFeatured}
+          />
+        </TabsContent>
+
+        <TabsContent value="verified" className="mt-6">
+          <ShopsTable
+            shops={filteredShops}
+            onView={handleViewShop}
+            onEdit={handleEditShop}
+            onDelete={handleDeleteShop}
+            onToggleFeatured={handleToggleFeatured}
+          />
+        </TabsContent>
+
+        <TabsContent value="featured" className="mt-6">
+          <ShopsTable
+            shops={filteredShops}
+            onView={handleViewShop}
+            onEdit={handleEditShop}
+            onDelete={handleDeleteShop}
+            onToggleFeatured={handleToggleFeatured}
+          />
         </TabsContent>
       </Tabs>
+
+      <div className="text-sm text-muted-foreground">
+        Showing {filteredShops.length} of {shops.length} shops
+      </div>
     </div>
   )
 }
 
-interface ShopCardProps {
-  id: string
-  name: string
-  address: string
-  imageUrl: string | null
-  phone: string | null
-  website: string | null
-  isClaimed: boolean
-  ownerName?: string
-  reviewCount?: number
-  createdAt?: string
-}
-
-function ShopCard({
-  id,
-  name,
-  address,
-  imageUrl,
-  phone,
-  website,
-  isClaimed,
-  ownerName,
-  reviewCount,
-  createdAt,
-}: ShopCardProps) {
+function ShopsTable({
+  shops,
+  onView,
+  onEdit,
+  onDelete,
+  onToggleFeatured,
+}: {
+  shops: any[]
+  onView: (id: string) => void
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
+  onToggleFeatured: (id: string, currentStatus: boolean) => void
+}) {
   return (
-    <Card className="overflow-hidden h-full flex flex-col">
-      <div className="relative h-40 sm:h-48 w-full">
-        <img
-          src={imageUrl || "/placeholder.svg?height=192&width=384&query=ice cream shop"}
-          alt={name}
-          className="h-full w-full object-cover"
-        />
-        {isClaimed && (
-          <Badge className="absolute right-2 top-2 bg-mint-500 text-white hover:bg-mint-600">Claimed</Badge>
-        )}
-      </div>
-      <CardHeader className="pb-2 flex-grow-0">
-        <div className="flex items-start justify-between">
-          <CardTitle className="line-clamp-1 text-base sm:text-lg">{name}</CardTitle>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">Open menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/admin/shops/${id}`}>View Details</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/admin/shops/${id}/edit`}>Edit Shop</Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <Link href={`/dashboard/admin/shops/${id}/delete`} className="text-red-600">
-                  Delete Shop
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <CardDescription className="line-clamp-1 text-xs sm:text-sm">{address}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex-grow">
-        <div className="space-y-2 text-xs sm:text-sm">
-          {phone && (
-            <div className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-blueberry-500 flex-shrink-0" />
-              <span className="truncate">{phone}</span>
-            </div>
-          )}
-          {website && (
-            <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-strawberry-500 flex-shrink-0" />
-              <a
-                href={website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline truncate"
-              >
-                {website.replace(/^https?:\/\//, "")}
-              </a>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-mint-500 flex-shrink-0" />
-            <span className="line-clamp-1">{address}</span>
-          </div>
-
-          {isClaimed && ownerName && (
-            <div className="mt-2 pt-2 border-t border-gray-100">
-              <span className="text-xs text-muted-foreground">Owner: {ownerName}</span>
-            </div>
-          )}
-
-          <div className="flex justify-between mt-2 pt-2 border-t border-gray-100">
-            <span className="text-xs text-muted-foreground">{reviewCount} reviews</span>
-            {createdAt && (
-              <span className="text-xs text-muted-foreground">
-                Added {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
-              </span>
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[250px]">
+                <div className="flex items-center gap-1">
+                  Shop Name
+                  <ArrowUpDown className="h-3 w-3" />
+                </div>
+              </TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Owner</TableHead>
+              <TableHead>Flavors</TableHead>
+              <TableHead>Rating</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {shops.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  No shops found
+                </TableCell>
+              </TableRow>
+            ) : (
+              shops.map((shop) => (
+                <TableRow key={shop.id} className="cursor-pointer hover:bg-muted/50" onClick={() => onView(shop.id)}>
+                  <TableCell>
+                    <div>
+                      <div className="font-medium flex items-center">
+                        {shop.name}
+                        {shop.is_featured && (
+                          <Badge className="ml-2 bg-amber-100 text-amber-800 hover:bg-amber-100">Featured</Badge>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground flex items-center">
+                        <MapPin className="h-3 w-3 mr-1" />
+                        {shop.address}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <ShopStatusBadge status={shop.status} />
+                      <div className="flex space-x-1">
+                        {shop.is_claimed && (
+                          <Badge variant="outline" className="text-xs">
+                            Claimed
+                          </Badge>
+                        )}
+                        {shop.is_verified && (
+                          <Badge variant="outline" className="text-xs">
+                            Verified
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {shop.owner_name ? (
+                      <div className="text-sm">{shop.owner_name}</div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">Unclaimed</div>
+                    )}
+                  </TableCell>
+                  <TableCell>{shop.flavor_count}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center">
+                      {shop.rating > 0 ? (
+                        <>
+                          <Star className="h-4 w-4 fill-amber-400 text-amber-400 mr-1" />
+                          <span>{shop.rating}</span>
+                          <span className="text-muted-foreground ml-1">({shop.review_count})</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">No ratings</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onView(shop.id)
+                          }}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit(shop.id)
+                          }}
+                        >
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit shop
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onToggleFeatured(shop.id, shop.is_featured)
+                          }}
+                        >
+                          {shop.is_featured ? (
+                            <>
+                              <StarOff className="mr-2 h-4 w-4" />
+                              Remove from featured
+                            </>
+                          ) : (
+                            <>
+                              <Star className="mr-2 h-4 w-4" />
+                              Add to featured
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDelete(shop.id)
+                          }}
+                        >
+                          <Trash className="mr-2 h-4 w-4" />
+                          Delete shop
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
-          </div>
-        </div>
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
+  )
+}
+
+function ShopStatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case "active":
+      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
+    case "inactive":
+      return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Inactive</Badge>
+    case "pending_review":
+      return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Pending Review</Badge>
+    case "suspended":
+      return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Suspended</Badge>
+    default:
+      return <Badge variant="outline">{status}</Badge>
+  }
+}
+
+function ShopsPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <Skeleton className="h-8 w-48 mb-2" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4">
+        <Skeleton className="h-10 w-full sm:w-64" />
+        <Skeleton className="h-10 w-32 sm:ml-auto" />
+      </div>
+
+      <Skeleton className="h-10 w-full" />
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[250px]">
+                  <Skeleton className="h-4 w-24" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-4 w-16" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-4 w-16" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-4 w-16" />
+                </TableHead>
+                <TableHead>
+                  <Skeleton className="h-4 w-16" />
+                </TableHead>
+                <TableHead className="text-right">
+                  <Skeleton className="h-4 w-16 ml-auto" />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <div>
+                      <Skeleton className="h-5 w-40 mb-1" />
+                      <Skeleton className="h-4 w-56" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-6 w-20 mb-1" />
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-8" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Skeleton className="h-8 w-8 ml-auto" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Skeleton className="h-4 w-48" />
+    </div>
   )
 }

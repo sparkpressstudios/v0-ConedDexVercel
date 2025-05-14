@@ -1,93 +1,85 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { sendNewsletter } from "@/app/actions/newsletter-actions"
-import { toast } from "@/components/ui/use-toast"
-import { AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { toast } from "@/components/ui/use-toast"
 
-interface SendNewsletterFormProps {
-  newsletterId: string
-  subject: string
-  content: string
-  isOpen: boolean
-  onClose: () => void
-  onSuccess?: () => void
-}
+export default function SendNewsletterForm() {
+  const [subject, setSubject] = useState("")
+  const [content, setContent] = useState("")
+  const [sending, setSending] = useState(false)
 
-export default function SendNewsletterForm({
-  newsletterId,
-  subject,
-  content,
-  isOpen,
-  onClose,
-  onSuccess,
-}: SendNewsletterFormProps) {
-  const [isSending, setIsSending] = useState(false)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSending(true)
 
-  const handleSend = async () => {
-    setIsSending(true)
     try {
-      await sendNewsletter({
-        subject,
-        content,
-      })
+      // For v0.dev preview, we'll just log the newsletter details
+      console.log("Newsletter would be sent with subject:", subject)
+      console.log("Content:", content)
 
-      toast({
-        title: "Newsletter sent",
-        description: "Your newsletter has been sent to all subscribers",
-      })
-
-      if (onSuccess) onSuccess()
-      onClose()
+      // Mock successful sending
+      setTimeout(() => {
+        toast({
+          title: "Newsletter Sent",
+          description: "Your newsletter has been sent successfully (preview mode).",
+        })
+        setSending(false)
+        setSubject("")
+        setContent("")
+      }, 1000)
     } catch (error) {
+      console.error("Error sending newsletter:", error)
       toast({
         title: "Error",
-        description: "Failed to send newsletter",
+        description: "Failed to send newsletter. Please try again.",
         variant: "destructive",
       })
-    } finally {
-      setIsSending(false)
+      setSending(false)
     }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Send Newsletter</DialogTitle>
-          <DialogDescription>This will send the newsletter to all subscribed users.</DialogDescription>
-        </DialogHeader>
-
-        <div className="py-4">
-          <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-800 rounded-md mb-4">
-            <AlertTriangle className="h-5 w-5" />
-            <p className="text-sm">This action cannot be undone.</p>
+    <Card>
+      <CardHeader>
+        <CardTitle>Send Newsletter</CardTitle>
+      </CardHeader>
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="subject">Subject</Label>
+            <Input
+              id="subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Newsletter Subject"
+              required
+            />
           </div>
-
-          <div className="space-y-4">
-            <div className="border rounded-md p-3 bg-gray-50">
-              <p className="font-medium text-sm">Subject:</p>
-              <p className="text-sm">{subject}</p>
-            </div>
-
-            <div className="border rounded-md p-3 bg-gray-50 max-h-60 overflow-y-auto">
-              <p className="font-medium text-sm mb-1">Preview:</p>
-              <div className="text-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="content">Content</Label>
+            <Textarea
+              id="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Write your newsletter content here..."
+              rows={10}
+              required
+            />
           </div>
-        </div>
-
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={isSending}>
-            Cancel
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" disabled={sending}>
+            {sending ? "Sending..." : "Send Newsletter"}
           </Button>
-          <Button onClick={handleSend} disabled={isSending}>
-            {isSending ? "Sending..." : "Send Newsletter"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </CardFooter>
+      </form>
+    </Card>
   )
 }

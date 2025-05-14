@@ -1,3 +1,5 @@
+"use client"
+
 import sgMail from "@sendgrid/mail"
 
 // Initialize SendGrid with API key
@@ -26,6 +28,56 @@ export interface EmailData {
   text?: string
   html?: string
   data?: Record<string, any>
+}
+
+// Import the browser-compatible email service
+import { sendEmail, sendTemplatedEmail } from "./sendgrid-email-service"
+
+// Re-export the functions
+export { sendEmail, sendTemplatedEmail }
+
+// Add any additional email-related functions here
+export async function sendWelcomeEmail(email: string, name: string) {
+  return sendEmail({
+    to: email,
+    subject: "Welcome to ConeDex!",
+    html: `
+      <div>
+        <h1>Welcome to ConeDex, ${name}!</h1>
+        <p>Thank you for joining our community of ice cream enthusiasts.</p>
+        <p>Start exploring ice cream shops and flavors near you!</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendPasswordResetEmail(email: string, resetLink: string) {
+  return sendEmail({
+    to: email,
+    subject: "Reset Your ConeDex Password",
+    html: `
+      <div>
+        <h1>Password Reset Request</h1>
+        <p>You requested to reset your password. Click the link below to set a new password:</p>
+        <a href="${resetLink}">Reset Password</a>
+        <p>If you didn't request this, please ignore this email.</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendVerificationEmail(email: string, verificationLink: string) {
+  return sendEmail({
+    to: email,
+    subject: "Verify Your ConeDex Email",
+    html: `
+      <div>
+        <h1>Email Verification</h1>
+        <p>Please verify your email address by clicking the link below:</p>
+        <a href="${verificationLink}">Verify Email</a>
+      </div>
+    `,
+  })
 }
 
 /**
@@ -71,44 +123,44 @@ export class EmailService {
   /**
    * Send a welcome email to new users
    */
-  public async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
-    const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/login`
-    const html = generateWelcomeEmailHtml(name, loginUrl)
+  // public async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+  //   const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/login`
+  //   const html = generateWelcomeEmailHtml(name, loginUrl)
 
-    return this.sendEmail({
-      to: email,
-      subject: "Welcome to ConeDex!",
-      html,
-    })
-  }
+  //   return this.sendEmail({
+  //     to: email,
+  //     subject: "Welcome to ConeDex!",
+  //     html,
+  //   })
+  // }
 
   /**
    * Send a password reset email
    */
-  public async sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
-    const resetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password?token=${resetToken}`
-    const html = generatePasswordResetEmailHtml(resetUrl)
+  // public async sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
+  //   const resetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password?token=${resetToken}`
+  //   const html = generatePasswordResetEmailHtml(resetUrl)
 
-    return this.sendEmail({
-      to: email,
-      subject: "Reset Your ConeDex Password",
-      html,
-    })
-  }
+  //   return this.sendEmail({
+  //     to: email,
+  //     subject: "Reset Your ConeDex Password",
+  //     html,
+  //   })
+  // }
 
   /**
    * Send a verification email
    */
-  public async sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
-    const verificationUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/verify-email?token=${verificationToken}`
-    const html = generateVerificationEmailHtml(verificationUrl)
+  // public async sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
+  //   const verificationUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/verify-email?token=${verificationToken}`
+  //   const html = generateVerificationEmailHtml(verificationUrl)
 
-    return this.sendEmail({
-      to: email,
-      subject: "Verify Your ConeDex Email",
-      html,
-    })
-  }
+  //   return this.sendEmail({
+  //     to: email,
+  //     subject: "Verify Your ConeDex Email",
+  //     html,
+  //   })
+  // }
 
   /**
    * Send a notification email
@@ -232,21 +284,21 @@ export class EmailService {
 }
 
 // For backward compatibility
-export async function sendEmail(emailData: EmailData): Promise<boolean> {
-  return EmailService.getInstance().sendEmail(emailData)
-}
+// export async function sendEmail(emailData: EmailData): Promise<boolean> {
+//   return EmailService.getInstance().sendEmail(emailData)
+// }
 
-export async function sendWelcomeEmail(email: string, name: string): Promise<boolean> {
-  return EmailService.getInstance().sendWelcomeEmail(email, name)
-}
+// export async function sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+//   return EmailService.getInstance().sendWelcomeEmail(email, name)
+// }
 
-export async function sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
-  return EmailService.getInstance().sendPasswordResetEmail(email, resetToken)
-}
+// export async function sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
+//   return EmailService.getInstance().sendPasswordResetEmail(email, resetToken)
+// }
 
-export async function sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
-  return EmailService.getInstance().sendVerificationEmail(email, verificationToken)
-}
+// export async function sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
+//   return EmailService.getInstance().sendVerificationEmail(email, verificationToken)
+// }
 
 export async function sendNotificationEmail(
   email: string,

@@ -1,3 +1,4 @@
+"use client"
 import sgMail from "@sendgrid/mail"
 
 // Initialize SendGrid with API key
@@ -97,12 +98,58 @@ export class SendGridEmailService {
 }
 
 // Helper functions
-export async function sendEmail(emailData: EmailData): Promise<boolean> {
-  return SendGridEmailService.getInstance().sendEmail(emailData)
+export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+  try {
+    // For v0.dev preview, we'll mock the email sending functionality
+    console.log(`Email would be sent to: ${to}`)
+    console.log(`Subject: ${subject}`)
+    console.log(`Content: ${html}`)
+
+    // In production, you would use the SendGrid API directly
+    // This is just a placeholder that works in the browser preview
+    return {
+      success: true,
+      message: "Email sent successfully (preview mode)",
+    }
+  } catch (error) {
+    console.error("Error sending email:", error)
+    return {
+      success: false,
+      message: "Failed to send email",
+    }
+  }
 }
 
 export async function sendBatchEmails(recipients: string[], subject: string, html: string): Promise<boolean> {
   return SendGridEmailService.getInstance().sendBatchEmails(recipients, subject, html)
+}
+
+export async function sendTemplatedEmail({
+  to,
+  templateId,
+  dynamicData,
+}: {
+  to: string
+  templateId: string
+  dynamicData: Record<string, any>
+}) {
+  try {
+    // For v0.dev preview, we'll mock the templated email sending
+    console.log(`Templated email would be sent to: ${to}`)
+    console.log(`Template ID: ${templateId}`)
+    console.log(`Dynamic data:`, dynamicData)
+
+    return {
+      success: true,
+      message: "Templated email sent successfully (preview mode)",
+    }
+  } catch (error) {
+    console.error("Error sending templated email:", error)
+    return {
+      success: false,
+      message: "Failed to send templated email",
+    }
+  }
 }
 
 // Email template generators

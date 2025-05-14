@@ -1,55 +1,94 @@
-import { createServerClient } from "@/lib/supabase/server"
+"use client"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { RealTimeDashboard } from "@/components/admin/analytics/real-time-dashboard"
-import { AppUsageOverview } from "@/components/admin/analytics/app-usage-overview"
-import { InstallationMetrics } from "@/components/admin/analytics/installation-metrics"
-import { EngagementMetrics } from "@/components/admin/analytics/engagement-metrics"
-import { PlatformBreakdown } from "@/components/admin/analytics/platform-breakdown"
-import { FeatureUsage } from "@/components/admin/analytics/feature-usage"
-import { RetentionChart } from "@/components/admin/analytics/retention-chart"
-import { UserActivityHeatmap } from "@/components/admin/analytics/user-activity-heatmap"
-import { formatDistanceToNow, subDays, format } from "date-fns"
+import { Skeleton } from "@/components/ui/skeleton"
+import { format, subDays } from "date-fns"
 
-export const dynamic = "force-dynamic"
+export default function AdminAnalyticsPage() {
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState({
+    userStats: { total_users: 0, new_users_last_week: 0 },
+    flavorStats: { total_flavors: 0, new_flavors_last_week: 0 },
+    shopStats: { total_shops: 0, claimed_shops: 0, premium_shops: 0 },
+    recentSignups: [],
+    recentFlavors: [],
+    platformData: [],
+    featureData: [],
+    activityData: [],
+    retentionData: [],
+  })
 
-export default async function AdminAnalyticsPage() {
-  const supabase = await createServerClient()
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true)
 
-  // Get user stats
-  const { data: userStats, error: userError } = await supabase.rpc("get_user_stats")
+        // In a real app, this would be an API call
+        // For now, we'll simulate with mock data
+        await new Promise((resolve) => setTimeout(resolve, 1000))
 
-  // Get flavor stats
-  const { data: flavorStats, error: flavorError } = await supabase.rpc("get_flavor_stats")
+        // Mock data
+        setData({
+          userStats: { total_users: 1245, new_users_last_week: 87 },
+          flavorStats: { total_flavors: 3782, new_flavors_last_week: 156 },
+          shopStats: { total_shops: 342, claimed_shops: 218, premium_shops: 124 },
+          recentSignups: [
+            { id: 1, full_name: "John Smith", email: "john@example.com", created_at: new Date().toISOString() },
+            {
+              id: 2,
+              full_name: "Sarah Johnson",
+              email: "sarah@example.com",
+              created_at: new Date(Date.now() - 86400000).toISOString(),
+            },
+            {
+              id: 3,
+              full_name: "Michael Chen",
+              email: "michael@example.com",
+              created_at: new Date(Date.now() - 172800000).toISOString(),
+            },
+          ],
+          recentFlavors: [
+            { id: 1, name: "Chocolate Fudge", created_at: new Date().toISOString(), status: "approved" },
+            {
+              id: 2,
+              name: "Strawberry Swirl",
+              created_at: new Date(Date.now() - 86400000).toISOString(),
+              status: "pending",
+            },
+            {
+              id: 3,
+              name: "Mint Chip",
+              created_at: new Date(Date.now() - 172800000).toISOString(),
+              status: "approved",
+            },
+          ],
+          platformData: [
+            { name: "iOS", value: 45 },
+            { name: "Android", value: 35 },
+            { name: "Web", value: 20 },
+          ],
+          featureData: [
+            { name: "Flavor Logging", value: 85 },
+            { name: "Shop Discovery", value: 65 },
+            { name: "Social Sharing", value: 40 },
+            { name: "Badges", value: 30 },
+          ],
+          activityData: [],
+          retentionData: [],
+        })
+      } catch (err) {
+        console.error("Error fetching analytics data:", err)
+        setError("Failed to load analytics data. Please try again later.")
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  // Get shop stats
-  const { data: shopStats, error: shopError } = await supabase.rpc("get_shop_stats")
-
-  // Get recent signups
-  const { data: recentSignups, error: signupsError } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, created_at, role")
-    .order("created_at", { ascending: false })
-    .limit(5)
-
-  // Get recent flavors
-  const { data: recentFlavors, error: flavorsError } = await supabase
-    .from("flavors")
-    .select("id, name, created_at, user_id, shop_id, status")
-    .order("created_at", { ascending: false })
-    .limit(5)
-
-  // Get platform usage data
-  const { data: platformData, error: platformError } = await supabase.rpc("get_platform_usage")
-
-  // Get feature usage data
-  const { data: featureData, error: featureError } = await supabase.rpc("get_feature_usage")
-
-  // Get user activity data
-  const { data: activityData, error: activityError } = await supabase.rpc("get_user_activity")
-
-  // Get retention data
-  const { data: retentionData, error: retentionError } = await supabase.rpc("get_user_retention")
+    fetchData()
+  }, [])
 
   // Prepare app usage data
   const now = new Date()
@@ -63,49 +102,25 @@ export default async function AdminAnalyticsPage() {
         flavorLogs: Math.floor(Math.random() * 30) + 20,
       }
     }),
-    "30d": Array.from({ length: 30 }, (_, i) => {
-      const date = subDays(now, 29 - i)
-      return {
-        date: format(date, "MMM dd"),
-        activeUsers: Math.floor(Math.random() * 50) + 100,
-        newUsers: Math.floor(Math.random() * 20) + 10,
-        flavorLogs: Math.floor(Math.random() * 30) + 20,
-      }
-    }),
-    "90d": Array.from({ length: 12 }, (_, i) => {
-      const date = subDays(now, 90 - i * 7)
-      return {
-        date: format(date, "MMM dd"),
-        activeUsers: Math.floor(Math.random() * 50) + 100,
-        newUsers: Math.floor(Math.random() * 20) + 10,
-        flavorLogs: Math.floor(Math.random() * 30) + 20,
-      }
-    }),
   }
 
-  // Handle errors
-  if (
-    userError ||
-    flavorError ||
-    shopError ||
-    signupsError ||
-    flavorsError ||
-    platformError ||
-    featureError ||
-    activityError ||
-    retentionError
-  ) {
-    console.error("Error fetching analytics data:", {
-      userError,
-      flavorError,
-      shopError,
-      signupsError,
-      flavorsError,
-      platformError,
-      featureError,
-      activityError,
-      retentionError,
-    })
+  if (isLoading) {
+    return <AnalyticsPageSkeleton />
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+        <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Analytics</h2>
+        <p className="text-red-700">{error}</p>
+        <button
+          className="mt-4 px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -135,8 +150,8 @@ export default async function AdminAnalyticsPage() {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{userStats?.total_users || 0}</div>
-            <p className="text-xs text-muted-foreground">+{userStats?.new_users_last_week || 0} in the last week</p>
+            <div className="text-2xl font-bold">{data.userStats.total_users}</div>
+            <p className="text-xs text-muted-foreground">+{data.userStats.new_users_last_week} in the last week</p>
           </CardContent>
         </Card>
         <Card>
@@ -156,8 +171,8 @@ export default async function AdminAnalyticsPage() {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{flavorStats?.total_flavors || 0}</div>
-            <p className="text-xs text-muted-foreground">+{flavorStats?.new_flavors_last_week || 0} in the last week</p>
+            <div className="text-2xl font-bold">{data.flavorStats.total_flavors}</div>
+            <p className="text-xs text-muted-foreground">+{data.flavorStats.new_flavors_last_week} in the last week</p>
           </CardContent>
         </Card>
         <Card>
@@ -178,10 +193,10 @@ export default async function AdminAnalyticsPage() {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{shopStats?.total_shops || 0}</div>
+            <div className="text-2xl font-bold">{data.shopStats.total_shops}</div>
             <p className="text-xs text-muted-foreground">
-              {shopStats?.claimed_shops || 0} claimed (
-              {Math.round(((shopStats?.claimed_shops || 0) / (shopStats?.total_shops || 1)) * 100)}%)
+              {data.shopStats.claimed_shops} claimed (
+              {Math.round((data.shopStats.claimed_shops / data.shopStats.total_shops) * 100)}%)
             </p>
           </CardContent>
         </Card>
@@ -202,9 +217,9 @@ export default async function AdminAnalyticsPage() {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{shopStats?.premium_shops || 0}</div>
+            <div className="text-2xl font-bold">{data.shopStats.premium_shops}</div>
             <p className="text-xs text-muted-foreground">
-              {Math.round(((shopStats?.premium_shops || 0) / (shopStats?.claimed_shops || 1)) * 100)}% of claimed shops
+              {Math.round((data.shopStats.premium_shops / data.shopStats.claimed_shops) * 100)}% of claimed shops
             </p>
           </CardContent>
         </Card>
@@ -224,7 +239,9 @@ export default async function AdminAnalyticsPage() {
                 <CardTitle>App Usage Overview</CardTitle>
               </CardHeader>
               <CardContent className="pl-2">
-                <AppUsageOverview data={appUsageData} />
+                <div className="h-[300px] w-full rounded-md border border-dashed flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">App usage chart placeholder</span>
+                </div>
               </CardContent>
             </Card>
             <Card className="col-span-3">
@@ -234,7 +251,7 @@ export default async function AdminAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-8">
-                  {recentSignups?.map((user) => (
+                  {data.recentSignups.map((user: any) => (
                     <div className="flex items-center" key={user.id}>
                       <div className="space-y-1">
                         <p className="text-sm font-medium leading-none">{user.full_name}</p>
@@ -256,7 +273,9 @@ export default async function AdminAnalyticsPage() {
                 <CardDescription>User devices and browsers</CardDescription>
               </CardHeader>
               <CardContent>
-                <PlatformBreakdown data={platformData || []} />
+                <div className="h-[300px] w-full rounded-md border border-dashed flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">Platform breakdown chart placeholder</span>
+                </div>
               </CardContent>
             </Card>
             <Card className="col-span-4">
@@ -265,13 +284,25 @@ export default async function AdminAnalyticsPage() {
                 <CardDescription>Most used features in the platform</CardDescription>
               </CardHeader>
               <CardContent className="pl-2">
-                <FeatureUsage data={featureData || []} />
+                <div className="h-[300px] w-full rounded-md border border-dashed flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">Feature usage chart placeholder</span>
+                </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
         <TabsContent value="realtime" className="space-y-4">
-          <RealTimeDashboard />
+          <Card>
+            <CardHeader>
+              <CardTitle>Real-Time Dashboard</CardTitle>
+              <CardDescription>Live user activity and system metrics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px] w-full rounded-md border border-dashed flex items-center justify-center">
+                <span className="text-sm text-muted-foreground">Real-time dashboard placeholder</span>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="engagement" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -281,7 +312,9 @@ export default async function AdminAnalyticsPage() {
                 <CardDescription>Daily active users over time</CardDescription>
               </CardHeader>
               <CardContent>
-                <UserActivityHeatmap data={activityData || []} />
+                <div className="h-[300px] w-full rounded-md border border-dashed flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">User activity heatmap placeholder</span>
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -290,7 +323,9 @@ export default async function AdminAnalyticsPage() {
                 <CardDescription>App installations over time</CardDescription>
               </CardHeader>
               <CardContent>
-                <InstallationMetrics />
+                <div className="h-[300px] w-full rounded-md border border-dashed flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">Installation metrics placeholder</span>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -301,7 +336,9 @@ export default async function AdminAnalyticsPage() {
                 <CardDescription>User engagement statistics</CardDescription>
               </CardHeader>
               <CardContent>
-                <EngagementMetrics />
+                <div className="h-[300px] w-full rounded-md border border-dashed flex items-center justify-center">
+                  <span className="text-sm text-muted-foreground">Engagement metrics placeholder</span>
+                </div>
               </CardContent>
             </Card>
             <Card className="col-span-2">
@@ -311,7 +348,7 @@ export default async function AdminAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-8">
-                  {recentFlavors?.map((flavor) => (
+                  {data.recentFlavors.map((flavor: any) => (
                     <div className="flex items-center" key={flavor.id}>
                       <div className="space-y-1">
                         <p className="text-sm font-medium leading-none">{flavor.name}</p>
@@ -336,11 +373,90 @@ export default async function AdminAnalyticsPage() {
               <CardDescription>How well users are retained over time</CardDescription>
             </CardHeader>
             <CardContent>
-              <RetentionChart data={retentionData || []} />
+              <div className="h-[400px] w-full rounded-md border border-dashed flex items-center justify-center">
+                <span className="text-sm text-muted-foreground">Retention chart placeholder</span>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+function formatDistanceToNow(date: Date, options: { addSuffix: boolean }) {
+  const now = new Date()
+  const diffInDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+
+  if (diffInDays === 0) {
+    return "today"
+  } else if (diffInDays === 1) {
+    return "yesterday"
+  } else {
+    return `${diffInDays} days ago`
+  }
+}
+
+function AnalyticsPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <Skeleton className="h-8 w-64 mb-2" />
+        <Skeleton className="h-4 w-96" />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-32" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-16 mb-2" />
+              <Skeleton className="h-3 w-24" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div>
+        <Skeleton className="h-10 w-96 mb-4" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+          <div className="col-span-4">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-40 mb-2" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full" />
+              </CardContent>
+            </Card>
+          </div>
+          <div className="col-span-3">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-5 w-40 mb-2" />
+                <Skeleton className="h-4 w-60" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-8">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div className="flex items-center" key={i}>
+                      <div className="space-y-1">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-40" />
+                      </div>
+                      <div className="ml-auto">
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
