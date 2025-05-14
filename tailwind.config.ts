@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss"
 
-const config = {
+const config: Config = {
   darkMode: ["class"],
   content: [
     "./pages/**/*.{ts,tsx}",
@@ -54,16 +54,16 @@ const config = {
         },
         // Ice cream themed colors
         strawberry: {
-          50: "#fff0f5",
-          100: "#ffe0eb",
-          200: "#ffc1d7",
-          300: "#ff93b8",
-          400: "#ff5c93",
-          500: "#ff2d72",
-          600: "#ff0055",
-          700: "#d70048",
-          800: "#b80042",
-          900: "#94003d",
+          50: "#fff0f0",
+          100: "#ffe0e0",
+          200: "#ffc5c5",
+          300: "#ff9e9e",
+          400: "#ff6b6b",
+          500: "#ff3e3e",
+          600: "#ff1f1f",
+          700: "#e50000",
+          800: "#c00000",
+          900: "#a00000",
         },
         mint: {
           50: "#f0fff4",
@@ -78,40 +78,40 @@ const config = {
           900: "#14532d",
         },
         blueberry: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          300: "#93c5fd",
-          400: "#60a5fa",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-          800: "#1e40af",
-          900: "#1e3a8a",
-        },
-        chocolate: {
-          50: "#fdf8f6",
-          100: "#f2e8e5",
-          200: "#eaddd7",
-          300: "#d6bfb2",
-          400: "#c0a18e",
-          500: "#a18072",
-          600: "#856358",
-          700: "#6f4e41",
-          800: "#583e35",
-          900: "#44312a",
+          50: "#f0f4ff",
+          100: "#e0e7ff",
+          200: "#c7d2fe",
+          300: "#a5b4fc",
+          400: "#818cf8",
+          500: "#6366f1",
+          600: "#4f46e5",
+          700: "#4338ca",
+          800: "#3730a3",
+          900: "#312e81",
         },
         vanilla: {
-          50: "#fefdf7",
-          100: "#fdfbeb",
-          200: "#fbf6d9",
-          300: "#f7edb5",
-          400: "#f2e088",
-          500: "#ecd160",
-          600: "#d9b72d",
-          700: "#b79122",
-          800: "#96721f",
-          900: "#7a5d1f",
+          50: "#fffef0",
+          100: "#fffadc",
+          200: "#fff6c2",
+          300: "#fff0a3",
+          400: "#ffe97d",
+          500: "#ffe14d",
+          600: "#ffd700",
+          700: "#e6c200",
+          800: "#cca800",
+          900: "#a38600",
+        },
+        chocolate: {
+          50: "#f8f4f0",
+          100: "#f0e9e0",
+          200: "#e0d0c0",
+          300: "#d0b8a0",
+          400: "#b89980",
+          500: "#a07a60",
+          600: "#8c6040",
+          700: "#704820",
+          800: "#583010",
+          900: "#401800",
         },
       },
       borderRadius: {
@@ -121,12 +121,12 @@ const config = {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" },
         },
       },
       animation: {
@@ -136,6 +136,6 @@ const config = {
     },
   },
   plugins: [require("tailwindcss-animate")],
-} satisfies Config
+}
 
 export default config

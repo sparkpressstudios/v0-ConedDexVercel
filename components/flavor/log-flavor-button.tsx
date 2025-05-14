@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { PlusCircle } from "lucide-react"
-import LogFlavorModal from "./log-flavor-modal"
+import { LogFlavorModal } from "./log-flavor-modal"
 
 interface LogFlavorButtonProps {
   variant?: "default" | "outline" | "secondary" | "ghost" | "link" | "destructive"
@@ -11,7 +11,8 @@ interface LogFlavorButtonProps {
   className?: string
 }
 
-export default function LogFlavorButton({ variant = "default", size = "default", className }: LogFlavorButtonProps) {
+// Named export
+export function LogFlavorButton({ variant = "default", size = "default", className }: LogFlavorButtonProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   return (
@@ -25,3 +26,6 @@ export default function LogFlavorButton({ variant = "default", size = "default",
     </>
   )
 }
+
+// Default export (re-exporting the named export)
+export default LogFlavorButton

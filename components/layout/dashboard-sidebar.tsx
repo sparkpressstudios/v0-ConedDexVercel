@@ -25,6 +25,7 @@ import {
   ChevronDown,
   PlusCircle,
   BookOpen,
+  Compass,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -56,6 +57,9 @@ export function DashboardSidebar() {
   const { user, signOut } = useAuth()
   const supabase = createClient()
   const userRole = user?.role || "explorer"
+  const isExplorer = userRole === "explorer"
+  const isShopOwner = userRole === "shop_owner"
+  const isAdmin = userRole === "admin"
 
   useEffect(() => {
     async function checkShop() {
@@ -71,6 +75,55 @@ export function DashboardSidebar() {
 
     checkShop()
   }, [user, supabase])
+
+  // Get theme colors based on user role
+  const getThemeColors = () => {
+    if (isExplorer) {
+      return {
+        bgColor: "bg-white",
+        textColor: "text-strawberry-700",
+        mutedTextColor: "text-strawberry-500",
+        hoverBgColor: "hover:bg-strawberry-50",
+        activeBgColor: "bg-strawberry-100",
+        activeTextColor: "text-strawberry-700",
+        iconBgColor: "bg-strawberry-100",
+        iconActiveColor: "text-strawberry-600",
+        iconColor: "text-strawberry-400",
+        borderColor: "border-strawberry-100",
+        badgeColor: "bg-strawberry-500",
+      }
+    } else if (isShopOwner) {
+      return {
+        bgColor: "bg-white",
+        textColor: "text-mint-700",
+        mutedTextColor: "text-mint-500",
+        hoverBgColor: "hover:bg-mint-50",
+        activeBgColor: "bg-mint-100",
+        activeTextColor: "text-mint-700",
+        iconBgColor: "bg-mint-100",
+        iconActiveColor: "text-mint-600",
+        iconColor: "text-mint-400",
+        borderColor: "border-mint-100",
+        badgeColor: "bg-mint-500",
+      }
+    } else {
+      return {
+        bgColor: "bg-white",
+        textColor: "text-blueberry-700",
+        mutedTextColor: "text-blueberry-500",
+        hoverBgColor: "hover:bg-blueberry-50",
+        activeBgColor: "bg-blueberry-100",
+        activeTextColor: "text-blueberry-700",
+        iconBgColor: "bg-blueberry-100",
+        iconActiveColor: "text-blueberry-600",
+        iconColor: "text-blueberry-400",
+        borderColor: "border-blueberry-100",
+        badgeColor: "bg-blueberry-500",
+      }
+    }
+  }
+
+  const theme = getThemeColors()
 
   // Explorer navigation items
   const explorerNavGroups: NavGroup[] = [
@@ -123,6 +176,13 @@ export function DashboardSidebar() {
           title: "Following",
           href: "/dashboard/following",
           icon: <Heart className="h-5 w-5" />,
+          roles: ["explorer", "shop_owner", "admin"],
+        },
+        {
+          title: "Quests",
+          href: "/dashboard/quests",
+          icon: <Compass className="h-5 w-5" />,
+          badge: "New",
           roles: ["explorer", "shop_owner", "admin"],
         },
       ],
@@ -313,11 +373,14 @@ export function DashboardSidebar() {
     <div className="flex flex-col space-y-6">
       <div className="px-3 py-2">
         <div className="relative mb-6">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className={cn("absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground", theme.iconColor)} />
           <input
             type="search"
             placeholder="Search..."
-            className="w-full rounded-md border border-input bg-background py-2 pl-8 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className={cn(
+              "w-full rounded-md border border-input bg-background py-2 pl-8 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+              isExplorer && "border-strawberry-100 focus-visible:ring-strawberry-300 placeholder:text-strawberry-300",
+            )}
           />
         </div>
 
@@ -329,7 +392,12 @@ export function DashboardSidebar() {
 
           return (
             <div key={group.title} className="mb-6">
-              <h2 className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h2
+                className={cn(
+                  "mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground",
+                  theme.mutedTextColor,
+                )}
+              >
                 {group.title}
               </h2>
               <div className="space-y-1">
@@ -345,10 +413,11 @@ export function DashboardSidebar() {
                       href={item.href}
                       onClick={() => setOpen(false)}
                       className={cn(
-                        "group flex items-center justify-between rounded-md px-3 py-2 text-sm transition-all hover:bg-accent",
+                        "group flex items-center justify-between rounded-md px-3 py-2 text-sm transition-all",
+                        theme.hoverBgColor,
                         pathname === item.href
-                          ? "bg-accent text-accent-foreground font-medium"
-                          : "text-muted-foreground hover:text-foreground",
+                          ? cn(theme.activeBgColor, theme.activeTextColor, "font-medium")
+                          : cn("text-muted-foreground", theme.textColor),
                       )}
                     >
                       <div className="flex items-center gap-3">
@@ -356,8 +425,8 @@ export function DashboardSidebar() {
                           className={cn(
                             "rounded-md p-1",
                             pathname === item.href
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary",
+                              ? cn("bg-primary", theme.iconActiveColor)
+                              : cn("bg-muted", theme.iconColor, "group-hover:bg-primary/10 group-hover:text-primary"),
                           )}
                         >
                           {item.icon}
@@ -365,7 +434,9 @@ export function DashboardSidebar() {
                         {item.title}
                       </div>
                       {item.badge && (
-                        <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                        <span
+                          className={cn("rounded-full px-2 py-0.5 text-xs text-primary-foreground", theme.badgeColor)}
+                        >
                           {item.badge}
                         </span>
                       )}
@@ -383,12 +454,23 @@ export function DashboardSidebar() {
         <div className="px-3 py-2">
           <Collapsible open={shopManagementOpen} onOpenChange={setShopManagementOpen}>
             <CollapsibleTrigger asChild>
-              <button className="flex w-full items-center justify-between rounded-md px-4 py-2 text-sm font-medium hover:bg-accent">
+              <button
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-4 py-2 text-sm font-medium",
+                  theme.hoverBgColor,
+                )}
+              >
                 <div className="flex items-center gap-2">
-                  <Store className="h-5 w-5" />
-                  <span>Shop Management</span>
+                  <Store className={cn("h-5 w-5", isShopOwner ? "text-mint-500" : "text-blueberry-500")} />
+                  <span className={isShopOwner ? "text-mint-700" : "text-blueberry-700"}>Shop Management</span>
                 </div>
-                <ChevronDown className={cn("h-4 w-4 transition-transform", shopManagementOpen && "rotate-180")} />
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform",
+                    shopManagementOpen && "rotate-180",
+                    isShopOwner ? "text-mint-500" : "text-blueberry-500",
+                  )}
+                />
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-1 space-y-1">
@@ -398,8 +480,11 @@ export function DashboardSidebar() {
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-4 py-2 pl-9 text-sm transition-all hover:bg-accent",
-                    pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground",
+                    "flex items-center gap-3 rounded-md px-4 py-2 pl-9 text-sm transition-all",
+                    isShopOwner ? "hover:bg-mint-50" : "hover:bg-blueberry-50",
+                    pathname === item.href
+                      ? cn(isShopOwner ? "bg-mint-100 text-mint-700" : "bg-blueberry-100 text-blueberry-700")
+                      : cn(isShopOwner ? "text-mint-600" : "text-blueberry-600"),
                   )}
                 >
                   {item.icon}
@@ -414,13 +499,25 @@ export function DashboardSidebar() {
       <div className="mt-auto px-3 py-2">
         <Button
           variant="outline"
-          className="w-full justify-start gap-3"
+          className={cn(
+            "w-full justify-start gap-3",
+            isExplorer && "border-strawberry-100 text-strawberry-600 hover:bg-strawberry-50 hover:text-strawberry-700",
+            isShopOwner && "border-mint-100 text-mint-600 hover:bg-mint-50 hover:text-mint-700",
+            isAdmin && "border-blueberry-100 text-blueberry-600 hover:bg-blueberry-50 hover:text-blueberry-700",
+          )}
           onClick={() => {
             signOut?.()
             window.location.href = "/"
           }}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut
+            className={cn(
+              "h-4 w-4",
+              isExplorer && "text-strawberry-500",
+              isShopOwner && "text-mint-500",
+              isAdmin && "text-blueberry-500",
+            )}
+          />
           Sign Out
         </Button>
       </div>
@@ -431,13 +528,36 @@ export function DashboardSidebar() {
     <>
       {/* Desktop Sidebar */}
       <div className="hidden md:flex md:w-64 md:flex-col md:border-r">
-        <div className="flex h-full flex-col overflow-y-auto bg-card py-4">
+        <div className={cn("flex h-full flex-col overflow-y-auto bg-card py-4", theme.bgColor, theme.borderColor)}>
           <div className="flex items-center px-4 py-2 mb-6">
             <Link href="/" className="flex items-center gap-2">
-              <div className="rounded-full bg-primary p-1">
-                <IceCream className="h-6 w-6 text-primary-foreground" />
+              <div
+                className={cn(
+                  "rounded-full p-1",
+                  isExplorer && "bg-strawberry-100",
+                  isShopOwner && "bg-mint-100",
+                  isAdmin && "bg-blueberry-100",
+                )}
+              >
+                <IceCream
+                  className={cn(
+                    "h-6 w-6",
+                    isExplorer && "text-strawberry-500",
+                    isShopOwner && "text-mint-500",
+                    isAdmin && "text-blueberry-500",
+                  )}
+                />
               </div>
-              <span className="text-xl font-bold">ConeDex</span>
+              <span
+                className={cn(
+                  "text-xl font-bold",
+                  isExplorer && "text-strawberry-700",
+                  isShopOwner && "text-mint-700",
+                  isAdmin && "text-blueberry-700",
+                )}
+              >
+                ConeDex
+              </span>
             </Link>
           </div>
           <NavItems />
@@ -448,21 +568,57 @@ export function DashboardSidebar() {
       <div className="md:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="h-10 w-10">
+            <Button
+              variant="outline"
+              size="icon"
+              className={cn("h-10 w-10", isExplorer && "border-strawberry-100 text-strawberry-500")}
+            >
               <Menu className="h-5 w-5" />
               <span className="sr-only">Toggle menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[280px] sm:w-[350px] p-0">
+          <SheetContent side="left" className={cn("w-[280px] sm:w-[350px] p-0", theme.bgColor)}>
             <div className="flex h-full flex-col overflow-y-auto">
-              <div className="flex items-center justify-between border-b px-4 py-3">
+              <div className={cn("flex items-center justify-between border-b px-4 py-3", theme.borderColor)}>
                 <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-                  <div className="rounded-full bg-primary p-1">
-                    <IceCream className="h-5 w-5 text-primary-foreground" />
+                  <div
+                    className={cn(
+                      "rounded-full p-1",
+                      isExplorer && "bg-strawberry-100",
+                      isShopOwner && "bg-mint-100",
+                      isAdmin && "bg-blueberry-100",
+                    )}
+                  >
+                    <IceCream
+                      className={cn(
+                        "h-5 w-5",
+                        isExplorer && "text-strawberry-500",
+                        isShopOwner && "text-mint-500",
+                        isAdmin && "text-blueberry-500",
+                      )}
+                    />
                   </div>
-                  <span className="text-lg font-bold">ConeDex</span>
+                  <span
+                    className={cn(
+                      "text-lg font-bold",
+                      isExplorer && "text-strawberry-700",
+                      isShopOwner && "text-mint-700",
+                      isAdmin && "text-blueberry-700",
+                    )}
+                  >
+                    ConeDex
+                  </span>
                 </Link>
-                <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    isExplorer && "text-strawberry-500 hover:bg-strawberry-50 hover:text-strawberry-600",
+                    isShopOwner && "text-mint-500 hover:bg-mint-50 hover:text-mint-600",
+                    isAdmin && "text-blueberry-500 hover:bg-blueberry-50 hover:text-blueberry-600",
+                  )}
+                >
                   <X className="h-5 w-5" />
                   <span className="sr-only">Close</span>
                 </Button>

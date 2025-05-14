@@ -33,7 +33,7 @@ interface LogFlavorModalProps {
   onClose: () => void
 }
 
-export default function LogFlavorModal({ isOpen, onClose }: LogFlavorModalProps) {
+export function LogFlavorModal({ isOpen, onClose }: LogFlavorModalProps) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()

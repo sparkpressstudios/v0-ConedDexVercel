@@ -3,29 +3,12 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  X,
-  LayoutDashboard,
-  IceCream,
-  Store,
-  Users,
-  Award,
-  Settings,
-  Heart,
-  Bell,
-  Search,
-  User,
-  LogOut,
-  ChevronDown,
-  Shield,
-  BarChart,
-} from "lucide-react"
+import { X, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { useAuth } from "@/contexts/auth-context"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
+import { Icons } from "@/components/ui/icons"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 interface MobileNavProps {
   isOpen: boolean
@@ -35,255 +18,371 @@ interface MobileNavProps {
 
 export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
   const pathname = usePathname()
-  const { signOut } = useAuth()
-  const [shopManagementOpen, setShopManagementOpen] = useState(false)
-  const [adminManagementOpen, setAdminManagementOpen] = useState(false)
+  const [exploreSectionOpen, setExploreSectionOpen] = useState(true)
+  const [accountSectionOpen, setAccountSectionOpen] = useState(false)
+  const [adminSectionOpen, setAdminSectionOpen] = useState(false)
+  const [shopSectionOpen, setShopSectionOpen] = useState(false)
 
   const userRole = user?.role || "explorer"
-  const isAdmin = userRole === "admin"
+  const isExplorer = userRole === "explorer"
   const isShopOwner = userRole === "shop_owner"
+  const isAdmin = userRole === "admin"
+
+  // Get theme colors based on user role
+  const getThemeColors = () => {
+    if (isExplorer) {
+      return {
+        textColor: "text-strawberry-700",
+        mutedTextColor: "text-strawberry-500",
+        hoverBgColor: "hover:bg-strawberry-50",
+        activeBgColor: "bg-strawberry-100",
+        activeTextColor: "text-strawberry-700",
+        iconColor: "text-strawberry-500",
+        borderColor: "border-strawberry-100",
+      }
+    } else if (isShopOwner) {
+      return {
+        textColor: "text-mint-700",
+        mutedTextColor: "text-mint-500",
+        hoverBgColor: "hover:bg-mint-50",
+        activeBgColor: "bg-mint-100",
+        activeTextColor: "text-mint-700",
+        iconColor: "text-mint-500",
+        borderColor: "border-mint-100",
+      }
+    } else {
+      return {
+        textColor: "text-blueberry-700",
+        mutedTextColor: "text-blueberry-500",
+        hoverBgColor: "hover:bg-blueberry-50",
+        activeBgColor: "bg-blueberry-100",
+        activeTextColor: "text-blueberry-700",
+        iconColor: "text-blueberry-500",
+        borderColor: "border-blueberry-100",
+      }
+    }
+  }
+
+  const theme = getThemeColors()
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="left" className="pr-0 sm:max-w-xs">
-        <div className="flex items-center justify-between pr-4">
-          <Link href="/" className="flex items-center" onClick={onClose}>
-            <IceCream className="mr-2 h-5 w-5" />
-            <span className="font-bold">ConeDex</span>
-          </Link>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-5 w-5" />
-            <span className="sr-only">Close</span>
-          </Button>
-        </div>
-        <ScrollArea className="my-4 h-[calc(100vh-8rem)] pb-10 pl-6">
-          <div className="relative mt-4 mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder="Search..."
-              className="w-full rounded-md border border-input bg-background py-2 pl-8 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
-          <div className="flex flex-col space-y-3">
-            <Link
-              href="/dashboard"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard" && "font-medium text-foreground",
-              )}
-            >
-              <LayoutDashboard className="h-5 w-5" />
-              Dashboard
+      <SheetContent side="left" className="w-full max-w-xs p-0">
+        <div className="flex h-full flex-col overflow-y-auto">
+          <div className={cn("flex items-center justify-between border-b px-4 py-3", theme.borderColor)}>
+            <Link href="/" className="flex items-center gap-2" onClick={onClose}>
+              <Icons.iceCream className={theme.iconColor} />
+              <span className={cn("font-bold", theme.textColor)}>ConeDex</span>
             </Link>
-
-            {/* Explorer Links - Available to all users */}
-            <Link
-              href="/dashboard/conedex"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/conedex" && "font-medium text-foreground",
-              )}
-            >
-              <IceCream className="h-5 w-5" />
-              ConeDex
-            </Link>
-
-            <Link
-              href="/dashboard/shops"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/shops" && "font-medium text-foreground",
-              )}
-            >
-              <Store className="h-5 w-5" />
-              Find Shops
-            </Link>
-
-            <Link
-              href="/dashboard/flavors"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/flavors" && "font-medium text-foreground",
-              )}
-            >
-              <IceCream className="h-5 w-5" />
-              My Flavors
-            </Link>
-
-            <Link
-              href="/dashboard/following"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/following" && "font-medium text-foreground",
-              )}
-            >
-              <Heart className="h-5 w-5" />
-              Following
-            </Link>
-
-            <Link
-              href="/dashboard/badges"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/badges" && "font-medium text-foreground",
-              )}
-            >
-              <Award className="h-5 w-5" />
-              Badges
-            </Link>
-
-            {/* Shop Owner Links */}
-            {isShopOwner && (
-              <Collapsible open={shopManagementOpen} onOpenChange={setShopManagementOpen}>
-                <CollapsibleTrigger className="flex w-full items-center justify-between text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Store className="h-5 w-5" />
-                    <span>Shop Management</span>
-                  </div>
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", shopManagementOpen && "rotate-180")} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 space-y-2 pl-7">
-                  <Link
-                    href="/dashboard/shop"
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-2 text-muted-foreground",
-                      pathname === "/dashboard/shop" && "font-medium text-foreground",
-                    )}
-                  >
-                    <Store className="h-4 w-4" />
-                    Shop Dashboard
-                  </Link>
-                  <Link
-                    href="/dashboard/shop/flavors"
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-2 text-muted-foreground",
-                      pathname === "/dashboard/shop/flavors" && "font-medium text-foreground",
-                    )}
-                  >
-                    <IceCream className="h-4 w-4" />
-                    Shop Flavors
-                  </Link>
-                  <Link
-                    href="/dashboard/shop/analytics"
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-2 text-muted-foreground",
-                      pathname === "/dashboard/shop/analytics" && "font-medium text-foreground",
-                    )}
-                  >
-                    <BarChart className="h-4 w-4" />
-                    Analytics
-                  </Link>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-
-            {/* Admin Links */}
-            {isAdmin && (
-              <Collapsible open={adminManagementOpen} onOpenChange={setAdminManagementOpen}>
-                <CollapsibleTrigger className="flex w-full items-center justify-between text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    <span>Admin</span>
-                  </div>
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", adminManagementOpen && "rotate-180")} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 space-y-2 pl-7">
-                  <Link
-                    href="/dashboard/admin"
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-2 text-muted-foreground",
-                      pathname === "/dashboard/admin" && "font-medium text-foreground",
-                    )}
-                  >
-                    <LayoutDashboard className="h-4 w-4" />
-                    Admin Dashboard
-                  </Link>
-                  <Link
-                    href="/dashboard/admin/users"
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-2 text-muted-foreground",
-                      pathname === "/dashboard/admin/users" && "font-medium text-foreground",
-                    )}
-                  >
-                    <Users className="h-4 w-4" />
-                    Users
-                  </Link>
-                  <Link
-                    href="/dashboard/admin/shops"
-                    onClick={onClose}
-                    className={cn(
-                      "flex items-center gap-2 text-muted-foreground",
-                      pathname === "/dashboard/admin/shops" && "font-medium text-foreground",
-                    )}
-                  >
-                    <Store className="h-4 w-4" />
-                    Shops
-                  </Link>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-
-            <Link
-              href="/dashboard/profile"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/profile" && "font-medium text-foreground",
-              )}
-            >
-              <User className="h-5 w-5" />
-              Profile
-            </Link>
-
-            <Link
-              href="/dashboard/notifications"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/notifications" && "font-medium text-foreground",
-              )}
-            >
-              <Bell className="h-5 w-5" />
-              Notifications
-            </Link>
-
-            <Link
-              href="/dashboard/settings"
-              onClick={onClose}
-              className={cn(
-                "flex items-center gap-2 text-muted-foreground",
-                pathname === "/dashboard/settings" && "font-medium text-foreground",
-              )}
-            >
-              <Settings className="h-5 w-5" />
-              Settings
-            </Link>
-
-            <Button
-              variant="ghost"
-              className="justify-start px-2"
-              onClick={() => {
-                signOut?.()
-                onClose()
-              }}
-            >
-              <LogOut className="mr-2 h-5 w-5" />
-              Log out
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className={theme.iconColor} />
+              <span className="sr-only">Close</span>
             </Button>
           </div>
-        </ScrollArea>
+
+          <div className="flex-1 p-4">
+            <nav className="flex flex-col space-y-3">
+              <Link
+                href="/dashboard"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                  theme.hoverBgColor,
+                  pathname === "/dashboard" ? cn(theme.activeBgColor, theme.activeTextColor) : theme.textColor,
+                )}
+              >
+                <Icons.layoutDashboard className="mr-2 h-4 w-4" />
+                Dashboard
+              </Link>
+
+              {/* Explore Section */}
+              <Collapsible open={exploreSectionOpen} onOpenChange={setExploreSectionOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "flex w-full items-center justify-between px-3 py-2 text-sm font-medium",
+                      theme.textColor,
+                      theme.hoverBgColor,
+                    )}
+                  >
+                    <div className="flex items-center">
+                      <Icons.compass className="mr-2 h-4 w-4" />
+                      Explore
+                    </div>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", exploreSectionOpen && "rotate-180")} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-1 px-3 py-2">
+                  <Link
+                    href="/dashboard/conedex"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                      theme.hoverBgColor,
+                      pathname === "/dashboard/conedex"
+                        ? cn(theme.activeBgColor, theme.activeTextColor)
+                        : theme.textColor,
+                    )}
+                  >
+                    <Icons.iceCream className="mr-2 h-4 w-4" />
+                    ConeDex
+                  </Link>
+                  <Link
+                    href="/dashboard/my-conedex"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                      theme.hoverBgColor,
+                      pathname === "/dashboard/my-conedex"
+                        ? cn(theme.activeBgColor, theme.activeTextColor)
+                        : theme.textColor,
+                    )}
+                  >
+                    <Icons.bookOpen className="mr-2 h-4 w-4" />
+                    My ConeDex
+                  </Link>
+                  <Link
+                    href="/dashboard/shops"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                      theme.hoverBgColor,
+                      pathname === "/dashboard/shops"
+                        ? cn(theme.activeBgColor, theme.activeTextColor)
+                        : theme.textColor,
+                    )}
+                  >
+                    <Icons.store className="mr-2 h-4 w-4" />
+                    Find Shops
+                  </Link>
+                  <Link
+                    href="/dashboard/log-flavor"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                      theme.hoverBgColor,
+                      pathname === "/dashboard/log-flavor"
+                        ? cn(theme.activeBgColor, theme.activeTextColor)
+                        : theme.textColor,
+                    )}
+                  >
+                    <Icons.plusCircle className="mr-2 h-4 w-4" />
+                    Log Flavor
+                  </Link>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Community Section */}
+              <Link
+                href="/dashboard/leaderboard"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                  theme.hoverBgColor,
+                  pathname === "/dashboard/leaderboard"
+                    ? cn(theme.activeBgColor, theme.activeTextColor)
+                    : theme.textColor,
+                )}
+              >
+                <Icons.trophy className="mr-2 h-4 w-4" />
+                Leaderboard
+              </Link>
+              <Link
+                href="/dashboard/teams"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                  theme.hoverBgColor,
+                  pathname === "/dashboard/teams" ? cn(theme.activeBgColor, theme.activeTextColor) : theme.textColor,
+                )}
+              >
+                <Icons.users className="mr-2 h-4 w-4" />
+                Teams
+              </Link>
+              <Link
+                href="/dashboard/badges"
+                onClick={onClose}
+                className={cn(
+                  "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                  theme.hoverBgColor,
+                  pathname === "/dashboard/badges" ? cn(theme.activeBgColor, theme.activeTextColor) : theme.textColor,
+                )}
+              >
+                <Icons.award className="mr-2 h-4 w-4" />
+                Badges
+              </Link>
+
+              {/* Account Section */}
+              <Collapsible open={accountSectionOpen} onOpenChange={setAccountSectionOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "flex w-full items-center justify-between px-3 py-2 text-sm font-medium",
+                      theme.textColor,
+                      theme.hoverBgColor,
+                    )}
+                  >
+                    <div className="flex items-center">
+                      <Icons.user className="mr-2 h-4 w-4" />
+                      Account
+                    </div>
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", accountSectionOpen && "rotate-180")} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-1 px-3 py-2">
+                  <Link
+                    href="/dashboard/profile"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                      theme.hoverBgColor,
+                      pathname === "/dashboard/profile"
+                        ? cn(theme.activeBgColor, theme.activeTextColor)
+                        : theme.textColor,
+                    )}
+                  >
+                    <Icons.user className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
+                  <Link
+                    href="/dashboard/notifications"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                      theme.hoverBgColor,
+                      pathname === "/dashboard/notifications"
+                        ? cn(theme.activeBgColor, theme.activeTextColor)
+                        : theme.textColor,
+                    )}
+                  >
+                    <Icons.bell className="mr-2 h-4 w-4" />
+                    Notifications
+                  </Link>
+                  <Link
+                    href="/dashboard/settings"
+                    onClick={onClose}
+                    className={cn(
+                      "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                      theme.hoverBgColor,
+                      pathname === "/dashboard/settings"
+                        ? cn(theme.activeBgColor, theme.activeTextColor)
+                        : theme.textColor,
+                    )}
+                  >
+                    <Icons.settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Shop Owner Section */}
+              {isShopOwner && (
+                <Collapsible open={shopSectionOpen} onOpenChange={setShopSectionOpen}>
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "flex w-full items-center justify-between px-3 py-2 text-sm font-medium",
+                        theme.textColor,
+                        theme.hoverBgColor,
+                      )}
+                    >
+                      <div className="flex items-center">
+                        <Icons.store className="mr-2 h-4 w-4" />
+                        My Shop
+                      </div>
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", shopSectionOpen && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-1 px-3 py-2">
+                    <Link
+                      href="/dashboard/shop"
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                        theme.hoverBgColor,
+                        pathname === "/dashboard/shop"
+                          ? cn(theme.activeBgColor, theme.activeTextColor)
+                          : theme.textColor,
+                      )}
+                    >
+                      <Icons.layoutDashboard className="mr-2 h-4 w-4" />
+                      Shop Dashboard
+                    </Link>
+                    <Link
+                      href="/dashboard/shop/flavors"
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                        theme.hoverBgColor,
+                        pathname === "/dashboard/shop/flavors"
+                          ? cn(theme.activeBgColor, theme.activeTextColor)
+                          : theme.textColor,
+                      )}
+                    >
+                      <Icons.iceCream className="mr-2 h-4 w-4" />
+                      Shop Flavors
+                    </Link>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
+              {/* Admin Section */}
+              {isAdmin && (
+                <Collapsible open={adminSectionOpen} onOpenChange={setAdminSectionOpen}>
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "flex w-full items-center justify-between px-3 py-2 text-sm font-medium",
+                        theme.textColor,
+                        theme.hoverBgColor,
+                      )}
+                    >
+                      <div className="flex items-center">
+                        <Icons.shield className="mr-2 h-4 w-4" />
+                        Admin
+                      </div>
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", adminSectionOpen && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-1 px-3 py-2">
+                    <Link
+                      href="/dashboard/admin"
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                        theme.hoverBgColor,
+                        pathname === "/dashboard/admin"
+                          ? cn(theme.activeBgColor, theme.activeTextColor)
+                          : theme.textColor,
+                      )}
+                    >
+                      <Icons.layoutDashboard className="mr-2 h-4 w-4" />
+                      Admin Dashboard
+                    </Link>
+                    <Link
+                      href="/dashboard/admin/users"
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center rounded-md px-3 py-2 text-sm transition-colors",
+                        theme.hoverBgColor,
+                        pathname === "/dashboard/admin/users"
+                          ? cn(theme.activeBgColor, theme.activeTextColor)
+                          : theme.textColor,
+                      )}
+                    >
+                      <Icons.users className="mr-2 h-4 w-4" />
+                      Users
+                    </Link>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </nav>
+          </div>
+        </div>
       </SheetContent>
     </Sheet>
   )
