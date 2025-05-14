@@ -16,7 +16,8 @@ export function validateEnvironmentVariables(): { valid: boolean; missing: strin
     "OPENAI_API_KEY",
   ]
 
-  const requiredClientVars = [
+  // Client-side variables are now considered optional for production
+  const optionalClientVars = [
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "NEXT_PUBLIC_SITE_URL",
@@ -25,7 +26,11 @@ export function validateEnvironmentVariables(): { valid: boolean; missing: strin
   ]
 
   const isServer = typeof window === "undefined"
-  const varsToCheck = isServer ? [...requiredServerVars, ...requiredClientVars] : requiredClientVars
+  const isProduction = process.env.NODE_ENV === "production"
+
+  // In production, we'll only check server variables as critical
+  const varsToCheck =
+    isServer && !isProduction ? [...requiredServerVars, ...optionalClientVars] : isServer ? requiredServerVars : []
 
   const missingVars = varsToCheck.filter((varName) => !process.env[varName])
 
@@ -44,5 +49,25 @@ export function checkEnvironmentVariables(): void {
   if (!valid) {
     console.warn(`⚠️ Missing environment variables: ${missing.join(", ")}`)
     console.warn("Some features may not work correctly without these variables.")
+  }
+
+  // Check for optional client variables in production
+  const isProduction = process.env.NODE_ENV === "production"
+  const isClient = typeof window !== "undefined"
+
+  if (isProduction && isClient) {
+    const optionalClientVars = [
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "NEXT_PUBLIC_SITE_URL",
+      "NEXT_PUBLIC_VAPID_PUBLIC_KEY",
+      "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    ]
+
+    const missingOptional = optionalClientVars.filter((varName) => !process.env[varName])
+
+    if (missingOptional.length > 0) {
+      console.log("Note: Some optional client environment variables are not set:", missingOptional.join(", "))
+    }
   }
 }

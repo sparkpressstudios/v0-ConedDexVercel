@@ -18,6 +18,29 @@ import { redirect } from "next/navigation"
 
 export default async function DashboardPage() {
   try {
+    // Check if the essential environment variables are available
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseKey) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-4">
+          <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg max-w-lg">
+            <h2 className="text-xl font-semibold text-yellow-800 mb-2">Configuration Missing</h2>
+            <p className="text-yellow-700">
+              Some required configuration is missing. The application may not function correctly.
+            </p>
+            <p className="mt-2 text-sm text-yellow-600">
+              Please contact your administrator to ensure all environment variables are properly set.
+            </p>
+          </div>
+        </div>
+      )
+    }
+
     const supabase = createServerComponentClient<Database>({ cookies })
 
     const {
@@ -28,8 +51,50 @@ export default async function DashboardPage() {
       return redirect("/login")
     }
 
-    // Get user profile
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user?.id).single()
+    // Get user profile with error handling
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user?.id)
+      .single()
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError)
+      // Continue with a basic profile instead of failing
+      const basicProfile = {
+        id: user.id,
+        role: "explorer",
+        username: user.email?.split("@")[0] || "User",
+      }
+
+      // Render a partial dashboard if we can't get the full profile
+      return (
+        <div className="space-y-8">
+          <div className="p-6 bg-orange-50 border border-orange-200 rounded-lg">
+            <h2 className="text-lg font-medium text-orange-800">Limited Dashboard View</h2>
+            <p className="text-orange-700 mt-1">
+              We encountered an issue loading your complete profile. You're seeing a simplified dashboard.
+            </p>
+          </div>
+
+          <ErrorBoundary>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Dashboard</CardTitle>
+                  <IceCream className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <Button asChild variant="default">
+                    <Link href="/dashboard/log-flavor">Log a New Flavor</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </ErrorBoundary>
+        </div>
+      )
+    }
 
     if (!profile) {
       return redirect("/login")
@@ -44,27 +109,39 @@ export default async function DashboardPage() {
 
     // Redirect shop owners to shop dashboard if they have a shop
     if (userRole === "shop_owner") {
-      const { data: shop } = await supabase.from("shops").select("id").eq("owner_id", user.id).single()
+      const { data: shop, error: shopError } = await supabase
+        .from("shops")
+        .select("id")
+        .eq("owner_id", user.id)
+        .single()
 
-      if (shop) {
+      if (!shopError && shop) {
         return redirect("/dashboard/shop")
       }
     }
 
-    // Get flavor logs count
-    const { count: flavorLogsCount } = await supabase
+    // Get flavor logs count with error handling
+    const { count: flavorLogsCount, error: logsCountError } = await supabase
       .from("flavor_logs")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user?.id)
 
-    // Get badges count
-    const { count: badgesCount } = await supabase
+    if (logsCountError) {
+      console.error("Error fetching flavor logs count:", logsCountError)
+    }
+
+    // Get badges count with error handling
+    const { count: badgesCount, error: badgesCountError } = await supabase
       .from("user_badges")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user?.id)
 
-    // Get recent flavor logs
-    const { data: recentLogs } = await supabase
+    if (badgesCountError) {
+      console.error("Error fetching badges count:", badgesCountError)
+    }
+
+    // Get recent flavor logs with error handling
+    const { data: recentLogs, error: recentLogsError } = await supabase
       .from("flavor_logs")
       .select(`
         *,
@@ -75,12 +152,20 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false })
       .limit(5)
 
-    // Get shops visited count
-    const { data: shopsVisited } = await supabase
+    if (recentLogsError) {
+      console.error("Error fetching recent logs:", recentLogsError)
+    }
+
+    // Get shops visited count with error handling
+    const { data: shopsVisited, error: shopsVisitedError } = await supabase
       .from("flavor_logs")
       .select("shop_id")
       .eq("user_id", user?.id)
       .limit(1000)
+
+    if (shopsVisitedError) {
+      console.error("Error fetching shops visited:", shopsVisitedError)
+    }
 
     const uniqueShops = shopsVisited ? [...new Set(shopsVisited.map((log) => log.shop_id))].length : 0
 
@@ -91,7 +176,12 @@ export default async function DashboardPage() {
     const nextBadgeProgress = Math.min(Math.floor((flavorLogsCount || 0) % 10) * 10, 100)
 
     // Get user's rank if available
-    const { data: userRank } = await supabase.rpc("get_user_rank", { user_id: user?.id })
+    const { data: userRank, error: rankError } = await supabase.rpc("get_user_rank", { user_id: user?.id })
+
+    if (rankError) {
+      console.error("Error fetching user rank:", rankError)
+    }
+
     const rank = userRank?.[0]?.rank || "—"
 
     return (
@@ -259,12 +349,14 @@ export default async function DashboardPage() {
                               log.flavors?.image_url ||
                               log.photo_url ||
                               "/placeholder.svg?height=100&width=100&query=ice cream scoop" ||
-                              "/placeholder.svg" ||
-                              "/placeholder.svg" ||
                               "/placeholder.svg"
                             }
                             alt={log.flavors?.name || "Ice cream"}
                             className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                            onError={(e) => {
+                              // Fallback if image fails to load
+                              ;(e.target as HTMLImageElement).src = "/colorful-ice-cream-cones.png"
+                            }}
                           />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -331,12 +423,20 @@ export default async function DashboardPage() {
     console.error("Dashboard page error:", error)
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold">Something went wrong</h2>
-          <p className="mt-2 text-muted-foreground">We're having trouble loading your dashboard.</p>
-          <Button asChild variant="default" className="mt-4">
-            <Link href="/dashboard">Try Again</Link>
-          </Button>
+        <div className="text-center max-w-md p-6 bg-white rounded-lg shadow-sm">
+          <h2 className="text-2xl font-bold mb-4">Dashboard Unavailable</h2>
+          <p className="mt-2 text-muted-foreground mb-6">
+            We're having trouble loading your dashboard. This could be due to temporary service issues or missing
+            configuration.
+          </p>
+          <div className="space-y-3">
+            <Button asChild variant="default" className="w-full">
+              <Link href="/dashboard">Try Again</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/">Return to Home</Link>
+            </Button>
+          </div>
         </div>
       </div>
     )
