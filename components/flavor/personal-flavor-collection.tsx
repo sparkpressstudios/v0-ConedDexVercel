@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -82,6 +82,57 @@ const demoFlavorLogs = [
   },
 ]
 
+// Add more demo data
+const extraDemoFlavorLogs = [
+  {
+    id: "log4",
+    flavor_id: "d4e5f6g7-8h9i-0j1k-2l3m-4n5o6p7q8r9s",
+    user_id: "user1",
+    shop_id: "shop3",
+    rating: 4.8,
+    notes: "Incredible mint chocolate chip! Perfect balance of mint and chocolate.",
+    photo_url: "https://images.unsplash.com/photo-1505394033641-40c6ad1178d7",
+    visit_date: "2023-05-28T15:20:00Z",
+    created_at: "2023-05-28T15:20:00Z",
+    flavors: {
+      name: "Mint Chocolate Chip",
+      base_type: "dairy",
+      image_url: "https://images.unsplash.com/photo-1505394033641-40c6ad1178d7",
+      category: "chocolate",
+      rarity: "common",
+    },
+    shops: {
+      name: "Minty Fresh Ice Cream",
+      id: "shop3",
+    },
+  },
+  {
+    id: "log5",
+    flavor_id: "e5f6g7h8-9i0j-1k2l-3m4n-5o6p7q8r9s0t",
+    user_id: "user1",
+    shop_id: "shop4",
+    rating: 5,
+    notes: "The best cookie dough ice cream I've ever had! Generous chunks of cookie dough.",
+    photo_url: "https://images.unsplash.com/photo-1563805042-7684c019e1cb",
+    visit_date: "2023-05-20T13:10:00Z",
+    created_at: "2023-05-20T13:10:00Z",
+    flavors: {
+      name: "Cookie Dough Delight",
+      base_type: "dairy",
+      image_url: "https://images.unsplash.com/photo-1563805042-7684c019e1cb",
+      category: "cookies",
+      rarity: "uncommon",
+    },
+    shops: {
+      name: "Cookie Monster's Creamery",
+      id: "shop4",
+    },
+  },
+]
+
+// Combine all demo data
+const allDemoFlavorLogs = [...demoFlavorLogs, ...extraDemoFlavorLogs]
+
 // Rarity colors for badges
 const rarityColors = {
   common: "bg-gray-100 text-gray-800",
@@ -97,12 +148,54 @@ export default function PersonalFlavorCollection({ userId, isDemoUser = false })
   const [sortBy, setSortBy] = useState("recent")
   const [filterCategory, setFilterCategory] = useState("all")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [flavorLogs, setFlavorLogs] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   // Use the cached data hook for real users
-  const { data: userLogs, isLoading, error, refetch } = useCachedUserLogs(isDemoUser ? undefined : userId)
+  const {
+    data: userLogs,
+    isLoading: cacheLoading,
+    error: cacheError,
+  } = useCachedUserLogs(isDemoUser ? undefined : userId)
 
-  // For demo users, use demo data
-  const flavorLogs = isDemoUser ? demoFlavorLogs : userLogs || []
+  useEffect(() => {
+    // If we're using a demo user, set the demo data
+    if (isDemoUser) {
+      setFlavorLogs(allDemoFlavorLogs)
+      setIsLoading(false)
+      return
+    }
+
+    // If we have data from the cache, use it
+    if (userLogs) {
+      setFlavorLogs(userLogs)
+      setIsLoading(false)
+      return
+    }
+
+    // If we have an error from the cache, set it
+    if (cacheError) {
+      console.error("Error fetching user logs:", cacheError)
+      setError(cacheError)
+      setIsLoading(false)
+      // Fallback to demo data
+      setFlavorLogs(allDemoFlavorLogs)
+      return
+    }
+
+    // If we're still loading from the cache, wait
+    if (cacheLoading) {
+      setIsLoading(true)
+      return
+    }
+
+    // If we don't have data or an error, and we're not loading, set demo data as fallback
+    if (!userLogs && !cacheError && !cacheLoading) {
+      setFlavorLogs(allDemoFlavorLogs)
+      setIsLoading(false)
+    }
+  }, [isDemoUser, userLogs, cacheLoading, cacheError, userId])
 
   // Extract unique categories from logs
   const categories = ["all", ...new Set(flavorLogs.map((log) => log.flavors?.category).filter(Boolean))]
@@ -238,7 +331,7 @@ export default function PersonalFlavorCollection({ userId, isDemoUser = false })
         </div>
       </div>
 
-      {isLoading && !isDemoUser ? (
+      {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="overflow-hidden">

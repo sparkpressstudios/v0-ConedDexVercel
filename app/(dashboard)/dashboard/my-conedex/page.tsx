@@ -31,75 +31,110 @@ const demoUsers = {
 }
 
 export default async function MyConeDexPage() {
-  const supabase = createServerClient()
-
-  // Check for demo user in cookies
-  const cookieStore = cookies()
-  const demoUserEmail = cookieStore.get("conedex_demo_user")?.value
-  const isDemoUser = demoUserEmail && demoUsers[demoUserEmail as keyof typeof demoUsers]
-
+  // Default values for when data can't be fetched
   let user = null
   let flavorLogsCount = 0
   let uniqueShopsCount = 0
   let badgesCount = 0
-  let totalFlavorsCount = 0
+  let totalFlavorsCount = 150 // Default total flavors
   let collectionProgress = 0
+  let isDemoUser = false
 
-  if (isDemoUser) {
-    // Use demo data
-    user = demoUsers[demoUserEmail as keyof typeof demoUsers]
-    flavorLogsCount = 24
-    uniqueShopsCount = 8
-    badgesCount = 5
-    totalFlavorsCount = 150
-    collectionProgress = Math.round((flavorLogsCount / totalFlavorsCount) * 100)
-  } else {
-    // Get real user data
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
+  try {
+    // Check for demo user in cookies
+    const cookieStore = cookies()
+    const demoUserEmail = cookieStore.get("conedex_demo_user")?.value
+    isDemoUser = !!demoUserEmail && !!demoUsers[demoUserEmail as keyof typeof demoUsers]
 
-    if (!authUser) {
-      return {
-        redirect: {
-          destination: "/login",
-          permanent: false,
-        },
+    if (isDemoUser) {
+      // Use demo data
+      user = demoUsers[demoUserEmail as keyof typeof demoUsers]
+      flavorLogsCount = 24
+      uniqueShopsCount = 8
+      badgesCount = 5
+      totalFlavorsCount = 150
+      collectionProgress = Math.round((flavorLogsCount / totalFlavorsCount) * 100)
+    } else {
+      try {
+        const supabase = createServerClient()
+
+        // Get real user data
+        const {
+          data: { user: authUser },
+          error: authError,
+        } = await supabase.auth.getUser()
+
+        if (authError || !authUser) {
+          throw new Error("User not authenticated")
+        }
+
+        user = authUser
+
+        // Get flavor logs count - with error handling
+        try {
+          const { count: logsCount, error: logsError } = await supabase
+            .from("flavor_logs")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+
+          if (!logsError) {
+            flavorLogsCount = logsCount || 0
+          }
+        } catch (error) {
+          console.error("Error fetching flavor logs count:", error)
+        }
+
+        // Get unique shops visited - with error handling
+        try {
+          const { data: shopsVisited, error: shopsError } = await supabase
+            .from("flavor_logs")
+            .select("shop_id")
+            .eq("user_id", user.id)
+            .limit(1000)
+
+          if (!shopsError && shopsVisited) {
+            uniqueShopsCount = [...new Set(shopsVisited.map((log) => log.shop_id))].length
+          }
+        } catch (error) {
+          console.error("Error fetching shops visited:", error)
+        }
+
+        // Get badges count - with error handling
+        try {
+          const { count: userBadgesCount, error: badgesError } = await supabase
+            .from("user_badges")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+
+          if (!badgesError) {
+            badgesCount = userBadgesCount || 0
+          }
+        } catch (error) {
+          console.error("Error fetching badges count:", error)
+        }
+
+        // Get total flavors in system for progress calculation - with error handling
+        try {
+          const { count: systemFlavorsCount, error: flavorsError } = await supabase
+            .from("flavors")
+            .select("*", { count: "exact", head: true })
+
+          if (!flavorsError) {
+            totalFlavorsCount = systemFlavorsCount || 150
+          }
+        } catch (error) {
+          console.error("Error fetching total flavors count:", error)
+        }
+
+        collectionProgress = totalFlavorsCount > 0 ? Math.round((flavorLogsCount / totalFlavorsCount) * 100) : 0
+      } catch (error) {
+        console.error("Error in MyConeDexPage:", error)
+        // Keep default values
       }
     }
-
-    user = authUser
-
-    // Get flavor logs count
-    const { count: logsCount } = await supabase
-      .from("flavor_logs")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-
-    flavorLogsCount = logsCount || 0
-
-    // Get unique shops visited
-    const { data: shopsVisited } = await supabase
-      .from("flavor_logs")
-      .select("shop_id")
-      .eq("user_id", user.id)
-      .limit(1000)
-
-    uniqueShopsCount = shopsVisited ? [...new Set(shopsVisited.map((log) => log.shop_id))].length : 0
-
-    // Get badges count
-    const { count: userBadgesCount } = await supabase
-      .from("user_badges")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-
-    badgesCount = userBadgesCount || 0
-
-    // Get total flavors in system for progress calculation
-    const { count: systemFlavorsCount } = await supabase.from("flavors").select("*", { count: "exact", head: true })
-
-    totalFlavorsCount = systemFlavorsCount || 0
-    collectionProgress = totalFlavorsCount > 0 ? Math.round((flavorLogsCount / totalFlavorsCount) * 100) : 0
+  } catch (error) {
+    console.error("Error in MyConeDexPage:", error)
+    // Keep default values
   }
 
   return (
