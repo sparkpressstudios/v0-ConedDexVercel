@@ -1,22 +1,26 @@
 import { createServerClient } from "@/lib/supabase/server"
 import LogFlavorForm from "@/components/flavor/log-flavor-form"
+import { ErrorBoundary } from "@/components/ui/error-boundary"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertTriangle } from "lucide-react"
 
 export default async function LogFlavorPage() {
-  const supabase = createServerClient()
+  let session = null
+  let error = null
 
-  // Check if user is authenticated
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  try {
+    const supabase = createServerClient()
 
-  if (!session) {
-    return {
-      redirect: {
-        destination: "/login",
-        permanent: false,
-      },
-    }
+    // Check if user is authenticated
+    const sessionResponse = await supabase.auth.getSession()
+    session = sessionResponse.data.session
+  } catch (err) {
+    console.error("Error in LogFlavorPage:", err)
+    error = "Failed to connect to the database. Using demo mode."
   }
+
+  // If there's an error or no session, we'll still render the page
+  // The LogFlavorForm component will handle demo mode
 
   return (
     <div className="space-y-6">
@@ -29,7 +33,17 @@ export default async function LogFlavorPage() {
         to be within 100 feet of an ice cream shop to log a flavor.
       </p>
 
-      <LogFlavorForm />
+      {error && (
+        <Alert variant="warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Connection Issue</AlertTitle>
+          <AlertDescription>{error} Some features may be limited.</AlertDescription>
+        </Alert>
+      )}
+
+      <ErrorBoundary>
+        <LogFlavorForm demoMode={!!error || !session} />
+      </ErrorBoundary>
     </div>
   )
 }

@@ -21,10 +21,23 @@ import { ErrorBoundary } from "@/components/ui/error-boundary"
 import { flavorLogFormSchema, validateForm } from "@/lib/utils/form-validation"
 import { updateLeaderboardOnFlavorLog } from "@/lib/utils/leaderboard-utils"
 
-export default function LogFlavorForm() {
+// Demo data for when Supabase is unavailable
+const DEMO_SHOPS = [
+  { place_id: "demo-shop-1", name: "Scoops Ahoy Ice Cream" },
+  { place_id: "demo-shop-2", name: "Frozen Delights" },
+  { place_id: "demo-shop-3", name: "Sweet Treats Creamery" },
+  { place_id: "demo-shop-4", name: "Cone Zone" },
+  { place_id: "demo-shop-5", name: "Frosty's Ice Cream Parlor" },
+]
+
+interface LogFlavorFormProps {
+  demoMode?: boolean
+}
+
+export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) {
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createClient()
+  const supabase = demoMode ? null : createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Form state
@@ -70,30 +83,57 @@ export default function LogFlavorForm() {
     setLocationError(null)
 
     try {
-      const position = await getUserLocation()
-      const { latitude, longitude } = position.coords
-      setUserLocation({ latitude, longitude })
-
-      const shops = await getNearbyShops(latitude, longitude, 30) // 30 meters ≈ 100 feet
-      setNearbyShops(shops)
-
-      if (shops.length === 0) {
-        setLocationError("No ice cream shops found nearby. You must be within 100 feet of a shop to log a flavor.")
-        setLocationVerified(false)
-      } else {
+      if (demoMode) {
+        // In demo mode, simulate location check
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        setUserLocation({ latitude: 37.7749, longitude: -122.4194 }) // Example coordinates
+        setNearbyShops(DEMO_SHOPS)
         setLocationVerified(true)
         toast({
-          title: "Location verified!",
-          description: `Found ${shops.length} ice cream ${shops.length === 1 ? "shop" : "shops"} nearby.`,
+          title: "Demo Mode: Location verified!",
+          description: `Found ${DEMO_SHOPS.length} ice cream shops nearby.`,
         })
         setStep("details")
+      } else {
+        // Normal flow with real location check
+        const position = await getUserLocation()
+        const { latitude, longitude } = position.coords
+        setUserLocation({ latitude, longitude })
+
+        const shops = await getNearbyShops(latitude, longitude, 30) // 30 meters ≈ 100 feet
+        setNearbyShops(shops)
+
+        if (shops.length === 0) {
+          setLocationError("No ice cream shops found nearby. You must be within 100 feet of a shop to log a flavor.")
+          setLocationVerified(false)
+        } else {
+          setLocationVerified(true)
+          toast({
+            title: "Location verified!",
+            description: `Found ${shops.length} ice cream ${shops.length === 1 ? "shop" : "shops"} nearby.`,
+          })
+          setStep("details")
+        }
       }
     } catch (error: any) {
       console.error("Error getting location:", error)
-      setLocationError(
-        error.message || "Unable to verify your location. Please ensure location services are enabled and try again.",
-      )
-      setLocationVerified(false)
+
+      if (demoMode) {
+        // In demo mode, continue anyway with demo shops
+        setUserLocation({ latitude: 37.7749, longitude: -122.4194 }) // Example coordinates
+        setNearbyShops(DEMO_SHOPS)
+        setLocationVerified(true)
+        toast({
+          title: "Demo Mode: Location verified!",
+          description: `Found ${DEMO_SHOPS.length} ice cream shops nearby.`,
+        })
+        setStep("details")
+      } else {
+        setLocationError(
+          error.message || "Unable to verify your location. Please ensure location services are enabled and try again.",
+        )
+        setLocationVerified(false)
+      }
     } finally {
       setIsCheckingLocation(false)
     }
@@ -224,6 +264,20 @@ export default function LogFlavorForm() {
     setError(null)
 
     try {
+      if (demoMode) {
+        // In demo mode, simulate submission
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+
+        toast({
+          title: "Demo Mode: Flavor logged successfully!",
+          description: "Your flavor has been added to your ConeDex.",
+        })
+
+        router.push(`/dashboard`)
+        return
+      }
+
+      // Normal flow with real submission
       // Get user's current location
       const location = await getUserLocation()
       if (!location) {
@@ -249,7 +303,7 @@ export default function LogFlavorForm() {
 
       // Upload image if provided
       let imageUrl = null
-      if (imageFile) {
+      if (imageFile && supabase) {
         const fileExt = imageFile.name.split(".").pop()
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
         const filePath = `flavor-photos/${fileName}`
@@ -270,6 +324,10 @@ export default function LogFlavorForm() {
         imageUrl = publicUrl
       }
 
+      if (!supabase) {
+        throw new Error("Supabase client not available")
+      }
+
       // Get existing flavors for duplicate checking
       const { data: existingFlavors } = await supabase.from("flavor_logs").select("name, description").limit(50)
 
@@ -279,7 +337,7 @@ export default function LogFlavorForm() {
       const moderationResult = await moderateContent(name, description)
 
       // Handle potential issues
-      if (moderationResult.recommendation === "reject") {
+      if (moderationResult.flagged) {
         setError(`Your flavor submission was rejected: Inappropriate Content`)
         setIsSubmitting(false)
         return
@@ -304,7 +362,7 @@ export default function LogFlavorForm() {
         notes,
         shop_id: selectedShop,
         image_url: imageUrl,
-        category: categoryData.category,
+        category: categoryData.mainCategory,
         duplicate: duplicateCheck.isDuplicate,
       }
 
@@ -324,7 +382,7 @@ export default function LogFlavorForm() {
         description: "Your flavor has been added to your ConeDex.",
       })
 
-      router.push(`/flavors/${data.id}`)
+      router.push(`/dashboard/flavors/${data.id}`)
     } catch (error: any) {
       console.error("Error logging flavor:", error)
       setError(error.message || "An error occurred while logging your flavor. Please try again.")
@@ -339,10 +397,11 @@ export default function LogFlavorForm() {
   }
 
   return (
-    <ErrorBoundary fallback={<p>Something went wrong.</p>}>
+    <ErrorBoundary fallback={<p>Something went wrong with the flavor logging form.</p>}>
       <Card className="w-[500px] max-w-[calc(100vw-2rem)]">
         <CardHeader>
           <CardTitle>Log a New Flavor</CardTitle>
+          {demoMode && <p className="text-sm text-amber-600">Demo Mode: Limited functionality available</p>}
         </CardHeader>
         <CardContent>
           {step === "location" && (

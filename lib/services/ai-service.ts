@@ -438,3 +438,188 @@ export async function categorizeFlavor(
     }
   }
 }
+
+// Fallback function for moderateContent when OpenAI is unavailable
+export async function moderateContentFallback(text: string): Promise<{
+  flagged: boolean
+  categories: string[]
+  flags: string[]
+}> {
+  try {
+    if (!text || text.trim() === "") {
+      return { flagged: false, categories: [], flags: [] }
+    }
+
+    const client = getOpenAIClient()
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `You are a content moderation system. Analyze the following text for inappropriate content.
+          Return a JSON object with the following structure:
+          {
+            "flagged": boolean,
+            "categories": string[],
+            "flags": string[]
+          }
+          
+          Categories should be ice cream flavor categories like "chocolate", "fruit", "vanilla", etc.
+          Flags should be reasons for flagging like "profanity", "adult content", "hate speech", etc.
+          Only flag content that is truly inappropriate.`,
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: "json_object" },
+    })
+
+    const result = JSON.parse(
+      response.choices[0]?.message?.content || '{"flagged": false, "categories": [], "flags": []}',
+    )
+    return {
+      flagged: result.flagged || false,
+      categories: result.categories || [],
+      flags: result.flags || [],
+    }
+  } catch (error) {
+    console.error("Error moderating content:", error)
+    // Return safe default in case of error
+    return { flagged: false, categories: [], flags: [] }
+  }
+}
+
+// Fallback function for checkForDuplicates when OpenAI is unavailable
+export async function checkForDuplicatesFallback(
+  flavorName: string,
+  description: string,
+  existingFlavors: Array<{ name: string; description: string }> = [],
+): Promise<{
+  isDuplicate: boolean
+  similarityScore: number
+  mostSimilarFlavor: string | null
+}> {
+  try {
+    if (!flavorName || existingFlavors.length === 0) {
+      return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
+    }
+
+    // Simple fallback implementation when OpenAI is unavailable
+    // Just check for exact name matches
+    const exactMatch = existingFlavors.find((f) => f.name.toLowerCase() === flavorName.toLowerCase())
+
+    if (exactMatch) {
+      return {
+        isDuplicate: true,
+        similarityScore: 1.0,
+        mostSimilarFlavor: exactMatch.name,
+      }
+    }
+
+    // Check for partial matches
+    const partialMatches = existingFlavors.filter(
+      (f) =>
+        f.name.toLowerCase().includes(flavorName.toLowerCase()) ||
+        flavorName.toLowerCase().includes(f.name.toLowerCase()),
+    )
+
+    if (partialMatches.length > 0) {
+      return {
+        isDuplicate: true,
+        similarityScore: 0.7,
+        mostSimilarFlavor: partialMatches[0].name,
+      }
+    }
+
+    return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
+  } catch (error) {
+    console.error("Error checking for duplicates:", error)
+    // Return safe default in case of error
+    return { isDuplicate: false, similarityScore: 0, mostSimilarFlavor: null }
+  }
+}
+
+// Fallback function for categorizeFlavor when OpenAI is unavailable
+export async function categorizeFlavorFallback(
+  flavorName: string,
+  description: string,
+): Promise<{
+  mainCategory: string
+  subCategories: string[]
+  tags: string[]
+  allergens: string[]
+  dietaryInfo: string[]
+}> {
+  try {
+    if (!flavorName) {
+      return {
+        mainCategory: "Uncategorized",
+        subCategories: [],
+        tags: [],
+        allergens: [],
+        dietaryInfo: [],
+      }
+    }
+
+    // Simple fallback categorization based on common keywords
+    const lowerName = flavorName.toLowerCase()
+    const lowerDesc = description?.toLowerCase() || ""
+
+    // Determine main category
+    let mainCategory = "Uncategorized"
+    if (lowerName.includes("chocolate") || lowerDesc.includes("chocolate")) {
+      mainCategory = "Chocolate"
+    } else if (lowerName.includes("vanilla") || lowerDesc.includes("vanilla")) {
+      mainCategory = "Vanilla"
+    } else if (
+      lowerName.includes("strawberry") ||
+      lowerName.includes("raspberry") ||
+      lowerName.includes("blueberry") ||
+      lowerDesc.includes("strawberry") ||
+      lowerDesc.includes("raspberry") ||
+      lowerDesc.includes("blueberry")
+    ) {
+      mainCategory = "Fruit"
+    } else if (lowerName.includes("mint") || lowerDesc.includes("mint")) {
+      mainCategory = "Mint"
+    } else if (
+      lowerName.includes("cookie") ||
+      lowerName.includes("dough") ||
+      lowerDesc.includes("cookie") ||
+      lowerDesc.includes("dough")
+    ) {
+      mainCategory = "Cookie"
+    }
+
+    // Simple allergen detection
+    const allergens = []
+    if (lowerName.includes("nut") || lowerDesc.includes("nut")) {
+      allergens.push("nuts")
+    }
+    if (lowerName.includes("dairy") || lowerDesc.includes("dairy") || mainCategory !== "Sorbet") {
+      allergens.push("dairy")
+    }
+
+    return {
+      mainCategory,
+      subCategories: [],
+      tags: [mainCategory.toLowerCase()],
+      allergens,
+      dietaryInfo: allergens.length === 0 ? ["allergen-free"] : [],
+    }
+  } catch (error) {
+    console.error("Error categorizing flavor:", error)
+    // Return safe default in case of error
+    return {
+      mainCategory: "Uncategorized",
+      subCategories: [],
+      tags: [],
+      allergens: [],
+      dietaryInfo: [],
+    }
+  }
+}
