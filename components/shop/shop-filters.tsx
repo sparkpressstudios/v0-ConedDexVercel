@@ -9,7 +9,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 
-export default function ShopFilters() {
+// Add named export alongside default export
+export function ShopFilters() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -165,3 +166,6 @@ export default function ShopFilters() {
     </div>
   )
 }
+
+// Keep default export for backward compatibility
+export default ShopFilters

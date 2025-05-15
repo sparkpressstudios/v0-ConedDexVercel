@@ -63,10 +63,8 @@ export async function checkInToShop(shopId: string, flavorIds: string[] = []) {
   }
 }
 
-// Re-export the function
-
-// Additional check-in related actions can be added here
-export async function getRecentCheckins(limit = 5) {
+// Fix: Rename function to match the expected export name
+export async function getRecentCheckIns(limit = 5) {
   const cookieStore = cookies()
   const supabase = createClient(cookieStore)
 
@@ -91,6 +89,11 @@ export async function getRecentCheckins(limit = 5) {
     console.error("Error in getRecentCheckIns:", error)
     return { success: false, error: "An unexpected error occurred" }
   }
+}
+
+// Keep the original function as an alias for backward compatibility
+export async function getRecentCheckins(limit = 5) {
+  return getRecentCheckIns(limit)
 }
 
 export async function getUserCheckins(userId: string, limit = 10) {

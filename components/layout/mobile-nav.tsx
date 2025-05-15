@@ -65,6 +65,11 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
       href: "/dashboard/settings",
       label: "Settings",
     },
+    {
+      icon: <Store className="h-5 w-5" />,
+      href: "/dashboard/explore-shops",
+      label: "Explore Shops",
+    },
   ]
 
   // Admin-specific items

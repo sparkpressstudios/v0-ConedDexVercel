@@ -18,13 +18,13 @@ export function ExploreShopsBanner() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild variant="secondary" className="bg-white text-purple-700 hover:bg-gray-100">
-                <Link href="/shops">
+                <Link href="/dashboard/explore-shops">
                   <Search className="mr-2 h-4 w-4" />
                   Explore Shops
                 </Link>
               </Button>
               <Button asChild variant="outline" className="border-white text-white hover:bg-purple-500">
-                <Link href="/shops?view=map">
+                <Link href="/dashboard/explore-shops?view=map">
                   <MapPin className="mr-2 h-4 w-4" />
                   View Map
                 </Link>

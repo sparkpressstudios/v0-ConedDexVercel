@@ -200,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       authListener?.subscription?.unsubscribe()
     }
-  }, [supabase])
+  }, [supabase, router])
 
   const refreshProfile = async () => {
     if (!supabase || !user) return

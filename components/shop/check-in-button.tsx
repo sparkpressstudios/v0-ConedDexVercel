@@ -24,7 +24,8 @@ interface CheckInButtonProps {
   availableFlavors?: Array<{ id: string; name: string }>
 }
 
-export default function CheckInButton({ shopId, shopName, availableFlavors = [] }: CheckInButtonProps) {
+// Add named export alongside default export
+export function CheckInButton({ shopId, shopName, availableFlavors = [] }: CheckInButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedFlavors, setSelectedFlavors] = useState<string[]>([])
@@ -119,3 +120,6 @@ export default function CheckInButton({ shopId, shopName, availableFlavors = [] 
     </Dialog>
   )
 }
+
+// Keep default export for backward compatibility
+export default CheckInButton

@@ -22,7 +22,7 @@ export function PublicHeader() {
       label: "Features",
     },
     {
-      href: "/shops",
+      href: "/dashboard/explore-shops",
       label: "Explore Shops",
     },
     {
