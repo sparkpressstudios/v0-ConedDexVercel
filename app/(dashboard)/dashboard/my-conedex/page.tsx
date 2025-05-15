@@ -10,6 +10,7 @@ import PersonalFlavorCollection from "@/components/flavor/personal-flavor-collec
 import VisitedShops from "@/components/shop/visited-shops"
 import UserAchievements from "@/components/user/user-achievements"
 import PersonalStats from "@/components/user/personal-stats"
+import { redirect } from "next/navigation"
 
 // Demo user data
 const demoUsers = {
@@ -65,7 +66,8 @@ export default async function MyConeDexPage() {
         } = await supabase.auth.getUser()
 
         if (authError || !authUser) {
-          throw new Error("User not authenticated")
+          // Redirect to login if not authenticated
+          return redirect("/login?redirect=/dashboard/my-conedex")
         }
 
         user = authUser
@@ -129,12 +131,19 @@ export default async function MyConeDexPage() {
         collectionProgress = totalFlavorsCount > 0 ? Math.round((flavorLogsCount / totalFlavorsCount) * 100) : 0
       } catch (error) {
         console.error("Error in MyConeDexPage:", error)
-        // Keep default values
+        // Redirect to login on error
+        return redirect("/login?redirect=/dashboard/my-conedex")
       }
     }
   } catch (error) {
     console.error("Error in MyConeDexPage:", error)
-    // Keep default values
+    // Redirect to login on error
+    return redirect("/login?redirect=/dashboard/my-conedex")
+  }
+
+  // If we still don't have a user at this point, redirect to login
+  if (!user) {
+    return redirect("/login?redirect=/dashboard/my-conedex")
   }
 
   return (
@@ -216,7 +225,7 @@ export default async function MyConeDexPage() {
         </TabsContent>
 
         <TabsContent value="badges" className="mt-6">
-          <UserAchievements />
+          <UserAchievements userId={user?.id} isDemoUser={!!isDemoUser} />
         </TabsContent>
 
         <TabsContent value="stats" className="mt-6">

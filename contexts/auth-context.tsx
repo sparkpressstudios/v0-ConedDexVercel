@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client-browser"
 import { useRouter } from "next/navigation"
 
 type AuthContextType = {
@@ -33,13 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
-  // Check if we have the required environment variables
-  const hasEnvVars =
-    typeof window !== "undefined" &&
-    !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  // Create the Supabase client or a mock client
+  // Create the Supabase client
   const supabase = createClient()
 
   useEffect(() => {
