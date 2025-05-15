@@ -11,11 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
-import { CheckIcon as CheckIn, Search, Star, Store } from "lucide-react"
+import { CheckCircle, Search, Star, Store, List, Filter } from "lucide-react"
 import Link from "next/link"
-import { CheckInButton } from "@/components/shop/check-in-button"
-import { ShopFilters } from "@/components/shop/shop-filters"
 import Image from "next/image"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet"
 
 interface Shop {
   id: string
@@ -33,6 +32,7 @@ interface Shop {
   website: string | null
   phone: string | null
   is_active: boolean
+  is_verified: boolean
   created_at: string
   updated_at: string
   check_in_count: number
@@ -50,11 +50,6 @@ export default function ShopsExploreClient({
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [view, setView] = useState("grid")
-  const [filters, setFilters] = useState({
-    rating: 0,
-    hasWebsite: false,
-    isVerified: false,
-  })
   const router = useRouter()
   const searchParamsObj = useSearchParams()
   const { user } = useAuth()
@@ -69,9 +64,26 @@ export default function ShopsExploreClient({
       const { data, error } = await supabase
         .from("shops")
         .select(`
-          *,
-          check_in_count:shop_checkins(count),
-          flavor_count:shop_flavors(count)
+          id,
+          name,
+          description,
+          address,
+          city,
+          state,
+          zip,
+          country,
+          latitude,
+          longitude,
+          rating,
+          image_url,
+          website,
+          phone,
+          is_active,
+          is_verified,
+          created_at,
+          updated_at,
+          shop_checkins(count),
+          shop_flavors(count)
         `)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
@@ -82,8 +94,8 @@ export default function ShopsExploreClient({
       const processedData =
         data?.map((shop) => ({
           ...shop,
-          check_in_count: shop.check_in_count?.[0]?.count || 0,
-          flavor_count: shop.flavor_count?.[0]?.count || 0,
+          check_in_count: shop.shop_checkins?.[0]?.count || 0,
+          flavor_count: shop.shop_flavors?.[0]?.count || 0,
         })) || []
 
       setShops((prev) => [...prev, ...processedData])
@@ -95,7 +107,9 @@ export default function ShopsExploreClient({
   }
 
   // Search shops
-  const searchShops = async () => {
+  const searchShops = async (e: React.FormEvent) => {
+    e.preventDefault()
+
     if (!searchQuery.trim()) {
       setShops(initialShops)
       return
@@ -106,9 +120,26 @@ export default function ShopsExploreClient({
       const { data, error } = await supabase
         .from("shops")
         .select(`
-          *,
-          check_in_count:shop_checkins(count),
-          flavor_count:shop_flavors(count)
+          id,
+          name,
+          description,
+          address,
+          city,
+          state,
+          zip,
+          country,
+          latitude,
+          longitude,
+          rating,
+          image_url,
+          website,
+          phone,
+          is_active,
+          is_verified,
+          created_at,
+          updated_at,
+          shop_checkins(count),
+          shop_flavors(count)
         `)
         .eq("is_active", true)
         .or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`)
@@ -120,8 +151,8 @@ export default function ShopsExploreClient({
       const processedData =
         data?.map((shop) => ({
           ...shop,
-          check_in_count: shop.check_in_count?.[0]?.count || 0,
-          flavor_count: shop.flavor_count?.[0]?.count || 0,
+          check_in_count: shop.shop_checkins?.[0]?.count || 0,
+          flavor_count: shop.shop_flavors?.[0]?.count || 0,
         })) || []
 
       setShops(processedData)
@@ -132,35 +163,10 @@ export default function ShopsExploreClient({
     }
   }
 
-  // Apply filters
-  const applyFilters = (newFilters: typeof filters) => {
-    setFilters(newFilters)
-  }
-
-  // Filter shops based on current filters
-  const filteredShops = shops.filter((shop) => {
-    if (filters.rating > 0 && (!shop.rating || shop.rating < filters.rating)) {
-      return false
-    }
-    if (filters.hasWebsite && !shop.website) {
-      return false
-    }
-    if (filters.isVerified && !shop.is_verified) {
-      return false
-    }
-    return true
-  })
-
-  // Handle search form submission
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    searchShops()
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <form onSubmit={handleSearchSubmit} className="flex w-full max-w-lg gap-2">
+        <form onSubmit={searchShops} className="flex w-full max-w-lg gap-2">
           <Input
             type="search"
             placeholder="Search shops by name, description, or city..."
@@ -175,11 +181,35 @@ export default function ShopsExploreClient({
         </form>
 
         <div className="flex items-center gap-2">
-          <ShopFilters onApplyFilters={applyFilters} />
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1">
+                <Filter className="h-4 w-4" />
+                <span>Filters</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Filter Shops</SheetTitle>
+                <SheetDescription>Refine your search with these filters</SheetDescription>
+              </SheetHeader>
+              <div className="py-4">
+                {/* We'll implement filters later */}
+                <p className="text-sm text-muted-foreground">Filter options coming soon!</p>
+              </div>
+            </SheetContent>
+          </Sheet>
+
           <Tabs defaultValue="grid" value={view} onValueChange={setView} className="w-[200px]">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="grid">Grid</TabsTrigger>
-              <TabsTrigger value="list">List</TabsTrigger>
+              <TabsTrigger value="grid" className="flex items-center gap-1">
+                <Store className="h-4 w-4" />
+                <span>Grid</span>
+              </TabsTrigger>
+              <TabsTrigger value="list" className="flex items-center gap-1">
+                <List className="h-4 w-4" />
+                <span>List</span>
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -188,9 +218,9 @@ export default function ShopsExploreClient({
       <div className="relative">
         <Tabs value={view} className="w-full">
           <TabsContent value="grid" className="mt-0">
-            {filteredShops.length > 0 ? (
+            {shops.length > 0 ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredShops.map((shop) => (
+                {shops.map((shop) => (
                   <Card key={shop.id} className="overflow-hidden">
                     <div className="aspect-video w-full overflow-hidden bg-muted">
                       <Image
@@ -206,7 +236,8 @@ export default function ShopsExploreClient({
                         <div>
                           <h3 className="font-semibold line-clamp-1">{shop.name}</h3>
                           <p className="text-sm text-muted-foreground line-clamp-1">
-                            {shop.city}, {shop.state}
+                            {shop.city}
+                            {shop.state ? `, ${shop.state}` : ""}
                           </p>
                         </div>
                         {shop.rating && (
@@ -218,11 +249,11 @@ export default function ShopsExploreClient({
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Badge variant="secondary" className="flex items-center gap-1">
-                          <CheckIn className="h-3 w-3" />
+                          <CheckCircle className="h-3 w-3" />
                           <span>{shop.check_in_count} check-ins</span>
                         </Badge>
                         <Badge variant="secondary" className="flex items-center gap-1">
-                          <IceCream className="h-3 w-3" />
+                          <Store className="h-3 w-3" />
                           <span>{shop.flavor_count} flavors</span>
                         </Badge>
                       </div>
@@ -231,7 +262,6 @@ export default function ShopsExploreClient({
                       <Button asChild variant="outline" size="sm">
                         <Link href={`/dashboard/shops/${shop.id}`}>View Details</Link>
                       </Button>
-                      <CheckInButton shopId={shop.id} userId={user?.id} variant="outline" size="sm" />
                     </CardFooter>
                   </Card>
                 ))}
@@ -246,9 +276,9 @@ export default function ShopsExploreClient({
           </TabsContent>
 
           <TabsContent value="list" className="mt-0">
-            {filteredShops.length > 0 ? (
+            {shops.length > 0 ? (
               <div className="space-y-4">
-                {filteredShops.map((shop) => (
+                {shops.map((shop) => (
                   <Card key={shop.id} className="overflow-hidden">
                     <div className="flex flex-col md:flex-row">
                       <div className="aspect-video w-full md:w-48 overflow-hidden bg-muted">
@@ -265,7 +295,8 @@ export default function ShopsExploreClient({
                           <div>
                             <h3 className="font-semibold">{shop.name}</h3>
                             <p className="text-sm text-muted-foreground">
-                              {shop.city}, {shop.state}
+                              {shop.city}
+                              {shop.state ? `, ${shop.state}` : ""}
                             </p>
                           </div>
                           {shop.rating && (
@@ -278,25 +309,18 @@ export default function ShopsExploreClient({
                         <p className="mt-2 text-sm line-clamp-2">{shop.description || "No description available."}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           <Badge variant="secondary" className="flex items-center gap-1">
-                            <CheckIn className="h-3 w-3" />
+                            <CheckCircle className="h-3 w-3" />
                             <span>{shop.check_in_count} check-ins</span>
                           </Badge>
                           <Badge variant="secondary" className="flex items-center gap-1">
-                            <IceCream className="h-3 w-3" />
+                            <Store className="h-3 w-3" />
                             <span>{shop.flavor_count} flavors</span>
                           </Badge>
-                          {shop.website && (
-                            <Badge variant="secondary" className="flex items-center gap-1">
-                              <Globe className="h-3 w-3" />
-                              <span>Website</span>
-                            </Badge>
-                          )}
                         </div>
                         <div className="mt-auto flex items-center justify-between pt-4">
                           <Button asChild variant="outline" size="sm">
                             <Link href={`/dashboard/shops/${shop.id}`}>View Details</Link>
                           </Button>
-                          <CheckInButton shopId={shop.id} userId={user?.id} variant="outline" size="sm" />
                         </div>
                       </div>
                     </div>
@@ -320,7 +344,7 @@ export default function ShopsExploreClient({
         )}
       </div>
 
-      {filteredShops.length > 0 && (
+      {shops.length > 0 && (
         <div className="flex justify-center">
           <Button onClick={loadMoreShops} variant="outline" disabled={loading}>
             {loading ? "Loading..." : "Load More"}
@@ -330,6 +354,3 @@ export default function ShopsExploreClient({
     </div>
   )
 }
-
-// Import missing icons
-import { IceCream, Globe } from "lucide-react"

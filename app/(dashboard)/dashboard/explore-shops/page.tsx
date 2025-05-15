@@ -16,16 +16,33 @@ export default async function ExploreShopsPage({
   searchParams: { [key: string]: string | string[] | undefined }
 }) {
   const cookieStore = cookies()
-  const supabase = createServerClient()
+  const supabase = createServerClient(cookieStore)
 
   try {
-    // Fetch initial shops data
+    // Fetch initial shops data with proper error handling
     const { data: initialShops, error } = await supabase
       .from("shops")
       .select(`
-        *,
-        check_in_count:shop_checkins(count),
-        flavor_count:shop_flavors(count)
+        id,
+        name,
+        description,
+        address,
+        city,
+        state,
+        zip,
+        country,
+        latitude,
+        longitude,
+        rating,
+        image_url,
+        website,
+        phone,
+        is_active,
+        is_verified,
+        created_at,
+        updated_at,
+        shop_checkins(count),
+        shop_flavors(count)
       `)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -40,8 +57,8 @@ export default async function ExploreShopsPage({
     const processedShops =
       initialShops?.map((shop) => ({
         ...shop,
-        check_in_count: shop.check_in_count?.[0]?.count || 0,
-        flavor_count: shop.flavor_count?.[0]?.count || 0,
+        check_in_count: shop.shop_checkins?.[0]?.count || 0,
+        flavor_count: shop.shop_flavors?.[0]?.count || 0,
       })) || []
 
     return (
@@ -71,6 +88,11 @@ export default async function ExploreShopsPage({
         <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
           <h2 className="text-xl font-semibold text-red-700">Unable to load shops</h2>
           <p className="mt-2 text-red-600">We encountered an issue while loading the shops. Please try again later.</p>
+          <div className="mt-4">
+            <pre className="text-left text-xs text-red-500 bg-red-50 p-2 rounded overflow-auto max-w-full">
+              {error instanceof Error ? error.message : "Unknown error"}
+            </pre>
+          </div>
         </div>
       </div>
     )

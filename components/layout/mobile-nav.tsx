@@ -1,7 +1,22 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Store, IceCream, Users, Award, Settings, Heart, Bell, LogOut, User } from "lucide-react"
+import {
+  LayoutDashboard,
+  Store,
+  IceCream,
+  Users,
+  Award,
+  Settings,
+  Heart,
+  Bell,
+  LogOut,
+  User,
+  Search,
+  Map,
+  Compass,
+  TrendingUp,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -18,7 +33,7 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
   const { signOut } = useAuth()
   const userRole = user?.role || "explorer"
 
-  // Navigation items
+  // Navigation items - updated to match sidebar
   const navItems = [
     {
       icon: <LayoutDashboard className="h-5 w-5" />,
@@ -31,9 +46,25 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
       label: "ConeDex",
     },
     {
-      icon: <Store className="h-5 w-5" />,
-      href: "/dashboard/shops",
-      label: "Shops",
+      icon: <IceCream className="h-5 w-5" />,
+      href: "/dashboard/my-conedex",
+      label: "My ConeDex",
+    },
+    {
+      icon: <IceCream className="h-5 w-5" />,
+      href: "/dashboard/flavors",
+      label: "Flavors",
+    },
+    {
+      icon: <Search className="h-5 w-5" />,
+      href: "/dashboard/explore-shops",
+      label: "Explore Shops",
+      highlight: true,
+    },
+    {
+      icon: <Map className="h-5 w-5" />,
+      href: "/dashboard/shops/map",
+      label: "Shops Map",
     },
     {
       icon: <Heart className="h-5 w-5" />,
@@ -51,6 +82,16 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
       label: "Badges",
     },
     {
+      icon: <Compass className="h-5 w-5" />,
+      href: "/dashboard/quests",
+      label: "Quests",
+    },
+    {
+      icon: <TrendingUp className="h-5 w-5" />,
+      href: "/dashboard/leaderboard",
+      label: "Leaderboard",
+    },
+    {
       icon: <Bell className="h-5 w-5" />,
       href: "/dashboard/notifications",
       label: "Notifications",
@@ -64,11 +105,6 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
       icon: <Settings className="h-5 w-5" />,
       href: "/dashboard/settings",
       label: "Settings",
-    },
-    {
-      icon: <Store className="h-5 w-5" />,
-      href: "/dashboard/explore-shops",
-      label: "Explore Shops",
     },
   ]
 
@@ -119,7 +155,9 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
                   "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
                   pathname === item.href
                     ? "bg-purple-800 text-white"
-                    : "text-purple-300 hover:bg-purple-800 hover:text-white",
+                    : item.highlight
+                      ? "text-white bg-purple-700 hover:bg-purple-800"
+                      : "text-purple-300 hover:bg-purple-800 hover:text-white",
                 )}
               >
                 {item.icon}

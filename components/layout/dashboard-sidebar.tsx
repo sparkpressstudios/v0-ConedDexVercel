@@ -33,10 +33,7 @@ export function DashboardSidebar() {
   const supabase = createClient()
   const userRole = user?.role || "explorer"
 
-  // Check all navigation items to ensure they point to the correct routes
-  // Make sure the "Explore Shops" link points to "/dashboard/explore-shops"
-
-  // Verify the navItems array contains all required navigation items with correct paths
+  // Navigation items - removed redundant "My Shops" item
   const navItems = [
     {
       icon: <LayoutDashboard className="h-5 w-5" />,
@@ -57,11 +54,6 @@ export function DashboardSidebar() {
       icon: <IceCream className="h-5 w-5" />,
       href: "/dashboard/flavors",
       label: "Flavors",
-    },
-    {
-      icon: <Store className="h-5 w-5" />,
-      href: "/dashboard/shops",
-      label: "My Shops",
     },
     {
       icon: <Search className="h-5 w-5" />,

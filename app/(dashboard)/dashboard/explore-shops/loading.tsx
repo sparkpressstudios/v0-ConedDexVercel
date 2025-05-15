@@ -4,10 +4,8 @@ export default function ExploreShopsLoading() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-purple-900">Explore Ice Cream Shops</h1>
-        <p className="mt-2 text-lg text-muted-foreground">
-          Discover delicious ice cream shops, track your visits, and share your experiences
-        </p>
+        <div className="h-10 w-3/4 bg-gray-200 rounded animate-pulse mb-2"></div>
+        <div className="h-6 w-1/2 bg-gray-200 rounded animate-pulse"></div>
       </div>
       <ShopsPageSkeleton />
     </div>
