@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/components/ui/use-toast"
 import { createClient } from "@/lib/supabase/client"
-import { Loader2 } from "lucide-react"
+import { Loader2, Upload, X } from "lucide-react"
 
 const profileFormSchema = z.object({
   username: z
@@ -34,6 +34,7 @@ const profileFormSchema = z.object({
     .optional()
     .or(z.literal("")),
   avatar_url: z.string().optional(),
+  backdrop_url: z.string().optional(),
   preferences: z.object({
     email_notifications: z.boolean().default(true),
     push_notifications: z.boolean().default(true),
@@ -52,6 +53,8 @@ export default function ProfileEditForm({ profile }: ProfileEditFormProps) {
   const supabase = createClient()
   const [isLoading, setIsLoading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || "")
+  const [backdropUrl, setBackdropUrl] = useState(profile?.backdrop_url || "")
+  const [backdropPreview, setBackdropPreview] = useState<string | null>(profile?.backdrop_url || null)
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -63,6 +66,7 @@ export default function ProfileEditForm({ profile }: ProfileEditFormProps) {
       location: profile?.location || "",
       website: profile?.website || "",
       avatar_url: profile?.avatar_url || "",
+      backdrop_url: profile?.backdrop_url || "",
       preferences: {
         email_notifications: profile?.preferences?.email_notifications ?? true,
         push_notifications: profile?.preferences?.push_notifications ?? true,
@@ -109,6 +113,51 @@ export default function ProfileEditForm({ profile }: ProfileEditFormProps) {
     }
   }
 
+  const handleBackdropChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      setIsLoading(true)
+
+      // Create a preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setBackdropPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+
+      // Upload the file to Supabase Storage
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`
+      const filePath = `backdrops/${fileName}`
+
+      const { error: uploadError, data } = await supabase.storage.from("profiles").upload(filePath, file)
+
+      if (uploadError) {
+        throw uploadError
+      }
+
+      // Get the public URL
+      const { data: publicUrlData } = supabase.storage.from("profiles").getPublicUrl(filePath)
+
+      if (publicUrlData) {
+        const newBackdropUrl = publicUrlData.publicUrl
+        setBackdropUrl(newBackdropUrl)
+        form.setValue("backdrop_url", newBackdropUrl)
+      }
+    } catch (error) {
+      console.error("Error uploading backdrop:", error)
+      toast({
+        title: "Error",
+        description: "Could not upload backdrop image. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const onSubmit = async (data: ProfileFormValues) => {
     try {
       setIsLoading(true)
@@ -131,6 +180,7 @@ export default function ProfileEditForm({ profile }: ProfileEditFormProps) {
           location: data.location,
           website: data.website,
           avatar_url: data.avatar_url,
+          backdrop_url: data.backdrop_url,
           preferences: data.preferences,
           updated_at: new Date().toISOString(),
         })
@@ -169,6 +219,52 @@ export default function ProfileEditForm({ profile }: ProfileEditFormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Backdrop Image */}
+            <div className="space-y-4">
+              <FormLabel>Profile Backdrop</FormLabel>
+              <div className="relative h-48 w-full overflow-hidden rounded-lg bg-muted">
+                {backdropPreview ? (
+                  <>
+                    <img
+                      src={backdropPreview || "/placeholder.svg"}
+                      alt="Profile backdrop"
+                      className="h-full w-full object-cover"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute right-2 top-2"
+                      onClick={() => {
+                        setBackdropPreview(null)
+                        setBackdropUrl("")
+                        form.setValue("backdrop_url", "")
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center">
+                    <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Upload a backdrop image</p>
+                  </div>
+                )}
+                <input
+                  id="backdrop-upload"
+                  type="file"
+                  accept="image/*"
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={handleBackdropChange}
+                  disabled={isLoading}
+                />
+              </div>
+              <FormDescription>
+                Choose a backdrop image for your profile. Recommended size: 1200×400 pixels.
+              </FormDescription>
+            </div>
+
+            {/* Avatar */}
             <div className="flex flex-col items-center space-y-4">
               <Avatar className="h-24 w-24">
                 <AvatarImage src={avatarUrl || "/placeholder.svg"} alt={profile?.full_name || "User"} />

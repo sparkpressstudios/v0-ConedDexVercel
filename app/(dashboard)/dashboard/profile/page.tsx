@@ -42,19 +42,38 @@ export default async function ProfilePage() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">My Profile</h1>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* Profile Backdrop */}
+      <div className="relative h-48 w-full overflow-hidden rounded-lg">
+        {profile?.backdrop_url ? (
+          <img
+            src={profile.backdrop_url || "/placeholder.svg"}
+            alt="Profile backdrop"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-r from-pink-100 to-pink-200">
+            <p className="text-lg font-medium text-pink-800">Add a backdrop image to personalize your profile</p>
+          </div>
+        )}
+
+        {/* Avatar positioned over the backdrop */}
+        <div className="absolute -bottom-12 left-6">
+          <Avatar className="h-24 w-24 border-4 border-background">
+            <AvatarImage
+              src={profile?.avatar_url || "/placeholder.svg"}
+              alt={profile?.full_name || profile?.username}
+            />
+            <AvatarFallback>{getInitials(profile?.full_name || profile?.username || "User")}</AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+
+      <div className="grid gap-6 pt-12 md:grid-cols-2">
         <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Profile Information</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center text-center">
-            <Avatar className="h-24 w-24">
-              <AvatarImage
-                src={profile?.avatar_url || "/placeholder.svg"}
-                alt={profile?.full_name || profile?.username}
-              />
-              <AvatarFallback>{getInitials(profile?.full_name || profile?.username || "User")}</AvatarFallback>
-            </Avatar>
             <h2 className="mt-4 text-xl font-bold">{profile?.full_name || "No Name Set"}</h2>
             <p className="text-sm text-muted-foreground">@{profile?.username || "username"}</p>
             <div className="mt-2 flex items-center gap-1">
@@ -67,6 +86,17 @@ export default async function ProfilePage() {
               </span>
             </div>
             <p className="mt-4 text-sm">{profile?.bio || "No bio yet"}</p>
+            {profile?.location && <p className="mt-2 text-sm text-muted-foreground">📍 {profile.location}</p>}
+            {profile?.website && (
+              <a
+                href={profile.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 text-sm text-primary hover:underline"
+              >
+                🌐 {profile.website.replace(/^https?:\/\//, "")}
+              </a>
+            )}
             <Button asChild className="mt-4 w-full">
               <Link href="/dashboard/settings">Edit Profile</Link>
             </Button>
