@@ -192,3 +192,35 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
 }
 
 export { ChartLegend, ChartLegendContent, ChartStyle }
+
+import { useTheme } from "next-themes"
+import { BarChart as Chart } from "@tremor/react"
+
+export function BarChart({
+  data,
+  index,
+  categories,
+  colors,
+  valueFormatter,
+  showLegend = true,
+  showXAxis = true,
+  showYAxis = true,
+}) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
+  
+  return (
+    <Chart
+      data={data}
+      index={index}
+      categories={categories}
+      colors={colors}
+      valueFormatter={valueFormatter}
+      showLegend={showLegend}
+      showXAxis={showXAxis}
+      showYAxis={showYAxis}
+      className="h-full w-full"
+      theme={isDark ? "dark" : "light"}
+    />
+  )
+}
