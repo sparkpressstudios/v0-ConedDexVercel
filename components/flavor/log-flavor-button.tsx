@@ -1,31 +1,42 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { PlusCircle } from "lucide-react"
-import { LogFlavorModal } from "./log-flavor-modal"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { LogFlavorForm } from "./log-flavor-form"
 
-interface LogFlavorButtonProps {
-  variant?: "default" | "outline" | "secondary" | "ghost" | "link" | "destructive"
-  size?: "default" | "sm" | "lg" | "icon"
-  className?: string
+interface LogFlavorButtonProps extends React.ComponentProps<typeof Button> {
+  children?: React.ReactNode
 }
 
 // Named export
-export function LogFlavorButton({ variant = "default", size = "default", className }: LogFlavorButtonProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false)
+export function LogFlavorButton({ children, ...props }: LogFlavorButtonProps) {
+  const [open, setOpen] = useState(false)
 
   return (
     <>
-      <Button variant={variant} size={size} onClick={() => setIsModalOpen(true)} className={className}>
-        <PlusCircle className="mr-2 h-4 w-4" />
-        Log Flavor
+      <Button onClick={() => setOpen(true)} {...props}>
+        {children || (
+          <>
+            <span className="mr-2">🍦</span> Log Flavor
+          </>
+        )}
       </Button>
 
-      <LogFlavorModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Log a New Flavor</DialogTitle>
+            <DialogDescription>Record your ice cream discoveries and build your ConeDex collection!</DialogDescription>
+          </DialogHeader>
+          <LogFlavorForm onSuccess={() => setOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
 
-// Default export (re-exporting the named export)
+// Default export
 export default LogFlavorButton

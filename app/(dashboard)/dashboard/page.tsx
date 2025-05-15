@@ -7,6 +7,8 @@ import Image from "next/image"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getDemoUser } from "@/lib/auth/session"
 import { cookies } from "next/headers"
+import { Compass, TrendingUp } from "lucide-react"
+import { LogFlavorButton } from "@/components/flavor/log-flavor-button"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -129,18 +131,16 @@ export default async function DashboardPage() {
                 <h1 className="text-3xl font-bold tracking-tight">
                   Hello, {profile?.full_name || profile?.username || "Explorer"}!
                 </h1>
-                <p className="mt-1 text-white/80">Welcome to ConeDex</p>
+                <p className="mt-1 text-white/80">Welcome back to ConeDex</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button asChild variant="secondary" className="bg-white text-orange-600 hover:bg-white/90">
-                <Link href="/dashboard/flavors">
-                  <IceCream className="mr-2 h-4 w-4" />
-                  Browse Flavors
-                </Link>
-              </Button>
+              <LogFlavorButton variant="secondary" className="bg-white text-orange-600 hover:bg-white/90">
+                <IceCream className="mr-2 h-4 w-4" />
+                Log Flavor
+              </LogFlavorButton>
               <Button asChild variant="outline" className="bg-white/10 text-white hover:bg-white/20">
-                <Link href="/dashboard/shops">
+                <Link href="/dashboard/shops/map">
                   <MapPin className="mr-2 h-4 w-4" />
                   Find Shops
                 </Link>
@@ -206,8 +206,8 @@ export default async function DashboardPage() {
         {/* Explorer Tools */}
         <div>
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Explorer Tools</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <Link href="/dashboard/flavors">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link href="/dashboard/conedex">
               <Card className="border border-gray-100 shadow-sm bg-coral-50 hover:bg-coral-100 transition-colors cursor-pointer h-full">
                 <CardContent className="p-4">
                   <div className="flex flex-col items-center text-center">
@@ -221,29 +221,43 @@ export default async function DashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/dashboard/shops">
+            <Link href="/dashboard/shops/map">
               <Card className="border border-gray-100 shadow-sm bg-orange-50 hover:bg-orange-100 transition-colors cursor-pointer h-full">
                 <CardContent className="p-4">
                   <div className="flex flex-col items-center text-center">
                     <div className="p-2 bg-orange-500 rounded-lg text-white mb-3">
                       <MapPin className="h-5 w-5" />
                     </div>
-                    <span className="font-medium text-gray-800">Shop Directory</span>
-                    <p className="text-xs text-gray-500 mt-1">Find ice cream shops</p>
+                    <span className="font-medium text-gray-800">Shop Map</span>
+                    <p className="text-xs text-gray-500 mt-1">Find nearby shops</p>
                   </div>
                 </CardContent>
               </Card>
             </Link>
 
-            <Link href="/dashboard/badges">
+            <Link href="/dashboard/quests">
+              <Card className="border border-gray-100 shadow-sm bg-purple-50 hover:bg-purple-100 transition-colors cursor-pointer h-full">
+                <CardContent className="p-4">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="p-2 bg-purple-500 rounded-lg text-white mb-3">
+                      <Compass className="h-5 w-5" />
+                    </div>
+                    <span className="font-medium text-gray-800">Quests</span>
+                    <p className="text-xs text-gray-500 mt-1">Complete challenges</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/dashboard/leaderboard">
               <Card className="border border-gray-100 shadow-sm bg-teal-50 hover:bg-teal-100 transition-colors cursor-pointer h-full">
                 <CardContent className="p-4">
                   <div className="flex flex-col items-center text-center">
                     <div className="p-2 bg-teal-500 rounded-lg text-white mb-3">
-                      <Award className="h-5 w-5" />
+                      <TrendingUp className="h-5 w-5" />
                     </div>
-                    <span className="font-medium text-gray-800">Badges</span>
-                    <p className="text-xs text-gray-500 mt-1">View your achievements</p>
+                    <span className="font-medium text-gray-800">Leaderboard</span>
+                    <p className="text-xs text-gray-500 mt-1">See top explorers</p>
                   </div>
                 </CardContent>
               </Card>

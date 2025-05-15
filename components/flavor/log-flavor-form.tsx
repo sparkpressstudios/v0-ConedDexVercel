@@ -1,514 +1,148 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Camera, Upload, X, Loader2, AlertTriangle } from "lucide-react"
+import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase/client"
-import { getUserLocation, getNearbyShops } from "@/lib/services/location-service"
-import { categorizeFlavor, checkForDuplicates, moderateContent, analyzeImage } from "@/lib/services/ai-service"
-import { ErrorBoundary } from "@/components/ui/error-boundary"
-import { flavorLogFormSchema, validateForm } from "@/lib/utils/form-validation"
-import { updateLeaderboardOnFlavorLog } from "@/lib/utils/leaderboard-utils"
+import { Loader2, Star } from "lucide-react"
 
-// Demo data for when Supabase is unavailable
-const DEMO_SHOPS = [
-  { place_id: "demo-shop-1", name: "Scoops Ahoy Ice Cream" },
-  { place_id: "demo-shop-2", name: "Frozen Delights" },
-  { place_id: "demo-shop-3", name: "Sweet Treats Creamery" },
-  { place_id: "demo-shop-4", name: "Cone Zone" },
-  { place_id: "demo-shop-5", name: "Frosty's Ice Cream Parlor" },
-]
+const formSchema = z.object({
+  flavorName: z.string().min(2, {
+    message: "Flavor name must be at least 2 characters.",
+  }),
+  shopName: z.string().min(2, {
+    message: "Shop name must be at least 2 characters.",
+  }),
+  rating: z.number().min(1).max(5),
+  notes: z.string().optional(),
+  category: z.string().optional(),
+})
 
 interface LogFlavorFormProps {
-  demoMode?: boolean
+  onSuccess?: () => void
 }
 
-export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const supabase = demoMode ? null : createClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Form state
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
-  const [rating, setRating] = useState(5)
-  const [notes, setNotes] = useState("")
-  const [selectedShop, setSelectedShop] = useState<string | null>(null)
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [isUsingCamera, setIsUsingCamera] = useState(false)
-  const [videoStream, setVideoStream] = useState<MediaStream | null>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  // Form validation state
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-
-  // Location state
-  const [isCheckingLocation, setIsCheckingLocation] = useState(false)
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
-  const [nearbyShops, setNearbyShops] = useState<any[]>([])
-  const [locationVerified, setLocationVerified] = useState(false)
-  const [locationError, setLocationError] = useState<string | null>(null)
-
-  // Form submission state
+// Named export
+export function LogFlavorForm({ onSuccess }: LogFlavorFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [step, setStep] = useState<"location" | "details" | "review">("location")
-  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
+  const supabase = createClient()
 
-  // AI moderation state
-  const [isCheckingContent, setIsCheckingContent] = useState(false)
-  const [moderationResult, setModerationResult] = useState<any>(null)
-  const [duplicateCheckResult, setDuplicateCheckResult] = useState<any>(null)
-  const [imageAnalysisResult, setImageAnalysisResult] = useState<any>(null)
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      flavorName: "",
+      shopName: "",
+      rating: 5,
+      notes: "",
+      category: "classic",
+    },
+  })
 
-  // Clean up video stream when component unmounts
-  useEffect(() => {
-    return () => {
-      if (videoStream) {
-        videoStream.getTracks().forEach((track) => track.stop())
-      }
-    }
-  }, [videoStream])
-
-  // Check for nearby shops based on user's location
-  const checkLocation = async () => {
-    setIsCheckingLocation(true)
-    setLocationError(null)
-
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      if (demoMode) {
-        // In demo mode, simulate location check
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        setUserLocation({ latitude: 37.7749, longitude: -122.4194 }) // Example coordinates
-        setNearbyShops(DEMO_SHOPS)
-        setLocationVerified(true)
-        toast({
-          title: "Demo Mode: Location verified!",
-          description: `Found ${DEMO_SHOPS.length} ice cream shops nearby.`,
-        })
-        setStep("details")
-      } else {
-        // Normal flow with real location check
-        const position = await getUserLocation()
-        const { latitude, longitude } = position.coords
-        setUserLocation({ latitude, longitude })
+      setIsSubmitting(true)
 
-        const shops = await getNearbyShops(latitude, longitude, 30) // 30 meters ≈ 100 feet
-        setNearbyShops(shops)
-
-        if (shops.length === 0) {
-          setLocationError("No ice cream shops found nearby. You must be within 100 feet of a shop to log a flavor.")
-          setLocationVerified(false)
-        } else {
-          setLocationVerified(true)
-          toast({
-            title: "Location verified!",
-            description: `Found ${shops.length} ice cream ${shops.length === 1 ? "shop" : "shops"} nearby.`,
-          })
-          setStep("details")
-        }
-      }
-    } catch (error: any) {
-      console.error("Error getting location:", error)
-
-      if (demoMode) {
-        // In demo mode, continue anyway with demo shops
-        setUserLocation({ latitude: 37.7749, longitude: -122.4194 }) // Example coordinates
-        setNearbyShops(DEMO_SHOPS)
-        setLocationVerified(true)
-        toast({
-          title: "Demo Mode: Location verified!",
-          description: `Found ${DEMO_SHOPS.length} ice cream shops nearby.`,
-        })
-        setStep("details")
-      } else {
-        setLocationError(
-          error.message || "Unable to verify your location. Please ensure location services are enabled and try again.",
-        )
-        setLocationVerified(false)
-      }
-    } finally {
-      setIsCheckingLocation(false)
-    }
-  }
-
-  // Handle file upload
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Image must be less than 5MB",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Validate file type
-      if (!file.type.startsWith("image/")) {
-        toast({
-          title: "Invalid file type",
-          description: "Please upload an image file",
-          variant: "destructive",
-        })
-        return
-      }
-
-      setImageFile(file)
-      const previewUrl = URL.createObjectURL(file)
-      setImagePreview(previewUrl)
-
-      // If not in demo mode, analyze the image
-      if (!demoMode) {
-        await analyzeUploadedImage(previewUrl)
-      }
-    }
-  }
-
-  // Analyze uploaded image
-  const analyzeUploadedImage = async (imageUrl: string) => {
-    if (demoMode) return
-
-    try {
-      setIsCheckingContent(true)
-      const result = await analyzeImage(imageUrl)
-      setImageAnalysisResult(result)
-
-      if (result.flagged) {
-        toast({
-          title: "Image flagged",
-          description: `The image may contain inappropriate content: ${result.imageIssues.join(", ")}`,
-          variant: "destructive",
-        })
-      }
-
-      if (!result.isIceCream) {
-        toast({
-          title: "Image may not be ice cream",
-          description: "The uploaded image doesn't appear to contain ice cream. Please upload an image of the flavor.",
-          variant: "warning",
-        })
-      }
-    } catch (error) {
-      console.error("Error analyzing image:", error)
-    } finally {
-      setIsCheckingContent(false)
-    }
-  }
-
-  // Handle camera capture
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      })
-
-      setVideoStream(stream)
-      setIsUsingCamera(true)
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-    } catch (error: any) {
-      console.error("Error accessing camera:", error)
-      toast({
-        title: "Camera Error",
-        description: error.message || "Unable to access your camera. Please check permissions.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const capturePhoto = async () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current
-      const canvas = canvasRef.current
-      const context = canvas.getContext("2d")
-
-      if (context) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-        canvas.toBlob(
-          async (blob) => {
-            if (blob) {
-              const file = new File([blob], "flavor-photo.jpg", { type: "image/jpeg" })
-              setImageFile(file)
-              const previewUrl = URL.createObjectURL(blob)
-              setImagePreview(previewUrl)
-              stopCamera()
-
-              // If not in demo mode, analyze the image
-              if (!demoMode) {
-                await analyzeUploadedImage(previewUrl)
-              }
-            }
-          },
-          "image/jpeg",
-          0.8,
-        ) // 0.8 quality to reduce file size
-      }
-    }
-  }
-
-  const stopCamera = () => {
-    if (videoStream) {
-      videoStream.getTracks().forEach((track) => track.stop())
-      setVideoStream(null)
-    }
-    setIsUsingCamera(false)
-  }
-
-  // Check for vulgar content
-  const checkForVulgarContent = async () => {
-    if (demoMode) return true
-
-    try {
-      setIsCheckingContent(true)
-      const result = await moderateContent(`${name} ${description} ${notes}`)
-      setModerationResult(result)
-
-      if (result.flagged) {
-        toast({
-          title: "Content flagged",
-          description: `Your submission contains inappropriate content: ${result.flags.join(", ")}`,
-          variant: "destructive",
-        })
-        return false
-      }
-      return true
-    } catch (error) {
-      console.error("Error checking for vulgar content:", error)
-      return true // Continue if the check fails
-    } finally {
-      setIsCheckingContent(false)
-    }
-  }
-
-  // Check for duplicate flavors
-  const checkForDuplicateFlavors = async () => {
-    if (demoMode) return true
-
-    try {
-      setIsCheckingContent(true)
-      const result = await checkForDuplicates(name, description)
-      setDuplicateCheckResult(result)
-
-      if (result.isDuplicate && result.duplicateConfidence > 0.8) {
-        toast({
-          title: "Possible duplicate",
-          description: `This flavor appears to be similar to "${result.similarTo}"`,
-          variant: "warning",
-        })
-        // Don't block submission, just warn
-      }
-      return true
-    } catch (error) {
-      console.error("Error checking for duplicates:", error)
-      return true // Continue if the check fails
-    } finally {
-      setIsCheckingContent(false)
-    }
-  }
-
-  // Validate form data
-  const validateFormData = () => {
-    if (!selectedShop) {
-      setFormErrors({ shopId: "Please select a shop" })
-      return false
-    }
-
-    const formData = {
-      name,
-      description,
-      rating,
-      notes,
-      shopId: selectedShop,
-    }
-
-    const result = validateForm(flavorLogFormSchema, formData)
-
-    if (!result.success) {
-      setFormErrors(result.errors || {})
-      return false
-    }
-
-    setFormErrors({})
-    return true
-  }
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setError(null)
-
-    try {
-      // First validate the form data
-      if (!validateFormData()) {
-        setIsSubmitting(false)
-        return
-      }
-
-      // Check for vulgar content
-      const contentIsClean = await checkForVulgarContent()
-      if (!contentIsClean) {
-        setIsSubmitting(false)
-        return
-      }
-
-      // Check for duplicate flavors
-      await checkForDuplicateFlavors()
-      // We don't block on duplicates, just warn
-
-      if (demoMode) {
-        // In demo mode, simulate submission
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-
-        toast({
-          title: "Demo Mode: Flavor logged successfully!",
-          description: "Your flavor has been added to your ConeDex.",
-        })
-
-        router.push(`/dashboard`)
-        return
-      }
-
-      // Normal flow with real submission
-      // Get user's current location
-      const location = await getUserLocation()
-      if (!location) {
-        setError("Unable to get your location. You must be at an ice cream shop to log a flavor.")
-        setIsSubmitting(false)
-        return
-      }
-
-      // Check if user is near an ice cream shop
-      const nearbyShops = await getNearbyShops(location.coords.latitude, location.coords.longitude, 30)
-      if (nearbyShops.length === 0) {
-        setError("No ice cream shops found near your location. You must be at an ice cream shop to log a flavor.")
-        setIsSubmitting(false)
-        return
-      }
-
-      const formData = {
-        name,
-        description,
-        rating,
-        notes,
-      }
-
-      // Upload image if provided
-      let imageUrl = null
-      if (imageFile && supabase) {
-        const fileExt = imageFile.name.split(".").pop()
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`
-        const filePath = `flavor-photos/${fileName}`
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("flavor-images")
-          .upload(filePath, imageFile)
-
-        if (uploadError) {
-          setError(`Error uploading image: ${uploadError.message}`)
-          setIsSubmitting(false)
-          return
-        }
-
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("flavor-images").getPublicUrl(filePath)
-        imageUrl = publicUrl
-      }
-
-      if (!supabase) {
-        throw new Error("Supabase client not available")
-      }
-
-      // Get existing flavors for duplicate checking
-      const { data: existingFlavors } = await supabase.from("flavor_logs").select("name, description").limit(50)
-
-      // Use AI to analyze the flavor
-      const categoryData = await categorizeFlavor(name, description)
-
-      // If image analysis flagged the image, warn but don't block
-      if (imageAnalysisResult?.flagged) {
-        toast({
-          title: "Image may be inappropriate",
-          description: "Your image has been flagged for review by a moderator.",
-          variant: "warning",
-        })
-      }
-
-      // If it's not ice cream, warn but don't block
-      if (imageUrl && imageAnalysisResult && !imageAnalysisResult.isIceCream) {
-        toast({
-          title: "Image may not be ice cream",
-          description: "Your image doesn't appear to contain ice cream. It will be reviewed by a moderator.",
-          variant: "warning",
-        })
-      }
-
+      // Get the current user
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
-      const flavorData = {
-        name,
-        description,
-        rating,
-        notes,
-        shop_id: selectedShop,
-        image_url: imageUrl,
-        category: categoryData.mainCategory,
-        duplicate: duplicateCheckResult?.isDuplicate || false,
-        moderation_status: moderationResult?.flagged || imageAnalysisResult?.flagged ? "pending" : "approved",
+      if (!user) {
+        toast({
+          title: "Authentication Error",
+          description: "You must be logged in to log a flavor.",
+          variant: "destructive",
+        })
+        return
       }
 
-      const { data, error: insertError } = await supabase.from("flavor_logs").insert([flavorData]).select().single()
+      // First, check if the shop exists or create it
+      let shopId: string | null = null
+      const { data: existingShops } = await supabase.from("shops").select("id").eq("name", values.shopName).limit(1)
 
-      if (insertError) {
-        throw insertError
+      if (existingShops && existingShops.length > 0) {
+        shopId = existingShops[0].id
+      } else {
+        // Create a new shop
+        const { data: newShop, error: shopError } = await supabase
+          .from("shops")
+          .insert({
+            name: values.shopName,
+            created_by: user.id,
+          })
+          .select("id")
+          .single()
+
+        if (shopError) {
+          throw new Error(`Error creating shop: ${shopError.message}`)
+        }
+
+        shopId = newShop.id
       }
 
-      if (user) {
-        await updateLeaderboardOnFlavorLog(user.id)
+      // Check if the flavor exists or create it
+      let flavorId: string | null = null
+      const { data: existingFlavors } = await supabase
+        .from("flavors")
+        .select("id")
+        .eq("name", values.flavorName)
+        .limit(1)
+
+      if (existingFlavors && existingFlavors.length > 0) {
+        flavorId = existingFlavors[0].id
+      } else {
+        // Create a new flavor
+        const { data: newFlavor, error: flavorError } = await supabase
+          .from("flavors")
+          .insert({
+            name: values.flavorName,
+            category: values.category || "classic",
+            created_by: user.id,
+          })
+          .select("id")
+          .single()
+
+        if (flavorError) {
+          throw new Error(`Error creating flavor: ${flavorError.message}`)
+        }
+
+        flavorId = newFlavor.id
       }
 
-      // Success! Redirect or show success message
-      toast({
-        title: "Flavor logged successfully!",
-        description: "Your flavor has been added to your ConeDex.",
+      // Log the flavor
+      const { error: logError } = await supabase.from("flavor_logs").insert({
+        user_id: user.id,
+        flavor_id: flavorId,
+        shop_id: shopId,
+        rating: values.rating,
+        notes: values.notes,
       })
 
-      router.push(`/dashboard/flavors/${data.id}`)
-    } catch (error: any) {
-      console.error("Error logging flavor:", error)
-      setError(error.message || "An error occurred while logging your flavor. Please try again.")
+      if (logError) {
+        throw new Error(`Error logging flavor: ${logError.message}`)
+      }
+
       toast({
-        title: "Error Logging Flavor",
-        description: error.message || "There was an error logging your flavor. Please try again.",
+        title: "Flavor Logged!",
+        description: `You've added ${values.flavorName} from ${values.shopName} to your ConeDex.`,
+      })
+
+      form.reset()
+      onSuccess?.()
+    } catch (error) {
+      console.error("Error logging flavor:", error)
+      toast({
+        title: "Error",
+        description: "There was a problem logging your flavor. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -517,214 +151,125 @@ export default function LogFlavorForm({ demoMode = false }: LogFlavorFormProps) 
   }
 
   return (
-    <ErrorBoundary fallback={<p>Something went wrong with the flavor logging form.</p>}>
-      <Card className="w-[500px] max-w-[calc(100vw-2rem)]">
-        <CardHeader>
-          <CardTitle>Log a New Flavor</CardTitle>
-          {demoMode && <p className="text-sm text-amber-600">Demo Mode: Limited functionality available</p>}
-        </CardHeader>
-        <CardContent>
-          {step === "location" && (
-            <div className="flex flex-col space-y-4">
-              <p>To log a flavor, you must be within 100 feet of an ice cream shop.</p>
-              {locationError && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{locationError}</AlertDescription>
-                </Alert>
-              )}
-              <Button onClick={checkLocation} disabled={isCheckingLocation}>
-                {isCheckingLocation ? (
-                  <>
-                    Checking Location <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  </>
-                ) : (
-                  "Check Location"
-                )}
-              </Button>
-            </div>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <FormField
+          control={form.control}
+          name="flavorName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Flavor Name</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g. Vanilla Bean" {...field} />
+              </FormControl>
+              <FormDescription>Enter the name of the ice cream flavor you tried.</FormDescription>
+              <FormMessage />
+            </FormItem>
           )}
+        />
 
-          {step === "details" && (
-            <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
-              <div className="grid w-full gap-2">
-                <Label htmlFor="shop">Shop</Label>
-                <Select value={selectedShop || ""} onValueChange={(value) => setSelectedShop(value)}>
-                  <SelectTrigger id="shop">
-                    <SelectValue placeholder="Select a shop" />
+        <FormField
+          control={form.control}
+          name="shopName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Shop Name</FormLabel>
+              <FormControl>
+                <Input placeholder="e.g. Sweet Scoops" {...field} />
+              </FormControl>
+              <FormDescription>Where did you try this flavor?</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Category</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {nearbyShops.map((shop: any) => (
-                      <SelectItem key={shop.place_id} value={shop.place_id}>
-                        {shop.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formErrors.shopId && <p className="text-sm text-red-500">{formErrors.shopId}</p>}
-              </div>
-              <div className="grid w-full gap-2">
-                <Label htmlFor="name">Flavor Name</Label>
-                <Input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Chocolate Fudge Brownie"
-                />
-                {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
-              </div>
-              <div className="grid w-full gap-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe the flavor"
-                />
-                {formErrors.description && <p className="text-sm text-red-500">{formErrors.description}</p>}
-              </div>
-              <div className="grid w-full gap-2">
-                <Label htmlFor="rating">Rating</Label>
-                <Slider
-                  id="rating"
-                  defaultValue={[rating]}
-                  max={10}
-                  min={1}
-                  step={1}
-                  onValueChange={(value) => setRating(value[0])}
-                />
-                <p className="text-sm text-muted-foreground">Rating: {rating}</p>
-              </div>
-              <div className="grid w-full gap-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Any additional notes?"
-                />
-              </div>
-
-              <div className="grid w-full gap-2">
-                <Label htmlFor="image">Image</Label>
-                {imagePreview ? (
-                  <div className="relative w-full aspect-square rounded-md overflow-hidden">
-                    <img
-                      src={imagePreview || "/placeholder.svg"}
-                      alt="Flavor Preview"
-                      className="object-cover w-full h-full"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 bg-background/50 hover:bg-background/80"
-                      onClick={() => {
-                        setImageFile(null)
-                        setImagePreview(null)
-                        setImageAnalysisResult(null)
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="sr-only">Remove image</span>
-                    </Button>
-
-                    {imageAnalysisResult && !imageAnalysisResult.isIceCream && (
-                      <Alert variant="warning" className="mt-2">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Warning</AlertTitle>
-                        <AlertDescription>
-                          This image may not contain ice cream. Please upload an image of the flavor.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    {isUsingCamera ? (
-                      <div className="relative w-full aspect-square rounded-md overflow-hidden">
-                        <video ref={videoRef} autoPlay className="object-cover w-full h-full"></video>
-                        <canvas ref={canvasRef} className="hidden"></canvas>
-                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex space-x-2">
-                          <Button variant="secondary" size="sm" onClick={capturePhoto}>
-                            Capture
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={stopCamera}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex space-x-2">
-                        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                          <Upload className="mr-2 h-4 w-4" />
-                          Upload
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={startCamera}>
-                          <Camera className="mr-2 h-4 w-4" />
-                          Take Photo
-                        </Button>
-                      </div>
-                    )}
-                    <Input
-                      type="file"
-                      id="image"
-                      accept="image/*"
-                      className="hidden"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                    />
-                  </>
-                )}
-              </div>
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {moderationResult?.flagged && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Inappropriate Content Detected</AlertTitle>
-                  <AlertDescription>
-                    Your submission contains content that violates our guidelines: {moderationResult.flags.join(", ")}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {duplicateCheckResult?.isDuplicate && duplicateCheckResult.duplicateConfidence > 0.8 && (
-                <Alert variant="warning">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Possible Duplicate</AlertTitle>
-                  <AlertDescription>
-                    This flavor appears to be similar to "{duplicateCheckResult.similarTo}" with{" "}
-                    {Math.round(duplicateCheckResult.duplicateConfidence * 100)}% confidence.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <Button disabled={isSubmitting || isCheckingContent}>
-                {isSubmitting ? (
-                  <>
-                    Submitting <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  </>
-                ) : isCheckingContent ? (
-                  <>
-                    Checking Content <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  </>
-                ) : (
-                  "Submit"
-                )}
-              </Button>
-            </form>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="classic">Classic</SelectItem>
+                  <SelectItem value="chocolate">Chocolate</SelectItem>
+                  <SelectItem value="fruit">Fruit</SelectItem>
+                  <SelectItem value="nut">Nut</SelectItem>
+                  <SelectItem value="specialty">Specialty</SelectItem>
+                  <SelectItem value="seasonal">Seasonal</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormDescription>Select a category for this flavor.</FormDescription>
+              <FormMessage />
+            </FormItem>
           )}
-        </CardContent>
-      </Card>
-    </ErrorBoundary>
+        />
+
+        <FormField
+          control={form.control}
+          name="rating"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Rating</FormLabel>
+              <div className="flex items-center gap-4">
+                <FormControl>
+                  <Slider
+                    min={1}
+                    max={5}
+                    step={1}
+                    value={[field.value]}
+                    onValueChange={(value) => field.onChange(value[0])}
+                    className="w-full"
+                  />
+                </FormControl>
+                <div className="flex items-center">
+                  <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
+                  <span className="ml-1 font-medium">{field.value}</span>
+                </div>
+              </div>
+              <FormDescription>How would you rate this flavor?</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Notes</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="What did you think about this flavor? Any special ingredients or characteristics?"
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>Optional: Add your thoughts about this flavor.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <Button type="submit" disabled={isSubmitting} className="w-full">
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Logging...
+            </>
+          ) : (
+            "Log Flavor"
+          )}
+        </Button>
+      </form>
+    </Form>
   )
 }
+
+// Default export
+export default LogFlavorForm

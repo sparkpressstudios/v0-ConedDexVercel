@@ -3,7 +3,19 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Store, IceCream, Award, Menu, X, LogOut, Settings } from "lucide-react"
+import {
+  LayoutDashboard,
+  Store,
+  IceCream,
+  Award,
+  Menu,
+  X,
+  LogOut,
+  Settings,
+  Compass,
+  Users,
+  TrendingUp,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -24,8 +36,8 @@ export function DashboardSidebar() {
     },
     {
       icon: <IceCream className="h-5 w-5" />,
-      href: "/dashboard/flavors",
-      label: "Flavors",
+      href: "/dashboard/conedex",
+      label: "ConeDex",
     },
     {
       icon: <Store className="h-5 w-5" />,
@@ -36,6 +48,21 @@ export function DashboardSidebar() {
       icon: <Award className="h-5 w-5" />,
       href: "/dashboard/badges",
       label: "Badges",
+    },
+    {
+      icon: <Compass className="h-5 w-5" />,
+      href: "/dashboard/quests",
+      label: "Quests",
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      href: "/dashboard/teams",
+      label: "Teams",
+    },
+    {
+      icon: <TrendingUp className="h-5 w-5" />,
+      href: "/dashboard/leaderboard",
+      label: "Leaderboard",
     },
     {
       icon: <Settings className="h-5 w-5" />,
