@@ -7,27 +7,31 @@ import {
   LayoutDashboard,
   Store,
   IceCream,
+  Users,
   Award,
   Menu,
   X,
+  BarChart,
   LogOut,
-  Settings,
+  Lock,
+  Bell,
   Compass,
-  Users,
   TrendingUp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
 
 export function DashboardSidebar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const { user, signOut } = useAuth()
+  const supabase = createClient()
   const userRole = user?.role || "explorer"
 
-  // Simplified navigation items - only include working pages
+  // Navigation items - restored all original items
   const navItems = [
     {
       icon: <LayoutDashboard className="h-5 w-5" />,
@@ -40,9 +44,24 @@ export function DashboardSidebar() {
       label: "ConeDex",
     },
     {
+      icon: <IceCream className="h-5 w-5" />,
+      href: "/dashboard/my-conedex",
+      label: "My ConeDex",
+    },
+    {
+      icon: <IceCream className="h-5 w-5" />,
+      href: "/dashboard/flavors",
+      label: "Flavors",
+    },
+    {
       icon: <Store className="h-5 w-5" />,
       href: "/dashboard/shops",
       label: "Shops",
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      href: "/dashboard/teams",
+      label: "Teams",
     },
     {
       icon: <Award className="h-5 w-5" />,
@@ -55,37 +74,44 @@ export function DashboardSidebar() {
       label: "Quests",
     },
     {
-      icon: <Users className="h-5 w-5" />,
-      href: "/dashboard/teams",
-      label: "Teams",
-    },
-    {
       icon: <TrendingUp className="h-5 w-5" />,
       href: "/dashboard/leaderboard",
       label: "Leaderboard",
     },
     {
-      icon: <Settings className="h-5 w-5" />,
+      icon: <Bell className="h-5 w-5" />,
+      href: "/dashboard/notifications",
+      label: "Messages",
+    },
+    {
+      icon: <Lock className="h-5 w-5" />,
       href: "/dashboard/settings",
       label: "Settings",
     },
   ]
 
-  // Add shop owner specific item if user is a shop owner
+  // Admin-specific items
+  if (userRole === "admin") {
+    navItems.push(
+      {
+        icon: <LayoutDashboard className="h-5 w-5" />,
+        href: "/dashboard/admin",
+        label: "Admin",
+      },
+      {
+        icon: <BarChart className="h-5 w-5" />,
+        href: "/dashboard/admin/analytics",
+        label: "Analytics",
+      },
+    )
+  }
+
+  // Shop owner-specific items
   if (userRole === "shop_owner") {
     navItems.push({
       icon: <Store className="h-5 w-5" />,
       href: "/dashboard/shop",
       label: "My Shop",
-    })
-  }
-
-  // Add admin specific item if user is an admin
-  if (userRole === "admin") {
-    navItems.push({
-      icon: <LayoutDashboard className="h-5 w-5" />,
-      href: "/dashboard/admin",
-      label: "Admin",
     })
   }
 

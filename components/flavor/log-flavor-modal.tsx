@@ -807,3 +807,5 @@ export function LogFlavorModal({ isOpen, onClose }: LogFlavorModalProps) {
     </Dialog>
   )
 }
+
+export default LogFlavorModal

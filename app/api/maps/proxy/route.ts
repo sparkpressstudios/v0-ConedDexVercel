@@ -1,62 +1,54 @@
 import { type NextRequest, NextResponse } from "next/server"
-import {
-  searchNearbyIceCreamShops,
-  getPlaceDetails,
-  geocodeAddress,
-  autocompletePlaceSearch,
-} from "@/lib/services/google-places-service"
 
 export async function GET(request: NextRequest) {
-  const { pathname, searchParams } = new URL(request.url)
-  const path = pathname.split("/").pop()
-
   try {
-    // Handle different proxy endpoints
-    if (path === "nearby") {
-      const lat = Number.parseFloat(searchParams.get("lat") || "0")
-      const lng = Number.parseFloat(searchParams.get("lng") || "0")
-      const radius = Number.parseInt(searchParams.get("radius") || "5000")
+    const searchParams = request.nextUrl.searchParams
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY
 
-      if (!lat || !lng) {
-        return NextResponse.json({ error: "Missing lat/lng parameters" }, { status: 400 })
-      }
-
-      const results = await searchNearbyIceCreamShops(lat, lng, radius)
-      return NextResponse.json(results)
-    } else if (path === "details") {
-      const placeId = searchParams.get("place_id")
-
-      if (!placeId) {
-        return NextResponse.json({ error: "Missing place_id parameter" }, { status: 400 })
-      }
-
-      const result = await getPlaceDetails(placeId)
-      return NextResponse.json(result)
-    } else if (path === "geocode") {
-      const address = searchParams.get("address")
-
-      if (!address) {
-        return NextResponse.json({ error: "Missing address parameter" }, { status: 400 })
-      }
-
-      const result = await geocodeAddress(address)
-      return NextResponse.json(result)
-    } else if (path === "autocomplete") {
-      const input = searchParams.get("input")
-      const sessionToken = searchParams.get("sessiontoken") || ""
-
-      if (!input) {
-        return NextResponse.json({ error: "Missing input parameter" }, { status: 400 })
-      }
-
-      const results = await autocompletePlaceSearch(input, sessionToken)
-      return NextResponse.json(results)
+    if (!apiKey) {
+      return NextResponse.json({ error: "Google Maps API key is not configured" }, { status: 500 })
     }
 
-    // Handle unknown endpoints
-    return NextResponse.json({ error: "Unknown proxy endpoint" }, { status: 404 })
+    // Determine which Google Maps API to call based on the parameters
+    let endpoint = ""
+    const params = new URLSearchParams()
+
+    // Add API key to all requests
+    params.append("key", apiKey)
+
+    // Place details request
+    if (searchParams.has("place_id")) {
+      endpoint = "https://maps.googleapis.com/maps/api/place/details/json"
+      params.append("place_id", searchParams.get("place_id") || "")
+      params.append("fields", "name,geometry,vicinity,formatted_address")
+    }
+    // Nearby search request
+    else if (searchParams.has("lat") && searchParams.has("lng")) {
+      endpoint = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+      params.append("location", `${searchParams.get("lat")},${searchParams.get("lng")}`)
+      params.append("radius", searchParams.get("radius") || "500")
+      params.append("type", searchParams.get("type") || "ice_cream")
+    }
+    // Geocoding request
+    else if (searchParams.has("address")) {
+      endpoint = "https://maps.googleapis.com/maps/api/geocode/json"
+      params.append("address", searchParams.get("address") || "")
+    }
+    // Reverse geocoding request
+    else if (searchParams.has("latlng")) {
+      endpoint = "https://maps.googleapis.com/maps/api/geocode/json"
+      params.append("latlng", searchParams.get("latlng") || "")
+    } else {
+      return NextResponse.json({ error: "Invalid request parameters" }, { status: 400 })
+    }
+
+    // Make the request to Google Maps API
+    const response = await fetch(`${endpoint}?${params.toString()}`)
+    const data = await response.json()
+
+    return NextResponse.json(data)
   } catch (error) {
-    console.error("Maps proxy error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Error in Google Maps proxy:", error)
+    return NextResponse.json({ error: "Failed to proxy request to Google Maps API" }, { status: 500 })
   }
 }

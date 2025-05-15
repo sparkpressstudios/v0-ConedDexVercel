@@ -1,92 +1,107 @@
-import { z } from "zod"
+// Define the schema for flavor log form
+export const flavorLogFormSchema = {
+  name: {
+    required: true,
+    minLength: 2,
+    maxLength: 100,
+  },
+  description: {
+    required: true,
+    minLength: 10,
+    maxLength: 500,
+  },
+  rating: {
+    required: true,
+    min: 1,
+    max: 10,
+  },
+  notes: {
+    required: false,
+    maxLength: 1000,
+  },
+  shopId: {
+    required: true,
+  },
+}
 
-// Common validation schemas
-export const emailSchema = z.string().min(1, "Email is required").email("Invalid email address")
+// Validate form data against a schema
+export const validateForm = (schema: any, data: any): { success: boolean; errors?: Record<string, string> } => {
+  const errors: Record<string, string> = {}
 
-export const passwordSchema = z
-  .string()
-  .min(8, "Password must be at least 8 characters")
-  .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-  .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-  .regex(/[0-9]/, "Password must contain at least one number")
+  // Check each field against schema rules
+  for (const [field, rules] of Object.entries(schema)) {
+    const value = data[field]
 
-export const nameSchema = z
-  .string()
-  .min(2, "Name must be at least 2 characters")
-  .max(50, "Name must be less than 50 characters")
-
-export const usernameSchema = z
-  .string()
-  .min(3, "Username must be at least 3 characters")
-  .max(30, "Username must be less than 30 characters")
-  .regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores, and hyphens")
-
-// Login form schema
-export const loginFormSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(1, "Password is required"),
-})
-
-// Registration form schema
-export const registrationFormSchema = z
-  .object({
-    name: nameSchema,
-    email: emailSchema,
-    password: passwordSchema,
-    confirmPassword: z.string().min(1, "Please confirm your password"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  })
-
-// Profile form schema
-export const profileFormSchema = z.object({
-  name: nameSchema,
-  username: usernameSchema,
-  bio: z.string().max(160, "Bio must be less than 160 characters").optional(),
-  website: z.string().url("Invalid URL").or(z.literal("")).optional(),
-})
-
-// Flavor log form schema
-export const flavorLogFormSchema = z.object({
-  name: z
-    .string()
-    .min(2, "Flavor name must be at least 2 characters")
-    .max(100, "Flavor name must be less than 100 characters"),
-  description: z.string().max(500, "Description must be less than 500 characters").optional(),
-  rating: z.number().min(1, "Rating must be at least 1").max(5, "Rating must be at most 5"),
-  notes: z.string().max(1000, "Notes must be less than 1000 characters").optional(),
-  shopId: z.string().min(1, "Shop is required"),
-})
-
-// Helper function to validate form data
-export function validateForm<T>(
-  schema: z.ZodType<T>,
-  data: unknown,
-): {
-  success: boolean
-  data?: T
-  errors?: Record<string, string>
-} {
-  try {
-    const validData = schema.parse(data)
-    return { success: true, data: validData }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const errors: Record<string, string> = {}
-
-      error.errors.forEach((err) => {
-        const path = err.path.join(".")
-        errors[path] = err.message
-      })
-
-      return { success: false, errors }
+    // Required check
+    if (rules.required && (!value || (typeof value === "string" && value.trim() === ""))) {
+      errors[field] = `${field} is required`
+      continue
     }
 
-    return {
-      success: false,
-      errors: { _form: "An unexpected error occurred" },
+    // Skip other validations if field is empty and not required
+    if (!value && !rules.required) continue
+
+    // String validations
+    if (typeof value === "string") {
+      if (rules.minLength && value.length < rules.minLength) {
+        errors[field] = `${field} must be at least ${rules.minLength} characters`
+      }
+
+      if (rules.maxLength && value.length > rules.maxLength) {
+        errors[field] = `${field} must be no more than ${rules.maxLength} characters`
+      }
+
+      if (rules.pattern && !new RegExp(rules.pattern).test(value)) {
+        errors[field] = `${field} has an invalid format`
+      }
+    }
+
+    // Number validations
+    if (typeof value === "number") {
+      if (rules.min !== undefined && value < rules.min) {
+        errors[field] = `${field} must be at least ${rules.min}`
+      }
+
+      if (rules.max !== undefined && value > rules.max) {
+        errors[field] = `${field} must be no more than ${rules.max}`
+      }
     }
   }
+
+  return {
+    success: Object.keys(errors).length === 0,
+    errors: Object.keys(errors).length > 0 ? errors : undefined,
+  }
+}
+
+// Validate email format
+export const isValidEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+// Validate password strength
+export const isStrongPassword = (password: string): { valid: boolean; message?: string } => {
+  if (password.length < 8) {
+    return { valid: false, message: "Password must be at least 8 characters long" }
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, message: "Password must contain at least one uppercase letter" }
+  }
+
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, message: "Password must contain at least one lowercase letter" }
+  }
+
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, message: "Password must contain at least one number" }
+  }
+
+  return { valid: true }
+}
+
+// Sanitize user input to prevent XSS
+export const sanitizeInput = (input: string): string => {
+  return input.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;")
 }

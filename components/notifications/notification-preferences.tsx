@@ -1,53 +1,116 @@
 "use client"
 
-import { useState } from "react"
-import { usePushNotifications } from "@/hooks/use-push-notifications"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Bell, BellOff, RefreshCw } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { createClient } from "@/lib/supabase/client"
 
-export function NotificationPreferences() {
-  const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications()
+interface NotificationPreferencesProps {
+  userId: string
+}
 
+export function NotificationPreferences({ userId }: NotificationPreferencesProps) {
   const [preferences, setPreferences] = useState({
-    newFlavors: true,
-    shopAnnouncements: true,
-    badgeAwards: true,
-    systemUpdates: false,
+    email_notifications: true,
+    push_notifications: true,
+    new_flavor_alerts: true,
+    shop_updates: true,
+    badge_notifications: true,
+    marketing_emails: false,
+    weekly_digest: true,
   })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const { toast } = useToast()
+  const supabase = createClient()
 
-  const handleToggleSubscription = async () => {
-    if (isSubscribed) {
-      await unsubscribe()
-    } else {
-      await subscribe()
+  // Fetch user preferences
+  useEffect(() => {
+    const fetchPreferences = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("notification_preferences")
+          .select("*")
+          .eq("user_id", userId)
+          .single()
+
+        if (error && error.code !== "PGRST116") {
+          throw error
+        }
+
+        if (data) {
+          setPreferences({
+            email_notifications: data.email_notifications ?? true,
+            push_notifications: data.push_notifications ?? true,
+            new_flavor_alerts: data.new_flavor_alerts ?? true,
+            shop_updates: data.shop_updates ?? true,
+            badge_notifications: data.badge_notifications ?? true,
+            marketing_emails: data.marketing_emails ?? false,
+            weekly_digest: data.weekly_digest ?? true,
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching notification preferences:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load notification preferences",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPreferences()
+  }, [userId, supabase, toast])
+
+  // Save preferences
+  const savePreferences = async () => {
+    setSaving(true)
+
+    try {
+      const { error } = await supabase.from("notification_preferences").upsert({
+        user_id: userId,
+        ...preferences,
+        updated_at: new Date().toISOString(),
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "Preferences saved",
+        description: "Your notification preferences have been updated",
+      })
+    } catch (error) {
+      console.error("Error saving notification preferences:", error)
+      toast({
+        title: "Error",
+        description: "Failed to save notification preferences",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handlePreferenceChange = (key: keyof typeof preferences) => {
+  // Handle preference change
+  const handleChange = (key: keyof typeof preferences) => {
     setPreferences((prev) => ({
       ...prev,
       [key]: !prev[key],
     }))
   }
 
-  if (!isSupported) {
+  if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Push Notifications</CardTitle>
-          <CardDescription>Your browser doesn't support push notifications.</CardDescription>
+          <CardTitle>Notification Preferences</CardTitle>
+          <CardDescription>Loading your notification preferences...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-4">
-            <BellOff className="h-12 w-12 text-gray-400" />
-          </div>
-          <p className="text-center text-sm text-gray-500">
-            Try using a modern browser like Chrome, Firefox, or Edge to enable push notifications.
-          </p>
-        </CardContent>
       </Card>
     )
   }
@@ -55,101 +118,115 @@ export function NotificationPreferences() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Push Notifications</CardTitle>
-        <CardDescription>Manage how you receive notifications from ConeDex</CardDescription>
+        <CardTitle>Notification Preferences</CardTitle>
+        <CardDescription>Customize how and when you receive notifications</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="push-notifications">Enable Push Notifications</Label>
-            <p className="text-sm text-gray-500">
-              {isSubscribed
-                ? "You'll receive notifications about important updates"
-                : "Enable to stay updated with the latest from ConeDex"}
-            </p>
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium">Delivery Methods</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="email_notifications">Email Notifications</Label>
+                <p className="text-xs text-muted-foreground">Receive notifications via email</p>
+              </div>
+              <Switch
+                id="email_notifications"
+                checked={preferences.email_notifications}
+                onCheckedChange={() => handleChange("email_notifications")}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="push_notifications">Push Notifications</Label>
+                <p className="text-xs text-muted-foreground">Receive push notifications on your device</p>
+              </div>
+              <Switch
+                id="push_notifications"
+                checked={preferences.push_notifications}
+                onCheckedChange={() => handleChange("push_notifications")}
+              />
+            </div>
           </div>
-          <Switch
-            id="push-notifications"
-            checked={isSubscribed}
-            onCheckedChange={handleToggleSubscription}
-            disabled={isLoading}
-          />
         </div>
 
-        {isSubscribed && (
-          <div className="space-y-4 pt-4 border-t">
-            <h3 className="text-sm font-medium">Notification Categories</h3>
-
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium">Notification Types</h3>
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="new-flavors">New Flavors</Label>
-                <p className="text-sm text-gray-500">Get notified when shops you follow add new flavors</p>
+                <Label htmlFor="new_flavor_alerts">New Flavor Alerts</Label>
+                <p className="text-xs text-muted-foreground">
+                  Get notified when new flavors are added to shops you follow
+                </p>
               </div>
               <Switch
-                id="new-flavors"
-                checked={preferences.newFlavors}
-                onCheckedChange={() => handlePreferenceChange("newFlavors")}
+                id="new_flavor_alerts"
+                checked={preferences.new_flavor_alerts}
+                onCheckedChange={() => handleChange("new_flavor_alerts")}
               />
             </div>
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="shop-announcements">Shop Announcements</Label>
-                <p className="text-sm text-gray-500">Receive updates from shops you follow</p>
+                <Label htmlFor="shop_updates">Shop Updates</Label>
+                <p className="text-xs text-muted-foreground">Get notified about updates from shops you follow</p>
               </div>
               <Switch
-                id="shop-announcements"
-                checked={preferences.shopAnnouncements}
-                onCheckedChange={() => handlePreferenceChange("shopAnnouncements")}
+                id="shop_updates"
+                checked={preferences.shop_updates}
+                onCheckedChange={() => handleChange("shop_updates")}
               />
             </div>
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="badge-awards">Badge Awards</Label>
-                <p className="text-sm text-gray-500">Get notified when you earn new badges</p>
+                <Label htmlFor="badge_notifications">Badge Notifications</Label>
+                <p className="text-xs text-muted-foreground">Get notified when you earn new badges</p>
               </div>
               <Switch
-                id="badge-awards"
-                checked={preferences.badgeAwards}
-                onCheckedChange={() => handlePreferenceChange("badgeAwards")}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="system-updates">System Updates</Label>
-                <p className="text-sm text-gray-500">Receive notifications about ConeDex platform updates</p>
-              </div>
-              <Switch
-                id="system-updates"
-                checked={preferences.systemUpdates}
-                onCheckedChange={() => handlePreferenceChange("systemUpdates")}
+                id="badge_notifications"
+                checked={preferences.badge_notifications}
+                onCheckedChange={() => handleChange("badge_notifications")}
               />
             </div>
           </div>
-        )}
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-sm font-medium">Email Preferences</h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="marketing_emails">Marketing Emails</Label>
+                <p className="text-xs text-muted-foreground">Receive promotional emails and special offers</p>
+              </div>
+              <Switch
+                id="marketing_emails"
+                checked={preferences.marketing_emails}
+                onCheckedChange={() => handleChange("marketing_emails")}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="weekly_digest">Weekly Digest</Label>
+                <p className="text-xs text-muted-foreground">Receive a weekly summary of new flavors and activity</p>
+              </div>
+              <Switch
+                id="weekly_digest"
+                checked={preferences.weekly_digest}
+                onCheckedChange={() => handleChange("weekly_digest")}
+              />
+            </div>
+          </div>
+        </div>
       </CardContent>
-      <CardFooter className="flex justify-between">
-        {isSubscribed && (
-          <Button variant="outline" size="sm" className="gap-1">
-            <RefreshCw className="h-4 w-4" />
-            Test Notification
-          </Button>
-        )}
-        <div className="text-xs text-gray-500">
-          {isSubscribed ? (
-            <span className="flex items-center gap-1">
-              <Bell className="h-3 w-3 text-green-500" />
-              Notifications enabled
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <BellOff className="h-3 w-3 text-gray-400" />
-              Notifications disabled
-            </span>
-          )}
-        </div>
+      <CardFooter>
+        <Button onClick={savePreferences} disabled={saving}>
+          {saving ? "Saving..." : "Save Preferences"}
+        </Button>
       </CardFooter>
     </Card>
   )
