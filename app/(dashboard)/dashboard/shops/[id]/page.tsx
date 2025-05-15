@@ -1,348 +1,327 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, MapPin, Phone, Globe, Star, IceCream } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { createServerClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
+import { notFound } from "next/navigation"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createClient } from "@/lib/supabase/client"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Star, MapPin, Globe, Phone, Clock, Store, CheckCircle } from "lucide-react"
+import Link from "next/link"
 
-// Demo shop data
-const demoShop = {
-  id: "shop_1",
-  name: "Sweet Scoops",
-  description: "A family-owned ice cream parlor serving handcrafted flavors made with locally sourced ingredients.",
-  address: "123 Main St, Anytown, CA",
-  city: "Anytown",
-  state: "CA",
-  phone: "(555) 123-4567",
-  website: "https://sweetscoops.example.com",
-  image_url: "/placeholder.svg?key=h8tp0",
-  rating: 4.8,
-  hours: {
-    monday: "11:00 AM - 9:00 PM",
-    tuesday: "11:00 AM - 9:00 PM",
-    wednesday: "11:00 AM - 9:00 PM",
-    thursday: "11:00 AM - 9:00 PM",
-    friday: "11:00 AM - 10:00 PM",
-    saturday: "10:00 AM - 10:00 PM",
-    sunday: "12:00 PM - 8:00 PM",
-  },
+export async function generateMetadata({ params }: { params: { id: string } }) {
+  const cookieStore = cookies()
+  const supabase = createServerClient(cookieStore)
+
+  const { data: shop } = await supabase.from("shops").select("name").eq("id", params.id).single()
+
+  return {
+    title: shop ? `${shop.name} | ConeDex` : "Shop Details | ConeDex",
+    description: "View shop details, flavors, and check-in information",
+  }
 }
 
-// Demo flavors data
-const demoFlavors = [
-  {
-    id: "flavor_1",
-    name: "Vanilla Bean",
-    description: "Classic vanilla made with real Madagascar vanilla beans",
-    base_type: "Dairy",
-    image_url: "/placeholder.svg?key=52f5p",
-    rating: 4.7,
-  },
-  {
-    id: "flavor_2",
-    name: "Chocolate Fudge",
-    description: "Rich chocolate ice cream with fudge swirls",
-    base_type: "Dairy",
-    image_url: "/chocolate-ice-cream-scoop.png",
-    rating: 4.9,
-  },
-  {
-    id: "flavor_3",
-    name: "Strawberry Fields",
-    description: "Strawberry ice cream with real strawberry pieces",
-    base_type: "Dairy",
-    image_url: "/strawberry-ice-cream-scoop.png",
-    rating: 4.6,
-  },
-  {
-    id: "flavor_4",
-    name: "Mint Chocolate Chip",
-    description: "Refreshing mint ice cream with chocolate chips",
-    base_type: "Dairy",
-    image_url: "/mint-chocolate-chip-scoop.png",
-    rating: 4.8,
-  },
-  {
-    id: "flavor_5",
-    name: "Mango Sorbet",
-    description: "Dairy-free sorbet made with ripe mangoes",
-    base_type: "Sorbet",
-    image_url: "/mango-sorbet-scoop.png",
-    rating: 4.5,
-  },
-  {
-    id: "flavor_6",
-    name: "Cookies & Cream",
-    description: "Vanilla ice cream with chocolate cookie pieces",
-    base_type: "Dairy",
-    image_url: "/cookies-and-cream-scoop.png",
-    rating: 4.7,
-  },
-]
+export default async function ShopDetailPage({ params }: { params: { id: string } }) {
+  const cookieStore = cookies()
+  const supabase = createServerClient(cookieStore)
 
-export default function ShopDetailPage({ params }: { params: { id: string } }) {
-  const router = useRouter()
-  const supabase = createClient()
-  const [shop, setShop] = useState<any | null>(null)
-  const [flavors, setFlavors] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [isDemoUser, setIsDemoUser] = useState(false)
+  try {
+    // Fetch shop details
+    const { data: shop, error } = await supabase
+      .from("shops")
+      .select(`
+        *,
+        shop_checkins(count),
+        shop_flavors(
+          id,
+          name,
+          description,
+          image_url
+        )
+      `)
+      .eq("id", params.id)
+      .single()
 
-  useEffect(() => {
-    const checkDemoUser = () => {
-      const demoUserEmail = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith("conedex_demo_user="))
-        ?.split("=")[1]
-
-      if (demoUserEmail) {
-        setIsDemoUser(true)
-        setShop(demoShop)
-        setFlavors(demoFlavors)
-        setLoading(false)
-        return true
-      }
-      return false
+    if (error || !shop) {
+      console.error("Error fetching shop:", error)
+      notFound()
     }
 
-    const fetchShopData = async () => {
-      if (checkDemoUser()) return
+    // Fetch recent check-ins
+    const { data: recentCheckins } = await supabase
+      .from("shop_checkins")
+      .select(`
+        id,
+        created_at,
+        profiles(
+          id,
+          username,
+          avatar_url
+        )
+      `)
+      .eq("shop_id", params.id)
+      .order("created_at", { ascending: false })
+      .limit(5)
 
-      try {
-        // Get shop details
-        const { data: shopData, error: shopError } = await supabase
-          .from("shops")
-          .select("*")
-          .eq("id", params.id)
-          .single()
-
-        if (shopError) throw shopError
-
-        setShop(shopData)
-
-        // Get flavors for this shop
-        const { data: flavorData, error: flavorError } = await supabase
-          .from("flavors")
-          .select("*")
-          .eq("shop_id", params.id)
-          .order("name")
-
-        if (flavorError) throw flavorError
-
-        setFlavors(flavorData || [])
-      } catch (error) {
-        console.error("Error fetching shop data:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchShopData()
-  }, [params.id, supabase])
-
-  if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-60" />
-          </div>
-        </div>
-
-        <Skeleton className="h-64 w-full rounded-lg" />
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!shop) {
-    return (
-      <div className="flex h-[50vh] flex-col items-center justify-center text-center">
-        <IceCream className="mb-4 h-12 w-12 text-muted-foreground" />
-        <h2 className="text-2xl font-bold">Shop Not Found</h2>
-        <p className="mt-2 text-muted-foreground">The shop you're looking for doesn't exist or has been removed.</p>
-        <Button className="mt-4" onClick={() => router.push("/dashboard/shops")}>
-          Back to Shops
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-          <span className="sr-only">Back</span>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">{shop.name}</h1>
-          <p className="text-muted-foreground">{shop.address}</p>
-        </div>
-      </div>
-
-      <div className="relative h-64 overflow-hidden rounded-lg md:h-80">
-        <img
-          src={shop.image_url || "/placeholder.svg?height=320&width=1200&query=ice cream shop"}
-          alt={shop.name}
-          className="h-full w-full object-cover"
-        />
-        <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-background/80 px-3 py-1 text-sm font-medium backdrop-blur-sm">
-          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-          <span>{shop.rating || "New"}</span>
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>About</CardTitle>
-            <CardDescription>Information about this shop</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {shop.description && <p>{shop.description}</p>}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span>
-                  {shop.address}, {shop.city}, {shop.state}
-                </span>
-              </div>
-              {shop.phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{shop.phone}</span>
-                </div>
-              )}
-              {shop.website && (
-                <div className="flex items-center gap-2">
-                  <Globe className="h-4 w-4 text-muted-foreground" />
-                  <a
-                    href={shop.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {shop.website.replace(/^https?:\/\//, "")}
-                  </a>
-                </div>
-              )}
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="md:col-span-2">
+            <div className="rounded-lg overflow-hidden">
+              <Image
+                src={shop.mainImage || "/placeholder.svg?height=400&width=800&query=ice cream shop"}
+                alt={shop.name}
+                width={800}
+                height={400}
+                className="w-full h-[300px] object-cover"
+              />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Hours</CardTitle>
-            <CardDescription>When you can visit</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {shop.hours ? (
-              <div className="space-y-1">
-                {Object.entries(shop.hours).map(([day, hours]) => (
-                  <div key={day} className="flex justify-between">
-                    <span className="capitalize">{day}</span>
-                    <span>{hours}</span>
-                  </div>
-                ))}
+            <div className="mt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-purple-900">{shop.name}</h1>
+                  <p className="text-lg text-muted-foreground">
+                    {shop.city}
+                    {shop.state ? `, ${shop.state}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {shop.is_verified && (
+                    <Badge className="bg-purple-600">
+                      <CheckCircle className="mr-1 h-3 w-3" />
+                      Verified
+                    </Badge>
+                  )}
+                  {shop.rating && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="text-sm font-medium">{shop.rating.toFixed(1)}</span>
+                    </Badge>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-muted-foreground">Hours not available</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
-      <Tabs defaultValue="flavors" className="w-full">
-        <TabsList>
-          <TabsTrigger value="flavors">Available Flavors</TabsTrigger>
-          <TabsTrigger value="reviews">Reviews</TabsTrigger>
-        </TabsList>
-        <TabsContent value="flavors" className="space-y-4 pt-4">
-          {flavors.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-              {flavors.map((flavor) => (
-                <Card key={flavor.id} className="overflow-hidden">
-                  <div className="aspect-square w-full overflow-hidden">
-                    <img
-                      src={flavor.image_url || "/placeholder.svg?height=200&width=200&query=ice cream scoop"}
-                      alt={flavor.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{flavor.name}</CardTitle>
-                      <Badge variant="outline">{flavor.base_type}</Badge>
+              <div className="mt-4">
+                <p className="text-muted-foreground">{shop.description || "No description available."}</p>
+              </div>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                {shop.address && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-5 w-5 text-purple-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Address</p>
+                      <p className="text-sm text-muted-foreground">
+                        {shop.address}
+                        <br />
+                        {shop.city}, {shop.state} {shop.zip}
+                      </p>
                     </div>
-                    <CardDescription>{flavor.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Star className="mr-1 h-4 w-4 fill-amber-400 text-amber-400" />
-                        <span className="font-medium">{flavor.rating || "New"}</span>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(`/dashboard/flavors/${flavor.id}`)}
+                  </div>
+                )}
+
+                {shop.website && (
+                  <div className="flex items-start gap-2">
+                    <Globe className="h-5 w-5 text-purple-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Website</p>
+                      <a
+                        href={shop.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-purple-600 hover:underline"
                       >
-                        View Details
-                      </Button>
+                        {shop.website.replace(/^https?:\/\//, "")}
+                      </a>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-dashed text-center">
-              <IceCream className="mb-2 h-8 w-8 text-muted-foreground" />
-              <p className="text-muted-foreground">No flavors available for this shop yet</p>
-            </div>
-          )}
-        </TabsContent>
-        <TabsContent value="reviews" className="pt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Customer Reviews</CardTitle>
-              <CardDescription>What people are saying about this shop</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex h-40 flex-col items-center justify-center text-center">
-                <Star className="mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-muted-foreground">Reviews coming soon</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  </div>
+                )}
 
-      <div className="flex justify-center">
-        <Button onClick={() => router.push("/dashboard/log-flavor")}>
-          <IceCream className="mr-2 h-4 w-4" />
-          Log a Flavor from this Shop
-        </Button>
+                {shop.phone && (
+                  <div className="flex items-start gap-2">
+                    <Phone className="h-5 w-5 text-purple-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Phone</p>
+                      <p className="text-sm text-muted-foreground">{shop.phone}</p>
+                    </div>
+                  </div>
+                )}
+
+                {shop.openingHours && (
+                  <div className="flex items-start gap-2">
+                    <Clock className="h-5 w-5 text-purple-600 mt-0.5" />
+                    <div>
+                      <p className="font-medium">Hours</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-line">{shop.openingHours}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8">
+                <Tabs defaultValue="flavors">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="flavors">Flavors</TabsTrigger>
+                    <TabsTrigger value="about">About</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="flavors" className="mt-4">
+                    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                      {shop.shop_flavors && shop.shop_flavors.length > 0 ? (
+                        shop.shop_flavors.map((flavor) => (
+                          <Card key={flavor.id}>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="text-base">{flavor.name}</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-sm text-muted-foreground line-clamp-2">
+                                {flavor.description || "No description available."}
+                              </p>
+                            </CardContent>
+                          </Card>
+                        ))
+                      ) : (
+                        <div className="col-span-full py-8 text-center">
+                          <p className="text-muted-foreground">No flavors available for this shop yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="about" className="mt-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>About {shop.name}</CardTitle>
+                        <CardDescription>Additional information about this shop</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <h3 className="font-medium">Description</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {shop.description || "No description available."}
+                          </p>
+                        </div>
+                        {shop.additionalInfo && (
+                          <div>
+                            <h3 className="font-medium">Additional Information</h3>
+                            <p className="text-sm text-muted-foreground mt-1">{shop.additionalInfo}</p>
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="font-medium">Added to ConeDex</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {new Date(shop.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Check In</CardTitle>
+                <CardDescription>Record your visit to this shop</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Check In Now
+                </Button>
+                <p className="mt-2 text-xs text-center text-muted-foreground">
+                  {shop.shop_checkins?.[0]?.count || 0} people have checked in here
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Check-ins</CardTitle>
+                <CardDescription>See who's been here recently</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {recentCheckins && recentCheckins.length > 0 ? (
+                  <div className="space-y-4">
+                    {recentCheckins.map((checkin) => (
+                      <div key={checkin.id} className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted overflow-hidden">
+                          <Image
+                            src={checkin.profiles?.avatar_url || "/placeholder.svg?height=32&width=32&query=user"}
+                            alt={checkin.profiles?.username || "User"}
+                            width={32}
+                            height={32}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{checkin.profiles?.username || "Anonymous"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(checkin.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-center text-muted-foreground py-4">No recent check-ins</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Shop Stats</CardTitle>
+                <CardDescription>Information about this shop</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Check-ins:</span>
+                    <span className="font-medium">{shop.shop_checkins?.[0]?.count || 0}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Flavors:</span>
+                    <span className="font-medium">{shop.shop_flavors?.length || 0}</span>
+                  </div>
+                  {shop.rating && (
+                    <div className="flex justify-between">
+                      <span className="text-sm">Rating:</span>
+                      <span className="font-medium flex items-center">
+                        {shop.rating.toFixed(1)}
+                        <Star className="ml-1 h-3 w-3 fill-yellow-400 text-yellow-400" />
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href={`/dashboard/shops/map?shop=${params.id}`}>
+                    <MapPin className="mr-2 h-4 w-4" />
+                    View on Map
+                  </Link>
+                </Button>
+                <Button variant="outline" className="w-full justify-start">
+                  <Store className="mr-2 h-4 w-4" />
+                  Save to Favorites
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
-    </div>
-  )
+    )
+  } catch (error) {
+    console.error("Error in ShopDetailPage:", error)
+    notFound()
+  }
 }

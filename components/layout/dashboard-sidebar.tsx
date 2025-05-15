@@ -18,7 +18,6 @@ import {
   Compass,
   TrendingUp,
   Map,
-  Search,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -33,7 +32,7 @@ export function DashboardSidebar() {
   const supabase = createClient()
   const userRole = user?.role || "explorer"
 
-  // Navigation items - removed redundant "My Shops" item
+  // Navigation items - reintegrated "Shops" item
   const navItems = [
     {
       icon: <LayoutDashboard className="h-5 w-5" />,
@@ -56,10 +55,9 @@ export function DashboardSidebar() {
       label: "Flavors",
     },
     {
-      icon: <Search className="h-5 w-5" />,
-      href: "/dashboard/explore-shops",
-      label: "Explore Shops",
-      highlight: true,
+      icon: <Store className="h-5 w-5" />,
+      href: "/dashboard/shops",
+      label: "Shops",
     },
     {
       icon: <Map className="h-5 w-5" />,

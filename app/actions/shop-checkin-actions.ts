@@ -1,30 +1,32 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
-import { revalidatePath } from "next/cache"
+import { createServerClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
+import { revalidatePath } from "next/cache"
 
-export async function checkInToShop(shopId: string, flavorIds: string[] = []) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
-
+// Check in to a shop
+export async function checkInToShop(shopId: string, selectedFlavors: string[] = []) {
   try {
-    // Get current user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const cookieStore = cookies()
+    const supabase = createServerClient(cookieStore)
 
-    if (!user) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
       return { success: false, error: "You must be logged in to check in" }
     }
 
-    // Create check-in record
+    const userId = session.user.id
+
+    // Create the check-in record
     const { data: checkIn, error: checkInError } = await supabase
       .from("shop_checkins")
       .insert({
+        user_id: userId,
         shop_id: shopId,
-        user_id: user.id,
-        flavors: flavorIds.length > 0 ? flavorIds : null,
+        flavor_ids: selectedFlavors.length > 0 ? selectedFlavors : null,
       })
       .select()
       .single()
@@ -34,48 +36,74 @@ export async function checkInToShop(shopId: string, flavorIds: string[] = []) {
       return { success: false, error: "Failed to check in to shop" }
     }
 
-    // Update user stats
-    const { error: statsError } = await supabase.rpc("increment_user_checkin_count", {
-      user_id_param: user.id,
+    // Update shop check-in count
+    const { error: updateError } = await supabase.rpc("increment_shop_checkins", {
+      p_shop_id: shopId,
     })
 
-    if (statsError) {
-      console.error("Error updating user stats:", statsError)
+    if (updateError) {
+      console.error("Error updating shop check-in count:", updateError)
+      // We'll still consider this a success since the check-in was recorded
     }
 
-    // Revalidate relevant paths
-    revalidatePath(`/business/${shopId}`)
+    // If flavors were logged, update flavor popularity
+    if (selectedFlavors.length > 0) {
+      for (const flavorId of selectedFlavors) {
+        const { error: flavorError } = await supabase.rpc("increment_flavor_popularity", {
+          p_flavor_id: flavorId,
+        })
+
+        if (flavorError) {
+          console.error("Error updating flavor popularity:", flavorError)
+        }
+      }
+    }
+
     revalidatePath(`/dashboard/shops/${shopId}`)
-    revalidatePath("/shops")
-    revalidatePath("/dashboard/my-conedex")
+    revalidatePath("/dashboard/shops")
+    revalidatePath("/dashboard")
 
     return {
       success: true,
-      data: checkIn,
       message: "Successfully checked in to shop",
+      checkIn,
     }
   } catch (error) {
     console.error("Error in checkInToShop:", error)
-    return {
-      success: false,
-      error: "An unexpected error occurred",
-    }
+    return { success: false, error: "An unexpected error occurred" }
   }
 }
 
-// Fix: Rename function to match the expected export name
+// Get recent check-ins for a user
 export async function getRecentCheckIns(limit = 5) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
-
   try {
+    const cookieStore = cookies()
+    const supabase = createServerClient(cookieStore)
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      return { success: false, error: "You must be logged in to view check-ins" }
+    }
+
+    const userId = session.user.id
+
     const { data, error } = await supabase
       .from("shop_checkins")
       .select(`
-        *,
-        shop:shops(id, name, city, state),
-        user:profiles(id, username, full_name, avatar_url)
+        id,
+        created_at,
+        shops (
+          id,
+          name,
+          city,
+          state,
+          thumbnailImage
+        )
       `)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(limit)
 
@@ -84,41 +112,15 @@ export async function getRecentCheckIns(limit = 5) {
       return { success: false, error: "Failed to fetch recent check-ins" }
     }
 
-    return { success: true, data }
+    return {
+      success: true,
+      checkIns: data,
+    }
   } catch (error) {
     console.error("Error in getRecentCheckIns:", error)
     return { success: false, error: "An unexpected error occurred" }
   }
 }
 
-// Keep the original function as an alias for backward compatibility
-export async function getRecentCheckins(limit = 5) {
-  return getRecentCheckIns(limit)
-}
-
-export async function getUserCheckins(userId: string, limit = 10) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
-
-  try {
-    const { data, error } = await supabase
-      .from("shop_checkins")
-      .select(`
-        *,
-        shop:shops(id, name, city, state, mainImage)
-      `)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(limit)
-
-    if (error) {
-      console.error("Error fetching user check-ins:", error)
-      return { success: false, error: "Failed to fetch check-ins" }
-    }
-
-    return { success: true, data }
-  } catch (error) {
-    console.error("Error in getUserCheckIns:", error)
-    return { success: false, error: "An unexpected error occurred" }
-  }
-}
+// For backward compatibility
+export const getRecentCheckins = getRecentCheckIns
