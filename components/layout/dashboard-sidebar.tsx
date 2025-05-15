@@ -18,6 +18,7 @@ import {
   Compass,
   TrendingUp,
   Map,
+  Search,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -60,9 +61,15 @@ export function DashboardSidebar() {
       label: "My Shops",
     },
     {
-      icon: <Map className="h-5 w-5" />,
+      icon: <Search className="h-5 w-5" />,
       href: "/shops",
       label: "Explore Shops",
+      highlight: true,
+    },
+    {
+      icon: <Map className="h-5 w-5" />,
+      href: "/dashboard/shops/map",
+      label: "Shops Map",
     },
     {
       icon: <Users className="h-5 w-5" />,
@@ -145,7 +152,9 @@ export function DashboardSidebar() {
                   "flex flex-col items-center justify-center p-2 rounded-lg transition-colors",
                   pathname === item.href
                     ? "bg-purple-800 text-white"
-                    : "text-purple-300 hover:bg-purple-800 hover:text-white",
+                    : item.highlight
+                      ? "text-white bg-purple-700 hover:bg-purple-800"
+                      : "text-purple-300 hover:bg-purple-800 hover:text-white",
                 )}
               >
                 {item.icon}
@@ -209,7 +218,9 @@ export function DashboardSidebar() {
                       "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
                       pathname === item.href
                         ? "bg-purple-800 text-white"
-                        : "text-purple-300 hover:bg-purple-800 hover:text-white",
+                        : item.highlight
+                          ? "text-white bg-purple-700 hover:bg-purple-800"
+                          : "text-purple-300 hover:bg-purple-800 hover:text-white",
                     )}
                   >
                     {item.icon}

@@ -1,19 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import { Star, Store, MapPin, Users, IceCream } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Progress } from "@/components/ui/progress"
-
-interface PublicShopsListProps {
-  searchQuery?: string
-}
 
 interface Shop {
   id: string
@@ -33,91 +26,14 @@ interface Shop {
   created_at: string
 }
 
-export default function PublicShopsList({ searchQuery = "" }: PublicShopsListProps) {
-  const [shops, setShops] = useState<Shop[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [maxCheckIns, setMaxCheckIns] = useState(0)
-  const supabase = createClient()
-  const searchParams = useSearchParams()
+interface PublicShopsListProps {
+  shops: Shop[]
+  isLoading: boolean
+}
 
-  // Fetch shops data with check-in counts
-  useEffect(() => {
-    const fetchShops = async () => {
-      setIsLoading(true)
-      try {
-        // Build query based on search parameters
-        let query = supabase
-          .from("shops")
-          .select(`
-            *,
-            check_in_count:shop_checkins(count),
-            flavor_count:shop_flavors(count)
-          `)
-          .eq("is_active", true)
-
-        // Apply search query if provided
-        if (searchQuery) {
-          query = query.or(`name.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%,state.ilike.%${searchQuery}%`)
-        }
-
-        // Apply filters from URL params
-        if (searchParams.get("verified") === "true") {
-          query = query.eq("is_verified", true)
-        }
-
-        const minRating = Number.parseInt(searchParams.get("rating") || "0")
-        if (minRating > 0) {
-          query = query.gte("rating", minRating)
-        }
-
-        if (searchParams.get("specials") === "true") {
-          query = query.eq("has_seasonal_specials", true)
-        }
-
-        // Apply sorting
-        const sortBy = searchParams.get("sort") || "popular"
-        switch (sortBy) {
-          case "popular":
-            query = query.order("check_in_count", { ascending: false, foreignTable: "shop_checkins" })
-            break
-          case "rating":
-            query = query.order("rating", { ascending: false })
-            break
-          case "newest":
-            query = query.order("created_at", { ascending: false })
-            break
-          case "name":
-            query = query.order("name", { ascending: true })
-            break
-          default:
-            query = query.order("check_in_count", { ascending: false, foreignTable: "shop_checkins" })
-        }
-
-        const { data, error } = await query
-
-        if (error) throw error
-
-        // Process data to get check-in counts
-        const processedData = data.map((shop) => ({
-          ...shop,
-          check_in_count: shop.check_in_count?.[0]?.count || 0,
-          flavor_count: shop.flavor_count?.[0]?.count || 0,
-        }))
-
-        // Find max check-ins for progress bar
-        const maxCheckins = Math.max(...processedData.map((shop) => shop.check_in_count), 1)
-        setMaxCheckIns(maxCheckins)
-
-        setShops(processedData)
-      } catch (error) {
-        console.error("Error fetching shops:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchShops()
-  }, [supabase, searchQuery, searchParams])
+export default function PublicShopsList({ shops, isLoading }: PublicShopsListProps) {
+  // Find max check-ins for progress bar
+  const maxCheckIns = Math.max(...shops.map((shop) => shop.check_in_count), 1)
 
   if (isLoading) {
     return (
@@ -149,11 +65,7 @@ export default function PublicShopsList({ searchQuery = "" }: PublicShopsListPro
       <div className="flex h-64 flex-col items-center justify-center text-center">
         <Store className="h-12 w-12 text-muted-foreground" />
         <h3 className="mt-4 text-lg font-medium">No shops found</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {searchQuery
-            ? "Try a different search term or adjust your filters"
-            : "There are no shops matching your criteria"}
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">Try a different search term or adjust your filters</p>
       </div>
     )
   }
@@ -170,8 +82,8 @@ export default function PublicShopsList({ searchQuery = "" }: PublicShopsListPro
                 className="h-full w-full object-cover transition-all hover:scale-105"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-muted">
-                <Store className="h-10 w-10 text-muted-foreground" />
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-100 to-indigo-50">
+                <Store className="h-10 w-10 text-purple-400" />
               </div>
             )}
           </div>
@@ -184,7 +96,7 @@ export default function PublicShopsList({ searchQuery = "" }: PublicShopsListPro
                 </CardDescription>
               </div>
               {shop.is_verified && (
-                <Badge variant="default" className="ml-2">
+                <Badge variant="default" className="ml-2 bg-purple-600">
                   Verified
                 </Badge>
               )}
@@ -204,7 +116,11 @@ export default function PublicShopsList({ searchQuery = "" }: PublicShopsListPro
                 </div>
                 <span className="font-medium">{shop.check_in_count}</span>
               </div>
-              <Progress value={(shop.check_in_count / maxCheckIns) * 100} className="h-2" />
+              <Progress
+                value={(shop.check_in_count / maxCheckIns) * 100}
+                className="h-2"
+                indicatorClassName="bg-purple-600"
+              />
             </div>
 
             <div className="flex items-center justify-between text-sm">
@@ -224,7 +140,7 @@ export default function PublicShopsList({ searchQuery = "" }: PublicShopsListPro
             <Button asChild variant="outline" size="sm">
               <Link href={`/business/${shop.id}`}>Details</Link>
             </Button>
-            <Button asChild size="sm">
+            <Button asChild size="sm" className="bg-purple-600 hover:bg-purple-700">
               <Link href={`/dashboard/shops/${shop.id}`}>Check In</Link>
             </Button>
           </CardFooter>
