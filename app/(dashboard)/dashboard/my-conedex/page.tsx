@@ -11,6 +11,8 @@ import VisitedShops from "@/components/shop/visited-shops"
 import UserAchievements from "@/components/user/user-achievements"
 import PersonalStats from "@/components/user/personal-stats"
 import { redirect } from "next/navigation"
+import { ClientErrorBoundary } from "@/components/ui/client-error-boundary"
+import { MyConeDexClientFallback } from "@/components/dashboard/my-conedex-fallback"
 
 // Demo user data
 const demoUsers = {
@@ -146,92 +148,97 @@ export default async function MyConeDexPage() {
     return redirect("/login?redirect=/dashboard/my-conedex")
   }
 
+  // Add error boundary
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">My ConeDex</h1>
-          <p className="text-muted-foreground">Your personal ice cream collection and journey</p>
-        </div>
-
-        <Button asChild>
-          <Link href="/dashboard/log-flavor">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Log New Flavor
-          </Link>
-        </Button>
-      </div>
-
-      {/* Collection Progress */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Collection Progress</CardTitle>
-          <CardDescription>
-            You've discovered {flavorLogsCount} out of {totalFlavorsCount} flavors ({collectionProgress}%)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Progress value={collectionProgress} className="h-2" />
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-            <div className="flex items-center gap-4">
-              <div className="bg-pink-100 p-3 rounded-full">
-                <IceCream className="h-6 w-6 text-pink-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Flavors Logged</p>
-                <h3 className="text-2xl font-bold">{flavorLogsCount}</h3>
-              </div>
+    <>
+      <ClientErrorBoundary fallback={<MyConeDexClientFallback />}>
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">My ConeDex</h1>
+              <p className="text-muted-foreground">Your personal ice cream collection and journey</p>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="bg-blue-100 p-3 rounded-full">
-                <MapPin className="h-6 w-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Shops Visited</p>
-                <h3 className="text-2xl font-bold">{uniqueShopsCount}</h3>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="bg-amber-100 p-3 rounded-full">
-                <Award className="h-6 w-6 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Badges Earned</p>
-                <h3 className="text-2xl font-bold">{badgesCount}</h3>
-              </div>
-            </div>
+            <Button asChild>
+              <Link href="/dashboard/log-flavor">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Log New Flavor
+              </Link>
+            </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Tabs for different sections */}
-      <Tabs defaultValue="flavors" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="flavors">My Flavors</TabsTrigger>
-          <TabsTrigger value="shops">Visited Shops</TabsTrigger>
-          <TabsTrigger value="badges">Badges & Quests</TabsTrigger>
-          <TabsTrigger value="stats">Stats</TabsTrigger>
-        </TabsList>
+          {/* Collection Progress */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Collection Progress</CardTitle>
+              <CardDescription>
+                You've discovered {flavorLogsCount} out of {totalFlavorsCount} flavors ({collectionProgress}%)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress value={collectionProgress} className="h-2" />
 
-        <TabsContent value="flavors" className="mt-6">
-          <PersonalFlavorCollection userId={user?.id} isDemoUser={!!isDemoUser} />
-        </TabsContent>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                <div className="flex items-center gap-4">
+                  <div className="bg-pink-100 p-3 rounded-full">
+                    <IceCream className="h-6 w-6 text-pink-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Flavors Logged</p>
+                    <h3 className="text-2xl font-bold">{flavorLogsCount}</h3>
+                  </div>
+                </div>
 
-        <TabsContent value="shops" className="mt-6">
-          <VisitedShops userId={user?.id} isDemoUser={!!isDemoUser} />
-        </TabsContent>
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-100 p-3 rounded-full">
+                    <MapPin className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Shops Visited</p>
+                    <h3 className="text-2xl font-bold">{uniqueShopsCount}</h3>
+                  </div>
+                </div>
 
-        <TabsContent value="badges" className="mt-6">
-          <UserAchievements userId={user?.id} isDemoUser={!!isDemoUser} />
-        </TabsContent>
+                <div className="flex items-center gap-4">
+                  <div className="bg-amber-100 p-3 rounded-full">
+                    <Award className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Badges Earned</p>
+                    <h3 className="text-2xl font-bold">{badgesCount}</h3>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        <TabsContent value="stats" className="mt-6">
-          <PersonalStats userId={user?.id} isDemoUser={!!isDemoUser} />
-        </TabsContent>
-      </Tabs>
-    </div>
+          {/* Tabs for different sections */}
+          <Tabs defaultValue="flavors" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="flavors">My Flavors</TabsTrigger>
+              <TabsTrigger value="shops">Visited Shops</TabsTrigger>
+              <TabsTrigger value="badges">Badges & Quests</TabsTrigger>
+              <TabsTrigger value="stats">Stats</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="flavors" className="mt-6">
+              <PersonalFlavorCollection userId={user?.id} isDemoUser={!!isDemoUser} />
+            </TabsContent>
+
+            <TabsContent value="shops" className="mt-6">
+              <VisitedShops userId={user?.id} isDemoUser={!!isDemoUser} />
+            </TabsContent>
+
+            <TabsContent value="badges" className="mt-6">
+              <UserAchievements userId={user?.id} isDemoUser={!!isDemoUser} />
+            </TabsContent>
+
+            <TabsContent value="stats" className="mt-6">
+              <PersonalStats userId={user?.id} isDemoUser={!!isDemoUser} />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </ClientErrorBoundary>
+    </>
   )
 }

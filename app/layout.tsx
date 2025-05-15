@@ -11,6 +11,8 @@ import { initEnvironment } from "./init-env"
 import { AnalyticsTracker } from "@/components/analytics/analytics-tracker"
 import Script from "next/script"
 import { Suspense } from "react"
+import { cn } from "@/lib/utils"
+import { fonts, fontSans } from "@/lib/fonts"
 
 // Initialize environment on server startup
 initEnvironment()
@@ -55,13 +57,22 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={cn("bg-background font-sans antialiased", fonts.sans, fonts.mono)}>
       <head>
         {/* Add both modern and legacy meta tags for compatibility */}
-        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="application-name" content="ConeDex" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="ConeDex" />
+        <meta name="description" content="Track and discover ice cream flavors" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#FFFFFF" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <script src="/sw-register.js" defer></script>
       </head>
-      <body className={inter.className}>
+      <body className={cn("min-h-screen bg-background font-sans antialiased", fontSans.variable)}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <Suspense fallback={<div>Loading...</div>}>
             <ClientLayout>{children}</ClientLayout>

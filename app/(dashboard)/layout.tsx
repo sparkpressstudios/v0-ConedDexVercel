@@ -11,6 +11,7 @@ import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
 import { getDemoUser } from "@/lib/auth/session"
 import { Shell } from "@/components/shell"
 import { createServerClient } from "@/lib/supabase/server"
+import ClientLayout from "../client-layout"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   try {
@@ -100,16 +101,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
 function renderDashboardLayout(children: React.ReactNode, profile: any) {
   return (
     <GlobalErrorBoundary>
-      <div className="flex h-screen flex-col md:flex-row bg-white">
-        <DashboardSidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <DashboardHeader user={profile} />
-          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
-          <Toaster />
-          <OfflineIndicator />
-          <InstallPrompt />
+      <ClientLayout>
+        <div className="flex h-screen flex-col md:flex-row bg-white">
+          <DashboardSidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <DashboardHeader user={profile} />
+            <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+            <Toaster />
+            <OfflineIndicator />
+            <InstallPrompt />
+          </div>
         </div>
-      </div>
+      </ClientLayout>
     </GlobalErrorBoundary>
   )
 }
@@ -118,46 +121,48 @@ function renderDashboardLayout(children: React.ReactNode, profile: any) {
 function renderErrorLayout(children: React.ReactNode, errorMessage = "Dashboard error") {
   return (
     <Shell layout="full">
-      <div className="flex min-h-screen flex-col">
-        <header className="border-b bg-background h-16 flex items-center px-6">
-          <div className="flex items-center gap-2">
-            <div className="rounded-full bg-purple-900 p-1">
-              <IceCream className="h-6 w-6 text-white" />
+      <ClientLayout>
+        <div className="flex min-h-screen flex-col">
+          <header className="border-b bg-background h-16 flex items-center px-6">
+            <div className="flex items-center gap-2">
+              <div className="rounded-full bg-purple-900 p-1">
+                <IceCream className="h-6 w-6 text-white" />
+              </div>
+              <span className="text-xl font-bold">ConeDex</span>
             </div>
-            <span className="text-xl font-bold">ConeDex</span>
-          </div>
-        </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
-            <h2 className="text-xl font-bold text-red-600 mb-4">{errorMessage}</h2>
-            <p className="mb-4 text-gray-600">
-              We encountered an issue with the dashboard. This might be due to missing environment variables or a
-              connection issue.
-            </p>
-            <div className="bg-gray-50 p-4 rounded-md mb-4">
-              <p className="text-sm font-medium mb-2">Required environment variables:</p>
-              <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                <li>NEXT_PUBLIC_SUPABASE_URL</li>
-                <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
-              </ul>
+          </header>
+          <main className="flex-1 overflow-auto p-4 md:p-6">
+            <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
+              <h2 className="text-xl font-bold text-red-600 mb-4">{errorMessage}</h2>
+              <p className="mb-4 text-gray-600">
+                We encountered an issue with the dashboard. This might be due to missing environment variables or a
+                connection issue.
+              </p>
+              <div className="bg-gray-50 p-4 rounded-md mb-4">
+                <p className="text-sm font-medium mb-2">Required environment variables:</p>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                  <li>NEXT_PUBLIC_SUPABASE_URL</li>
+                  <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+                </ul>
+              </div>
+              <div className="flex justify-between">
+                <a
+                  href="/"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                >
+                  Return Home
+                </a>
+                <a
+                  href="/login"
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                >
+                  Try Login Again
+                </a>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <a
-                href="/"
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-              >
-                Return Home
-              </a>
-              <a
-                href="/login"
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-              >
-                Try Login Again
-              </a>
-            </div>
-          </div>
-        </main>
-      </div>
+          </main>
+        </div>
+      </ClientLayout>
     </Shell>
   )
 }

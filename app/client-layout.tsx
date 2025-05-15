@@ -3,6 +3,7 @@
 import type React from "react"
 import { AuthProvider } from "@/contexts/auth-context"
 import { ThemeProvider } from "@/components/theme-provider"
+import { SupabaseProvider } from "@/components/providers/supabase-provider"
 import { Toaster } from "@/components/ui/toaster"
 import Script from "next/script"
 import { checkEnvironmentVariables } from "@/lib/utils/env-validator"
@@ -25,11 +26,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <meta name="apple-mobile-web-app-title" content="ConeDex" />
       </head>
       <body>
-        <ThemeProvider attribute="class" defaultTheme="light">
-          <AuthProvider>
-            {children}
-            <Toaster />
-          </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          <SupabaseProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </SupabaseProvider>
+          <Toaster />
         </ThemeProvider>
         <Script
           id="service-worker-registration"
