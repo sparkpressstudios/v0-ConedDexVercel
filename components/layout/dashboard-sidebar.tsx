@@ -17,6 +17,7 @@ import {
   Bell,
   Compass,
   TrendingUp,
+  Map,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -56,7 +57,12 @@ export function DashboardSidebar() {
     {
       icon: <Store className="h-5 w-5" />,
       href: "/dashboard/shops",
-      label: "Shops",
+      label: "My Shops",
+    },
+    {
+      icon: <Map className="h-5 w-5" />,
+      href: "/shops",
+      label: "Explore Shops",
     },
     {
       icon: <Users className="h-5 w-5" />,

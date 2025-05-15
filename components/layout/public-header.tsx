@@ -22,8 +22,12 @@ export function PublicHeader() {
       label: "Features",
     },
     {
-      href: "/shops/map",
-      label: "Explore",
+      href: "/shops",
+      label: "Explore Shops",
+    },
+    {
+      href: "/conedex",
+      label: "ConeDex",
     },
     {
       href: "/business",
