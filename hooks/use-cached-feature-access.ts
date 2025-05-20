@@ -1,65 +1,82 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { SubscriptionService } from "@/lib/services/subscription-service"
+import { useState, useEffect } from "react"
+import { useFeatureAccess } from "@/hooks/use-feature-access"
 
-// In-memory cache for feature access
-const featureAccessCache = new Map<string, { access: boolean; timestamp: number }>()
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes in milliseconds
-
-export function useCachedFeatureAccess(businessId: string | undefined, featureKey: string) {
-  const [hasAccess, setHasAccess] = useState<boolean>(false)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [error, setError] = useState<Error | null>(null)
-
-  const cacheKey = `${businessId}:${featureKey}`
-
-  const clearCache = useCallback(() => {
-    featureAccessCache.delete(cacheKey)
-  }, [cacheKey])
+export function useCachedFeatureAccess(featureKey: string) {
+  const { hasAccess, isLoading, error } = useFeatureAccess(featureKey)
+  const [cachedAccess, setCachedAccess] = useState<boolean | null>(null)
+  const [isOffline, setIsOffline] = useState<boolean>(false)
 
   useEffect(() => {
-    async function checkAccess() {
-      if (!businessId) {
-        setHasAccess(false)
-        setIsLoading(false)
-        return
-      }
-
-      try {
-        setIsLoading(true)
-
-        // Check cache first
-        const cachedValue = featureAccessCache.get(cacheKey)
-        const now = Date.now()
-
-        if (cachedValue && now - cachedValue.timestamp < CACHE_TTL) {
-          setHasAccess(cachedValue.access)
-          setIsLoading(false)
-          return
-        }
-
-        // Cache miss or expired, fetch from service
-        const access = await SubscriptionService.hasFeatureAccess(businessId, featureKey)
-
-        // Update cache
-        featureAccessCache.set(cacheKey, {
-          access,
-          timestamp: now,
-        })
-
-        setHasAccess(access)
-      } catch (err) {
-        console.error("Error checking feature access:", err)
-        setError(err instanceof Error ? err : new Error(String(err)))
-        setHasAccess(false)
-      } finally {
-        setIsLoading(false)
-      }
+    // Check if we're online
+    const handleOnlineStatus = () => {
+      setIsOffline(!navigator.onLine)
     }
 
-    checkAccess()
-  }, [businessId, featureKey, cacheKey])
+    // Set initial status
+    setIsOffline(!navigator.onLine)
 
-  return { hasAccess, isLoading, error, clearCache }
+    // Add event listeners
+    window.addEventListener("online", handleOnlineStatus)
+    window.addEventListener("offline", handleOnlineStatus)
+
+    // Clean up
+    return () => {
+      window.removeEventListener("online", handleOnlineStatus)
+      window.removeEventListener("offline", handleOnlineStatus)
+    }
+  }, [])
+
+  useEffect(() => {
+    // If we have a definitive answer and we're online, cache it
+    if (!isLoading && !error && navigator.onLine) {
+      setCachedAccess(hasAccess)
+
+      // Also store in localStorage for persistent caching
+      try {
+        localStorage.setItem(
+          `feature_access:${featureKey}`,
+          JSON.stringify({
+            hasAccess,
+            timestamp: Date.now(),
+          }),
+        )
+      } catch (e) {
+        console.error("Error storing feature access in localStorage:", e)
+      }
+    }
+  }, [hasAccess, isLoading, error, featureKey])
+
+  useEffect(() => {
+    // If we're offline or loading, try to get from cache
+    if ((isOffline || isLoading) && cachedAccess === null) {
+      try {
+        const cached = localStorage.getItem(`feature_access:${featureKey}`)
+        if (cached) {
+          const { hasAccess, timestamp } = JSON.parse(cached)
+
+          // Only use cache if it's less than 24 hours old
+          const cacheAge = Date.now() - timestamp
+          if (cacheAge < 24 * 60 * 60 * 1000) {
+            setCachedAccess(hasAccess)
+          }
+        }
+      } catch (e) {
+        console.error("Error retrieving feature access from localStorage:", e)
+      }
+    }
+  }, [isOffline, isLoading, featureKey, cachedAccess])
+
+  // If we're offline, use cached value
+  // If we're online but still loading, use cached value as a fallback
+  // Otherwise use the real value
+  const effectiveHasAccess = isOffline || (isLoading && cachedAccess !== null) ? cachedAccess || false : hasAccess
+
+  return {
+    hasAccess: effectiveHasAccess,
+    isLoading: isLoading && cachedAccess === null,
+    error,
+    isOffline,
+  }
 }

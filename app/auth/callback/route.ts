@@ -16,13 +16,20 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser()
 
     if (user) {
-      await supabase
+      // Update the user's profile
+      const { error } = await supabase
         .from("profiles")
         .update({
           email_verified: true,
           updated_at: new Date().toISOString(),
         })
         .eq("id", user.id)
+
+      if (error) {
+        console.error("Error updating profile:", error)
+      } else {
+        console.log("Successfully marked user as verified:", user.id)
+      }
     }
   }
 

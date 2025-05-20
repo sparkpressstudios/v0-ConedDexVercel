@@ -1,73 +1,51 @@
 import type { ReactNode } from "react"
-import { checkFeatureAccess, getCurrentUserShopId } from "@/lib/actions/check-feature-access"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { SubscriptionService } from "@/lib/services/subscription-service"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Lock } from "lucide-react"
-import Link from "next/link"
+import { LockIcon } from "lucide-react"
 
 interface ServerFeatureGateProps {
   featureKey: string
+  businessId: string
   children: ReactNode
   fallback?: ReactNode
   showUpgradeLink?: boolean
-  title?: string
-  description?: string
 }
 
 export async function ServerFeatureGate({
   featureKey,
+  businessId,
   children,
   fallback,
   showUpgradeLink = true,
-  title = "Premium Feature",
-  description = "This feature requires a higher subscription tier.",
 }: ServerFeatureGateProps) {
-  const shopId = await getCurrentUserShopId()
+  // Check if the business has access to this feature
+  const hasAccess = await SubscriptionService.serverHasFeatureAccess(businessId, featureKey)
 
-  if (!shopId) {
-    return (
-      fallback || (
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle>Shop Not Found</CardTitle>
-            <CardDescription>You need to create a shop to access this feature.</CardDescription>
-          </CardHeader>
-        </Card>
-      )
-    )
-  }
+  // If the user has access, show the children
+  if (hasAccess) return <>{children}</>
 
-  const hasAccess = await checkFeatureAccess(shopId, featureKey)
+  // If a fallback is provided, show that
+  if (fallback) return <>{fallback}</>
 
-  if (hasAccess) {
-    return <>{children}</>
-  }
-
-  if (fallback) {
-    return <>{fallback}</>
-  }
-
+  // Otherwise, show a default message
   return (
-    <Card className="border-dashed">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Lock className="h-5 w-5" />
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-          <p>This feature is not available on your current subscription plan.</p>
-        </div>
-      </CardContent>
-      {showUpgradeLink && (
-        <CardFooter>
-          <Link href="/dashboard/shop/subscription" className="w-full">
-            <Button className="w-full">Upgrade Subscription</Button>
-          </Link>
-        </CardFooter>
-      )}
-    </Card>
+    <Alert className="bg-amber-50 border-amber-200">
+      <LockIcon className="h-4 w-4 text-amber-600" />
+      <AlertTitle>Premium Feature</AlertTitle>
+      <AlertDescription className="flex flex-col gap-2">
+        <p>This feature requires a premium subscription.</p>
+        {showUpgradeLink && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start mt-2 border-amber-300 text-amber-700 hover:bg-amber-100"
+            href="/dashboard/shop/subscription"
+          >
+            View Subscription Plans
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
   )
 }

@@ -32,7 +32,7 @@ type Flavor = {
   rating?: number
 }
 
-export default function PersonalFlavorCollection({ userId, isDemoUser = false }) {
+export function PersonalFlavorCollection({ userId, isDemoUser = false }) {
   const router = useRouter()
   const { supabase } = useSupabase()
   const { toast } = useToast()
@@ -461,3 +461,6 @@ export default function PersonalFlavorCollection({ userId, isDemoUser = false })
     </div>
   )
 }
+
+// Add default export that references the named export
+export default PersonalFlavorCollection

@@ -49,7 +49,7 @@ const DEMO_SHOPS = [
   },
 ]
 
-export default function VisitedShops({ userId, isDemoUser = false }) {
+export function VisitedShops({ userId, isDemoUser = false }) {
   const [shops, setShops] = useState([])
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
@@ -230,3 +230,6 @@ export default function VisitedShops({ userId, isDemoUser = false }) {
     </Card>
   )
 }
+
+// Add default export that references the named export
+export default VisitedShops

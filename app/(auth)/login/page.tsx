@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -20,6 +21,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const [verificationNeeded, setVerificationNeeded] = useState(false)
+  const [verificationEmail, setVerificationEmail] = useState("")
 
   // Use a ref to ensure we have a stable reference to the Supabase client
   const [supabase] = useState(() => createClient())
@@ -83,6 +86,12 @@ export default function LoginPage() {
       })
 
       if (error) {
+        // Check if this is an email verification error
+        if (error.message.includes("Email not confirmed")) {
+          setVerificationNeeded(true)
+          setVerificationEmail(email)
+          throw new Error("Please verify your email before logging in. Check your inbox for a verification link.")
+        }
         throw new Error(error.message)
       }
 
@@ -90,6 +99,36 @@ export default function LoginPage() {
       router.refresh()
     } catch (error: any) {
       setError(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!verificationEmail) return
+
+    setLoading(true)
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: verificationEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "Verification email sent",
+        description: "Please check your inbox for the verification link.",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send verification email.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -120,6 +159,22 @@ export default function LoginPage() {
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
+          )}
+          {verificationNeeded && (
+            <div className="mb-4 space-y-2">
+              <Alert variant="warning">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResendVerification}
+                disabled={loading}
+                className="w-full"
+              >
+                Resend Verification Email
+              </Button>
+            </div>
           )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">

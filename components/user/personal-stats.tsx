@@ -58,7 +58,7 @@ interface PersonalStatsProps {
   isDemoUser?: boolean
 }
 
-export default function PersonalStats({ userId, isDemoUser = false }: PersonalStatsProps) {
+export function PersonalStats({ userId, isDemoUser = false }: PersonalStatsProps) {
   const [categoryData, setCategoryData] = useState([])
   const [monthlyData, setMonthlyData] = useState([])
   const [ratingsData, setRatingsData] = useState([])
@@ -292,3 +292,6 @@ export default function PersonalStats({ userId, isDemoUser = false }: PersonalSt
     </Tabs>
   )
 }
+
+// Add default export that references the named export
+export default PersonalStats

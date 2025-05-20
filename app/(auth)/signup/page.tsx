@@ -23,6 +23,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("explorer")
   const supabase = createClient()
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const handleSignup = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -58,13 +59,13 @@ export default function SignupPage() {
         throw new Error(data.message || "Failed to create account")
       }
 
+      setSuccessMessage("Account created! Please check your email to verify your account before logging in.")
       toast({
         title: "Account created!",
-        description: "Please check your email to verify your account.",
+        description: "Please check your email to verify your account before logging in.",
       })
 
-      // Redirect to login page
-      router.push("/login")
+      // Don't redirect yet - let them see the success message
     } catch (error) {
       console.error("Error signing up:", error)
       setError(error.message || "Something went wrong. Please try again.")
@@ -91,76 +92,88 @@ export default function SignupPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="explorer" className="flex items-center gap-2">
-                  <IceCream className="h-4 w-4" />
-                  Explorer
-                </TabsTrigger>
-                <TabsTrigger value="business" className="flex items-center gap-2">
-                  <Store className="h-4 w-4" />
-                  Business
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="explorer">
-                <form onSubmit={handleSignup} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input id="username" name="username" placeholder="icecreamlover" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input id="fullName" name="fullName" placeholder="Jane Smith" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" name="email" type="email" placeholder="hello@example.com" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input id="password" name="password" type="password" required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...
-                      </>
-                    ) : (
-                      "Sign up as Explorer"
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-              <TabsContent value="business">
-                <form onSubmit={handleSignup} className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="username">Business Username</Label>
-                    <Input id="username" name="username" placeholder="my-ice-cream-shop" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Business Name</Label>
-                    <Input id="fullName" name="fullName" placeholder="Sweet Scoops Ice Cream" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Business Email</Label>
-                    <Input id="email" name="email" type="email" placeholder="contact@example.com" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input id="password" name="password" type="password" required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...
-                      </>
-                    ) : (
-                      "Sign up as Business"
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+            {successMessage && (
+              <Alert className="mb-4">
+                <AlertDescription>{successMessage}</AlertDescription>
+              </Alert>
+            )}
+            {!successMessage && (
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="explorer" className="flex items-center gap-2">
+                    <IceCream className="h-4 w-4" />
+                    Explorer
+                  </TabsTrigger>
+                  <TabsTrigger value="business" className="flex items-center gap-2">
+                    <Store className="h-4 w-4" />
+                    Business
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="explorer">
+                  <form onSubmit={handleSignup} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Username</Label>
+                      <Input id="username" name="username" placeholder="icecreamlover" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Full Name</Label>
+                      <Input id="fullName" name="fullName" placeholder="Jane Smith" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" name="email" type="email" placeholder="hello@example.com" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input id="password" name="password" type="password" required />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...
+                        </>
+                      ) : (
+                        "Sign up as Explorer"
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+                <TabsContent value="business">
+                  <form onSubmit={handleSignup} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="username">Business Username</Label>
+                      <Input id="username" name="username" placeholder="my-ice-cream-shop" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Business Name</Label>
+                      <Input id="fullName" name="fullName" placeholder="Sweet Scoops Ice Cream" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Business Email</Label>
+                      <Input id="email" name="email" type="email" placeholder="contact@example.com" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input id="password" name="password" type="password" required />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating account...
+                        </>
+                      ) : (
+                        "Sign up as Business"
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            )}
+            {successMessage && (
+              <Button onClick={() => router.push("/login")} className="w-full mt-4">
+                Go to Login
+              </Button>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <div className="text-center text-sm text-muted-foreground">

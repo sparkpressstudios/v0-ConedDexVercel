@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Quest, QuestObjective, QuestReward, UserQuest } from "@/types/quests"
 import { updateLeaderboardOnQuestCompleted } from "@/lib/utils/leaderboard-utils"
+import { createNotification } from "@/app/actions/notification-actions"
 
 /**
  * Get all active quests
@@ -90,6 +91,17 @@ export async function getQuestById(questId: string) {
  */
 export async function getUserQuests(userId: string) {
   const supabase = await createServerClient()
+
+  // If userId is "current", get the current user's ID
+  if (userId === "current") {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return { data: null, error: "User not authenticated" }
+    }
+    userId = user.id
+  }
 
   const { data, error } = await supabase
     .from("user_quests")
@@ -198,6 +210,23 @@ export async function joinQuest(questId: string) {
     return { data: null, error: error.message }
   }
 
+  // Create a notification for the user
+  await createNotification({
+    user_id: user.id,
+    title: "Quest Joined",
+    message: `You've joined the quest: ${quest.title}`,
+    type: "quest_joined",
+    metadata: { quest_id: questId },
+  })
+
+  // Add to activity log
+  await supabase.from("activity_log").insert({
+    user_id: user.id,
+    activity_type: "quest_joined",
+    description: `Joined quest: ${quest.title}`,
+    metadata: { quest_id: questId },
+  })
+
   revalidatePath("/dashboard/quests")
   return { data, error: null }
 }
@@ -245,6 +274,9 @@ export async function updateQuestProgress(userQuestId: string, objectiveId: stri
     return { data: null, error: "Quest objective not found" }
   }
 
+  // Get the quest for notifications
+  const { data: quest } = await supabase.from("quests").select("title").eq("id", userQuest.quest_id).single()
+
   // Update progress
   const progress = userQuest.progress || {}
   const objectiveProgress = progress[objectiveId] || {
@@ -253,6 +285,9 @@ export async function updateQuestProgress(userQuestId: string, objectiveId: stri
     is_completed: false,
     last_updated: new Date().toISOString(),
   }
+
+  // Check if the objective was already completed
+  const wasCompleted = objectiveProgress.is_completed
 
   objectiveProgress.current_count += increment
   objectiveProgress.is_completed = objectiveProgress.current_count >= objective.target_count
@@ -288,9 +323,28 @@ export async function updateQuestProgress(userQuestId: string, objectiveId: stri
     return { data: null, error: error.message }
   }
 
-  // If quest was completed, process rewards
+  // If an objective was newly completed, create a notification
+  if (!wasCompleted && objectiveProgress.is_completed) {
+    await createNotification({
+      user_id: user.id,
+      title: "Objective Completed",
+      message: `You've completed an objective in quest: ${quest?.title || "Unknown"}`,
+      type: "objective_completed",
+      metadata: { quest_id: userQuest.quest_id, objective_id: objectiveId },
+    })
+  }
+
+  // If quest was completed, process rewards and create notification
   if (allCompleted) {
-    await processQuestRewards(user.id, userQuest.quest_id)
+    const rewards = await processQuestRewards(user.id, userQuest.quest_id)
+
+    await createNotification({
+      user_id: user.id,
+      title: "Quest Completed!",
+      message: `Congratulations! You've completed the quest: ${quest?.title || "Unknown"}`,
+      type: "quest_completed",
+      metadata: { quest_id: userQuest.quest_id, rewards },
+    })
   }
 
   revalidatePath("/dashboard/quests")
@@ -307,8 +361,10 @@ async function processQuestRewards(userId: string, questId: string) {
   const { data: rewards } = await supabase.from("quest_rewards").select("*").eq("quest_id", questId)
 
   if (!rewards || rewards.length === 0) {
-    return
+    return []
   }
+
+  const processedRewards = []
 
   // Process each reward
   for (const reward of rewards) {
@@ -319,11 +375,31 @@ async function processQuestRewards(userId: string, questId: string) {
         badge_id: reward.badge_id,
         awarded_at: new Date().toISOString(),
       })
+
+      // Get badge details for the notification
+      const { data: badge } = await supabase
+        .from("badges")
+        .select("name, description")
+        .eq("id", reward.badge_id)
+        .single()
+
+      processedRewards.push({
+        type: "badge",
+        name: badge?.name || "Badge",
+        description: badge?.description || "A new badge",
+        badge_id: reward.badge_id,
+      })
     }
 
     if (reward.reward_type === "points" && reward.points) {
       // Award points
       await updateLeaderboardOnQuestCompleted(userId, reward.points)
+
+      processedRewards.push({
+        type: "points",
+        amount: reward.points,
+        description: `${reward.points} points added to your score`,
+      })
     }
 
     // Other reward types can be processed here
@@ -334,8 +410,10 @@ async function processQuestRewards(userId: string, questId: string) {
     user_id: userId,
     activity_type: "quest_completed",
     description: `Completed a quest and received rewards`,
-    metadata: { quest_id: questId },
+    metadata: { quest_id: questId, rewards: processedRewards },
   })
+
+  return processedRewards
 }
 
 /**
@@ -353,21 +431,52 @@ export async function abandonQuest(userQuestId: string) {
     return { data: null, error: "User not authenticated" }
   }
 
-  const { data, error } = await supabase
+  // Get the quest details for the notification
+  const { data: userQuest } = await supabase
     .from("user_quests")
-    .update({ status: "abandoned" })
+    .select("quest_id")
     .eq("id", userQuestId)
     .eq("user_id", user.id)
-    .select()
     .single()
 
-  if (error) {
-    console.error("Error abandoning quest:", error)
-    return { data: null, error: error.message }
+  if (userQuest) {
+    const { data: quest } = await supabase.from("quests").select("title").eq("id", userQuest.quest_id).single()
+
+    const { data, error } = await supabase
+      .from("user_quests")
+      .update({ status: "abandoned" })
+      .eq("id", userQuestId)
+      .eq("user_id", user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error abandoning quest:", error)
+      return { data: null, error: error.message }
+    }
+
+    // Create a notification
+    await createNotification({
+      user_id: user.id,
+      title: "Quest Abandoned",
+      message: `You've abandoned the quest: ${quest?.title || "Unknown"}`,
+      type: "quest_abandoned",
+      metadata: { quest_id: userQuest.quest_id },
+    })
+
+    // Add to activity log
+    await supabase.from("activity_log").insert({
+      user_id: user.id,
+      activity_type: "quest_abandoned",
+      description: `Abandoned quest: ${quest?.title || "Unknown"}`,
+      metadata: { quest_id: userQuest.quest_id },
+    })
+
+    revalidatePath("/dashboard/quests")
+    return { data, error: null }
   }
 
-  revalidatePath("/dashboard/quests")
-  return { data, error: null }
+  return { data: null, error: "Quest not found" }
 }
 
 /**
@@ -439,6 +548,19 @@ export async function createQuest(
     console.error("Error creating quest rewards:", rewardsError)
     // Note: We won't clean up here as objectives are already created
   }
+
+  // Add to admin audit log
+  await supabase.from("admin_audit_log").insert({
+    admin_id: user.id,
+    action: "create",
+    resource_type: "quest",
+    resource_id: quest.id,
+    details: {
+      quest: questData,
+      objectives: objectives,
+      rewards: rewards,
+    },
+  })
 
   // Return the complete quest with objectives and rewards
   const result = {
@@ -528,6 +650,19 @@ export async function updateQuest(
     }
   }
 
+  // Add to admin audit log
+  await supabase.from("admin_audit_log").insert({
+    admin_id: user.id,
+    action: "update",
+    resource_type: "quest",
+    resource_id: questId,
+    details: {
+      quest: questData,
+      objectives: objectives,
+      rewards: rewards,
+    },
+  })
+
   revalidatePath("/dashboard/admin/quests")
   revalidatePath("/dashboard/quests")
   return { data: updatedQuest, error: null }
@@ -554,6 +689,9 @@ export async function deleteQuest(questId: string) {
     return { data: null, error: "Unauthorized: Admin access required" }
   }
 
+  // Get quest details for audit log
+  const { data: quest } = await supabase.from("quests").select("title").eq("id", questId).single()
+
   // Delete the quest (cascade will handle objectives, rewards, and user_quests)
   const { data, error } = await supabase.from("quests").delete().eq("id", questId)
 
@@ -561,6 +699,17 @@ export async function deleteQuest(questId: string) {
     console.error("Error deleting quest:", error)
     return { data: null, error: error.message }
   }
+
+  // Add to admin audit log
+  await supabase.from("admin_audit_log").insert({
+    admin_id: user.id,
+    action: "delete",
+    resource_type: "quest",
+    resource_id: questId,
+    details: {
+      quest_title: quest?.title || "Unknown quest",
+    },
+  })
 
   revalidatePath("/dashboard/admin/quests")
   return { data: true, error: null }
@@ -674,4 +823,140 @@ export async function getQuestStatistics(questId: string) {
     },
     error: null,
   }
+}
+
+/**
+ * Get quest leaderboard
+ */
+export async function getQuestLeaderboard(questId: string, limit = 10) {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("user_quests")
+    .select(`
+      id,
+      user_id,
+      completed_at,
+      profiles:user_id(username, display_name, avatar_url)
+    `)
+    .eq("quest_id", questId)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: true })
+    .limit(limit)
+
+  if (error) {
+    console.error("Error fetching quest leaderboard:", error)
+    return { data: null, error: error.message }
+  }
+
+  return { data, error: null }
+}
+
+/**
+ * Get user quest progress summary
+ */
+export async function getUserQuestSummary(userId?: string) {
+  const supabase = await createServerClient()
+
+  // If no userId provided, get the current user
+  if (!userId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { data: null, error: "User not authenticated" }
+    }
+
+    userId = user.id
+  }
+
+  // Get counts of quests by status
+  const { data: inProgressCount, error: inProgressError } = await supabase
+    .from("user_quests")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "in_progress")
+
+  const { data: completedCount, error: completedError } = await supabase
+    .from("user_quests")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "completed")
+
+  const { data: abandonedCount, error: abandonedError } = await supabase
+    .from("user_quests")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "abandoned")
+
+  if (inProgressError || completedError || abandonedError) {
+    console.error("Error fetching user quest summary:", inProgressError || completedError || abandonedError)
+    return { data: null, error: "Error fetching quest summary" }
+  }
+
+  // Get total points earned from quests
+  const { data: userQuests } = await supabase
+    .from("user_quests")
+    .select(`
+      quest_id,
+      status
+    `)
+    .eq("user_id", userId)
+    .eq("status", "completed")
+
+  let totalPoints = 0
+
+  if (userQuests && userQuests.length > 0) {
+    // Get all quest rewards for completed quests
+    const questIds = userQuests.map((uq) => uq.quest_id)
+
+    const { data: rewards } = await supabase
+      .from("quest_rewards")
+      .select("quest_id, points")
+      .in("quest_id", questIds)
+      .eq("reward_type", "points")
+
+    if (rewards) {
+      totalPoints = rewards.reduce((sum, reward) => sum + (reward.points || 0), 0)
+    }
+  }
+
+  return {
+    data: {
+      in_progress: inProgressCount || 0,
+      completed: completedCount || 0,
+      abandoned: abandonedCount || 0,
+      total: (inProgressCount || 0) + (completedCount || 0) + (abandonedCount || 0),
+      points_earned: totalPoints,
+    },
+    error: null,
+  }
+}
+
+/**
+ * Get recently completed quests (for activity feed)
+ */
+export async function getRecentlyCompletedQuests(limit = 5) {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from("user_quests")
+    .select(`
+      id,
+      completed_at,
+      user_id,
+      profiles:user_id(username, display_name, avatar_url),
+      quest:quest_id(title, difficulty, points)
+    `)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error("Error fetching recently completed quests:", error)
+    return { data: null, error: error.message }
+  }
+
+  return { data, error: null }
 }

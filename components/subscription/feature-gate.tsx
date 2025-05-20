@@ -1,74 +1,58 @@
 "use client"
 
-import type { ReactNode } from "react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Lock, Loader2 } from "lucide-react"
-import Link from "next/link"
+import { type ReactNode, useState, useEffect } from "react"
 import { useFeatureAccess } from "@/hooks/use-feature-access"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { LockIcon } from "lucide-react"
 
 interface FeatureGateProps {
-  businessId: string
   featureKey: string
   children: ReactNode
   fallback?: ReactNode
   showUpgradeLink?: boolean
-  title?: string
-  description?: string
 }
 
-export function FeatureGate({
-  businessId,
-  featureKey,
-  children,
-  fallback,
-  showUpgradeLink = true,
-  title = "Premium Feature",
-  description = "This feature requires a higher subscription tier.",
-}: FeatureGateProps) {
-  const { hasAccess, isLoading, error } = useFeatureAccess(businessId, featureKey)
+export function FeatureGate({ featureKey, children, fallback, showUpgradeLink = true }: FeatureGateProps) {
+  const { hasAccess, isLoading } = useFeatureAccess(featureKey)
+  const router = useRouter()
+  const [isClient, setIsClient] = useState(false)
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
-  if (error) {
-    console.error("Error checking feature access:", error)
-  }
+  // Don't render anything on the server to prevent hydration mismatch
+  if (!isClient) return null
 
-  if (hasAccess) {
-    return <>{children}</>
-  }
+  // While loading, show nothing to prevent flashing
+  if (isLoading) return null
 
-  if (fallback) {
-    return <>{fallback}</>
-  }
+  // If the user has access, show the children
+  if (hasAccess) return <>{children}</>
 
+  // If a fallback is provided, show that
+  if (fallback) return <>{fallback}</>
+
+  // Otherwise, show a default message
   return (
-    <Card className="border-dashed">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Lock className="h-5 w-5" />
-          {title}
-        </CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground">
-          <p>This feature is not available on your current subscription plan.</p>
-        </div>
-      </CardContent>
-      {showUpgradeLink && (
-        <CardFooter>
-          <Link href="/dashboard/shop/subscription" className="w-full">
-            <Button className="w-full">Upgrade Subscription</Button>
-          </Link>
-        </CardFooter>
-      )}
-    </Card>
+    <Alert className="bg-amber-50 border-amber-200">
+      <LockIcon className="h-4 w-4 text-amber-600" />
+      <AlertTitle>Premium Feature</AlertTitle>
+      <AlertDescription className="flex flex-col gap-2">
+        <p>This feature requires a premium subscription.</p>
+        {showUpgradeLink && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start mt-2 border-amber-300 text-amber-700 hover:bg-amber-100"
+            onClick={() => router.push("/dashboard/shop/subscription")}
+          >
+            View Subscription Plans
+          </Button>
+        )}
+      </AlertDescription>
+    </Alert>
   )
 }

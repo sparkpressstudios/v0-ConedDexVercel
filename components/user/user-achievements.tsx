@@ -94,7 +94,7 @@ interface UserAchievementsProps {
   isDemoUser?: boolean
 }
 
-export default function UserAchievements({ userId, isDemoUser = false }: UserAchievementsProps) {
+export function UserAchievements({ userId, isDemoUser = false }: UserAchievementsProps) {
   const [badges, setBadges] = useState([])
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
@@ -417,3 +417,6 @@ export default function UserAchievements({ userId, isDemoUser = false }: UserAch
     </Tabs>
   )
 }
+
+// Add default export that references the named export
+export default UserAchievements

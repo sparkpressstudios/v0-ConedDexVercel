@@ -12,6 +12,7 @@ import { FeatureComparison } from "@/components/subscription/feature-comparison"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { createCheckoutSession, createBillingPortalSession } from "@/app/actions/stripe-actions"
 import { createClient } from "@/lib/supabase/client"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function SubscriptionPage() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([])
@@ -19,7 +20,8 @@ export default function SubscriptionPage() {
   const [tierFeatures, setTierFeatures] = useState<Record<string, FeatureDefinition[]>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [stripePrices, setStripePrices] = useState<Record<string, string>>({})
+  const [stripePrices, setStripePrices] = useState<Record<string, { monthly: string; yearly: string }>>({})
+  const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("monthly")
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -29,21 +31,33 @@ export default function SubscriptionPage() {
   // Check for success or canceled status from Stripe
   const success = searchParams.get("success")
   const canceled = searchParams.get("canceled")
+  const sessionId = searchParams.get("session_id")
 
   useEffect(() => {
-    if (success) {
+    if (success && sessionId) {
       toast({
         title: "Subscription successful!",
         description: "Your subscription has been processed successfully.",
       })
+
+      // Clear the URL parameters after showing the toast
+      const url = new URL(window.location.href)
+      url.searchParams.delete("success")
+      url.searchParams.delete("session_id")
+      router.replace(url.pathname)
     } else if (canceled) {
       toast({
         title: "Subscription canceled",
         description: "Your subscription process was canceled.",
         variant: "destructive",
       })
+
+      // Clear the URL parameters after showing the toast
+      const url = new URL(window.location.href)
+      url.searchParams.delete("canceled")
+      router.replace(url.pathname)
     }
-  }, [success, canceled, toast])
+  }, [success, canceled, sessionId, toast, router])
 
   useEffect(() => {
     async function fetchData() {
@@ -89,13 +103,26 @@ export default function SubscriptionPage() {
           .eq("is_active", true)
 
         if (priceMappings) {
-          const priceMap: Record<string, string> = {}
+          const priceMap: Record<string, { monthly: string; yearly: string }> = {}
+
+          // Initialize all tiers with empty values
+          subscriptionTiers.forEach((tier) => {
+            priceMap[tier.id] = { monthly: "", yearly: "" }
+          })
+
+          // Fill in the values we have
           priceMappings.forEach((mapping) => {
-            // Use the monthly price by default
+            if (!priceMap[mapping.subscription_tier_id]) {
+              priceMap[mapping.subscription_tier_id] = { monthly: "", yearly: "" }
+            }
+
             if (mapping.billing_period === "monthly") {
-              priceMap[mapping.subscription_tier_id] = mapping.stripe_price_id
+              priceMap[mapping.subscription_tier_id].monthly = mapping.stripe_price_id
+            } else if (mapping.billing_period === "yearly") {
+              priceMap[mapping.subscription_tier_id].yearly = mapping.stripe_price_id
             }
           })
+
           setStripePrices(priceMap)
         }
       } catch (error) {
@@ -147,7 +174,7 @@ export default function SubscriptionPage() {
     }
   }
 
-  const handleSubscribe = async (tierId: string, priceId: string) => {
+  const handleSubscribe = async (tierId: string) => {
     try {
       setIsUpdating(true)
 
@@ -161,13 +188,25 @@ export default function SubscriptionPage() {
         return
       }
 
+      const priceId = billingPeriod === "monthly" ? stripePrices[tierId]?.monthly : stripePrices[tierId]?.yearly
+
+      if (!priceId) {
+        toast({
+          title: "Error",
+          description: `No ${billingPeriod} price available for this tier.`,
+          variant: "destructive",
+        })
+        setIsUpdating(false)
+        return
+      }
+
       const result = await createCheckoutSession(
         shopId,
         user.id,
         tierId,
         priceId,
-        `${window.location.origin}/dashboard/shop/subscription/success`,
-        `${window.location.origin}/dashboard/shop/subscription/cancel`,
+        `${window.location.origin}/dashboard/shop/subscription?success=true`,
+        `${window.location.origin}/dashboard/shop/subscription?canceled=true`,
       )
 
       if (result.success && result.url) {
@@ -207,6 +246,16 @@ export default function SubscriptionPage() {
       },
       {} as Record<string, FeatureDefinition[]>,
     )
+  }
+
+  // Calculate savings for yearly billing
+  const calculateYearlySavings = (tier: SubscriptionTier) => {
+    if (tier.price === 0) return null
+    const monthlyCost = tier.price * 12
+    const yearlyCost = tier.price * 10 // Assuming 2 months free for yearly
+    const savings = monthlyCost - yearlyCost
+    const savingsPercentage = Math.round((savings / monthlyCost) * 100)
+    return { amount: savings, percentage: savingsPercentage }
   }
 
   return (
@@ -284,18 +333,42 @@ export default function SubscriptionPage() {
         </Card>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="flex justify-end mb-4">
+        <Tabs value={billingPeriod} onValueChange={(v) => setBillingPeriod(v as "monthly" | "yearly")}>
+          <TabsList>
+            <TabsTrigger value="monthly" className="flex items-center gap-1">
+              Monthly
+            </TabsTrigger>
+            <TabsTrigger value="yearly" className="flex items-center gap-1">
+              Yearly <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">Save 16%</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {tiers.map((tier) => {
           const isCurrentTier = currentSubscription?.subscription_tier_id === tier.id
           const features = tierFeatures[tier.id] || []
           const featuresByCategory = getFeaturesByCategory(features)
-          const stripePrice = stripePrices[tier.id]
+          const stripePrice =
+            billingPeriod === "monthly" ? stripePrices[tier.id]?.monthly : stripePrices[tier.id]?.yearly
+          const savings = billingPeriod === "yearly" ? calculateYearlySavings(tier) : null
 
           return (
-            <Card key={tier.id} className={isCurrentTier ? "border-primary" : ""}>
+            <Card key={tier.id} className={isCurrentTier ? "border-primary shadow-md" : ""}>
               <CardHeader>
                 <CardTitle>{tier.name}</CardTitle>
-                <CardDescription>{tier.price === 0 ? "Free" : `$${tier.price}/${tier.billing_period}`}</CardDescription>
+                <CardDescription className="flex flex-col">
+                  <span className="text-lg font-semibold">
+                    {tier.price === 0
+                      ? "Free"
+                      : `$${billingPeriod === "yearly" ? tier.price * 10 : tier.price}/${billingPeriod === "yearly" ? "year" : "month"}`}
+                  </span>
+                  {billingPeriod === "yearly" && tier.price > 0 && (
+                    <span className="text-xs text-green-600 mt-1">Save ${savings?.amount} per year</span>
+                  )}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {Object.entries(featuresByCategory).map(([category, features]) => (
@@ -336,7 +409,7 @@ export default function SubscriptionPage() {
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => handleSubscribe(tier.id, stripePrice)}
+                    onClick={() => handleSubscribe(tier.id)}
                     className="w-full"
                     variant={isCurrentTier ? "outline" : "default"}
                     disabled={isCurrentTier || isUpdating || !stripePrice}

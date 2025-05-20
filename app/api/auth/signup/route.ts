@@ -21,8 +21,8 @@ export async function POST(request: Request) {
           role,
         },
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-        // Don't require email verification before login
-        emailConfirm: false,
+        // Require email verification for proper security
+        emailConfirm: true,
       },
     })
 
@@ -63,20 +63,9 @@ export async function POST(request: Request) {
       const emailService = EmailService.getInstance()
       await emailService.sendWelcomeEmail(email, fullName || username)
 
-      // Also send a verification email (optional but recommended)
-      // This doesn't block access but still encourages verification
-      const { error: verificationError } = await supabase.auth.resend({
-        type: "signup",
-        email,
-        options: {
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-        },
-      })
-
-      if (verificationError) {
-        console.error("Verification email error:", verificationError)
-        // Don't fail the signup if just the verification email fails
-      }
+      // We're already sending the verification email with emailConfirm: true
+      // No need to send another one, but we can log that it's happening
+      console.log("Verification email sent to:", email)
     } catch (emailError) {
       console.error("Email sending error:", emailError)
       // Don't fail the signup if just the email fails
@@ -97,9 +86,8 @@ export async function POST(request: Request) {
     // Return success response
     return NextResponse.json(
       {
-        message: "Account created successfully! You can now access your dashboard.",
+        message: "Account created successfully! Please check your email to verify your account before logging in.",
         user: authData.user,
-        signedIn: !signInError,
       },
       { status: 201 },
     )

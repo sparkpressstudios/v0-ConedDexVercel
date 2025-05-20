@@ -13,6 +13,7 @@ import Script from "next/script"
 import { Suspense } from "react"
 import { cn } from "@/lib/utils"
 import { fonts, fontSans } from "@/lib/fonts"
+import { QueryProvider } from "@/components/providers/query-provider"
 
 // Initialize environment on server startup
 initEnvironment()
@@ -75,7 +76,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={cn("min-h-screen bg-background font-sans antialiased", fontSans.variable)}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <Suspense fallback={<div>Loading...</div>}>
-            <ClientLayout>{children}</ClientLayout>
+            <QueryProvider>
+              <ClientLayout>{children}</ClientLayout>
+            </QueryProvider>
           </Suspense>
         </ThemeProvider>
         <AnalyticsTracker />

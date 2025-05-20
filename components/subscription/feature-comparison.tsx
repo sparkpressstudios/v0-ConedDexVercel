@@ -1,65 +1,54 @@
 "use client"
 
+import React from "react"
+
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Check, X, Loader2 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { Check, Minus, HelpCircle } from "lucide-react"
+import { SubscriptionService, type SubscriptionTier, type FeatureDefinition } from "@/lib/services/subscription-service"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 interface FeatureComparisonProps {
   currentTierId?: string
 }
 
 export function FeatureComparison({ currentTierId }: FeatureComparisonProps) {
-  const [tiers, setTiers] = useState<any[]>([])
-  const [features, setFeatures] = useState<any[]>([])
-  const [tierFeatures, setTierFeatures] = useState<Record<string, string[]>>({})
+  const [tiers, setTiers] = useState<SubscriptionTier[]>([])
+  const [features, setFeatures] = useState<Record<string, FeatureDefinition[]>>({})
+  const [categories, setCategories] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
+  const [activeTab, setActiveTab] = useState<string>("all")
 
   useEffect(() => {
     async function fetchData() {
       try {
         setIsLoading(true)
 
-        // Get subscription tiers
-        const { data: tiersData, error: tiersError } = await supabase
-          .from("subscription_tiers")
-          .select("*")
-          .eq("is_active", true)
-          .order("price", { ascending: true })
+        // Get all subscription tiers
+        const subscriptionTiers = await SubscriptionService.getSubscriptionTiers()
+        setTiers(subscriptionTiers)
 
-        if (tiersError) throw tiersError
-        setTiers(tiersData || [])
+        // Get features for each tier
+        const featuresMap: Record<string, FeatureDefinition[]> = {}
+        const allCategories = new Set<string>()
 
-        // Get features by category
-        const { data: featuresData, error: featuresError } = await supabase
-          .from("feature_definitions")
-          .select("*")
-          .eq("is_active", true)
-          .order("category", { ascending: true })
-          .order("name", { ascending: true })
+        for (const tier of subscriptionTiers) {
+          const tierFeatures = await SubscriptionService.getTierFeatures(tier.id)
+          featuresMap[tier.id] = tierFeatures
 
-        if (featuresError) throw featuresError
-        setFeatures(featuresData || [])
+          // Collect all unique categories
+          tierFeatures.forEach((feature) => {
+            if (feature.category) {
+              allCategories.add(feature.category)
+            } else {
+              allCategories.add("Other")
+            }
+          })
+        }
 
-        // Get tier-feature associations
-        const { data: tierFeaturesData, error: tierFeaturesError } = await supabase
-          .from("subscription_tier_features")
-          .select("subscription_tier_id, feature_id")
-
-        if (tierFeaturesError) throw tierFeaturesError
-
-        // Create a map of tier ID to feature IDs
-        const tierFeaturesMap: Record<string, string[]> = {}
-        tierFeaturesData?.forEach((item) => {
-          if (!tierFeaturesMap[item.subscription_tier_id]) {
-            tierFeaturesMap[item.subscription_tier_id] = []
-          }
-          tierFeaturesMap[item.subscription_tier_id].push(item.feature_id)
-        })
-
-        setTierFeatures(tierFeaturesMap)
+        setFeatures(featuresMap)
+        setCategories(Array.from(allCategories))
       } catch (error) {
         console.error("Error fetching subscription data:", error)
       } finally {
@@ -68,79 +57,123 @@ export function FeatureComparison({ currentTierId }: FeatureComparisonProps) {
     }
 
     fetchData()
-  }, [supabase])
+  }, [])
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Feature Comparison</CardTitle>
+          <CardDescription>Loading feature comparison...</CardDescription>
+        </CardHeader>
+      </Card>
     )
   }
 
+  // Get all unique features across all tiers
+  const allFeatures = new Map<string, FeatureDefinition>()
+  Object.values(features).forEach((tierFeatures) => {
+    tierFeatures.forEach((feature) => {
+      allFeatures.set(feature.key, feature)
+    })
+  })
+
   // Group features by category
-  const featuresByCategory = features.reduce(
-    (acc, feature) => {
-      const category = feature.category || "Other"
-      if (!acc[category]) {
-        acc[category] = []
-      }
-      acc[category].push(feature)
-      return acc
-    },
-    {} as Record<string, any[]>,
-  )
+  const featuresByCategory: Record<string, FeatureDefinition[]> = {}
+  allFeatures.forEach((feature) => {
+    const category = feature.category || "Other"
+    if (!featuresByCategory[category]) {
+      featuresByCategory[category] = []
+    }
+    featuresByCategory[category].push(feature)
+  })
+
+  // Check if a tier has a specific feature
+  const tierHasFeature = (tierId: string, featureKey: string) => {
+    return features[tierId]?.some((f) => f.key === featureKey) || false
+  }
+
+  // Filter features by selected category
+  const filteredCategories = activeTab === "all" ? categories : [activeTab]
 
   return (
-    <Card>
+    <Card className="mt-8">
       <CardHeader>
         <CardTitle>Feature Comparison</CardTitle>
         <CardDescription>Compare features across different subscription tiers</CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[200px]">Feature</TableHead>
-              {tiers.map((tier) => (
-                <TableHead
-                  key={tier.id}
-                  className={currentTierId === tier.id ? "bg-primary/10 text-center" : "text-center"}
-                >
-                  {tier.name}
-                  <div className="text-xs font-normal">
-                    {tier.price === 0 ? "Free" : `$${tier.price}/${tier.billing_period}`}
-                  </div>
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {Object.entries(featuresByCategory).map(([category, categoryFeatures]) => (
-              <>
-                <TableRow key={category}>
-                  <TableCell colSpan={tiers.length + 1} className="bg-muted/50 font-medium">
-                    {category}
-                  </TableCell>
-                </TableRow>
-                {categoryFeatures.map((feature) => (
-                  <TableRow key={feature.id}>
-                    <TableCell>{feature.name}</TableCell>
-                    {tiers.map((tier) => (
-                      <TableCell key={`${tier.id}-${feature.id}`} className="text-center">
-                        {tierFeatures[tier.id]?.includes(feature.id) ? (
-                          <Check className="mx-auto h-4 w-4 text-green-500" />
-                        ) : (
-                          <X className="mx-auto h-4 w-4 text-muted-foreground" />
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 mb-4">
+            <TabsTrigger value="all">All Features</TabsTrigger>
+            {categories.map((category) => (
+              <TabsTrigger key={category} value={category}>
+                {category}
+              </TabsTrigger>
             ))}
-          </TableBody>
-        </Table>
+          </TabsList>
+        </Tabs>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2 px-4 font-medium">Feature</th>
+                {tiers.map((tier) => (
+                  <th
+                    key={tier.id}
+                    className={`text-center py-2 px-4 font-medium ${currentTierId === tier.id ? "bg-primary/10" : ""}`}
+                  >
+                    {tier.name}
+                    {currentTierId === tier.id && <span className="block text-xs">(Current)</span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCategories.map((category) => (
+                <React.Fragment key={category}>
+                  <tr className="bg-muted/50">
+                    <td colSpan={tiers.length + 1} className="py-2 px-4 font-medium">
+                      {category}
+                    </td>
+                  </tr>
+                  {featuresByCategory[category]?.map((feature) => (
+                    <tr key={feature.key} className="border-b border-muted">
+                      <td className="py-2 px-4 flex items-center gap-2">
+                        {feature.name}
+                        {feature.description && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">{feature.description}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </td>
+                      {tiers.map((tier) => (
+                        <td
+                          key={tier.id}
+                          className={`text-center py-2 px-4 ${currentTierId === tier.id ? "bg-primary/10" : ""}`}
+                        >
+                          {tierHasFeature(tier.id, feature.key) ? (
+                            <Check className="h-5 w-5 text-green-500 mx-auto" />
+                          ) : (
+                            <Minus className="h-5 w-5 text-muted-foreground mx-auto" />
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </CardContent>
     </Card>
   )

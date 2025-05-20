@@ -4,7 +4,25 @@ import { createServerClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 import { revalidatePath } from "next/cache"
 
-// Other existing functions...
+// Add the missing getCurrentShop function
+export async function getCurrentShop(userId: string) {
+  try {
+    const cookieStore = cookies()
+    const supabase = createServerClient(cookieStore)
+
+    const { data, error } = await supabase.from("shops").select("*").eq("owner_id", userId).single()
+
+    if (error) {
+      console.error("Error fetching current shop:", error)
+      return null
+    }
+
+    return data
+  } catch (error) {
+    console.error("Unexpected error in getCurrentShop:", error)
+    return null
+  }
+}
 
 export async function checkInToShop(formData: FormData) {
   const shopId = formData.get("shopId") as string
