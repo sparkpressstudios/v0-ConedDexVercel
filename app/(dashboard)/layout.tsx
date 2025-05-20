@@ -2,12 +2,14 @@ export const dynamic = "force-dynamic"
 
 import type React from "react"
 import { redirect } from "next/navigation"
+import { ImprovedDashboardSidebar } from "@/components/layout/improved-dashboard-sidebar"
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav"
 import { DashboardHeader } from "@/components/layout/dashboard-header"
-import { DashboardSidebar } from "@/components/layout/dashboard-sidebar"
 import { Toaster } from "@/components/ui/toaster"
 import { OfflineIndicator } from "@/components/ui/offline-indicator"
 import { InstallPrompt } from "@/components/ui/install-prompt"
 import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
+import { ThemeProvider } from "@/components/providers/theme-provider"
 import { getDemoUser } from "@/lib/auth/session"
 import { Shell } from "@/components/shell"
 import { createServerClient } from "@/lib/supabase/server"
@@ -102,16 +104,19 @@ function renderDashboardLayout(children: React.ReactNode, profile: any) {
   return (
     <GlobalErrorBoundary>
       <ClientLayout>
-        <div className="flex h-screen flex-col md:flex-row bg-white">
-          <DashboardSidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <DashboardHeader user={profile} />
-            <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
-            <Toaster />
-            <OfflineIndicator />
-            <InstallPrompt />
+        <ThemeProvider>
+          <div className="flex h-screen flex-col md:flex-row bg-white">
+            <ImprovedDashboardSidebar />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <DashboardHeader user={profile} />
+              <main className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">{children}</main>
+              <MobileBottomNav />
+              <Toaster />
+              <OfflineIndicator />
+              <InstallPrompt />
+            </div>
           </div>
-        </div>
+        </ThemeProvider>
       </ClientLayout>
     </GlobalErrorBoundary>
   )

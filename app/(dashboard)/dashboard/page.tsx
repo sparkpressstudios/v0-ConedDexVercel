@@ -2,13 +2,15 @@ import { Suspense } from "react"
 import { createServerClient } from "@/lib/supabase/server"
 import { Skeleton } from "@/components/ui/skeleton"
 import { FeaturedShops } from "@/components/dashboard/featured-shops"
-import { QuickActions } from "@/components/dashboard/quick-actions"
 import { ExploreShopsBanner } from "@/components/dashboard/explore-shops-banner"
 import { LeaderboardWidget } from "@/components/dashboard/leaderboard-widget"
 import { QuestProgressWidget } from "@/components/dashboard/quest-progress-widget"
 import { CommunityActivityFeed } from "@/components/dashboard/community-activity-feed"
+import { ImprovedQuickActions } from "@/components/dashboard/improved-quick-actions"
+import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -32,41 +34,82 @@ export default async function DashboardPage() {
   // Get user profile
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
+  // Get user role
+  const userRole = profile?.role || "explorer"
+
   try {
     return (
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">
-            Welcome back, {profile?.display_name || profile?.username || "Explorer"}!
-          </p>
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+            <p className="text-muted-foreground">
+              Welcome back, {profile?.display_name || profile?.username || "Explorer"}!
+            </p>
+          </div>
+
+          {userRole === "shop_owner" && (
+            <Button asChild size="sm" className="sm:self-start">
+              <Link href="/dashboard/shop">Go to Shop Dashboard</Link>
+            </Button>
+          )}
+
+          {userRole === "admin" && (
+            <Button asChild size="sm" className="sm:self-start">
+              <Link href="/dashboard/admin">Go to Admin Dashboard</Link>
+            </Button>
+          )}
         </div>
 
         <Suspense fallback={<Skeleton className="h-[100px] w-full" />}>
-          <QuickActions />
+          <ImprovedQuickActions userRole={userRole} />
         </Suspense>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
-            <QuestProgressWidget />
-          </Suspense>
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="w-full sm:w-auto mb-2">
+            <TabsTrigger value="overview" className="flex-1 sm:flex-initial">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="flex-1 sm:flex-initial">
+              Activity
+            </TabsTrigger>
+            <TabsTrigger value="discover" className="flex-1 sm:flex-initial">
+              Discover
+            </TabsTrigger>
+          </TabsList>
 
-          <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
-            <LeaderboardWidget />
-          </Suspense>
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
+                <QuestProgressWidget />
+              </Suspense>
 
-          <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
-            <CommunityActivityFeed />
-          </Suspense>
-        </div>
+              <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
+                <LeaderboardWidget />
+              </Suspense>
 
-        <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
-          <FeaturedShops />
-        </Suspense>
+              <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
+                <CommunityActivityFeed />
+              </Suspense>
+            </div>
+          </TabsContent>
 
-        <Suspense fallback={<Skeleton className="h-[100px] w-full" />}>
-          <ExploreShopsBanner />
-        </Suspense>
+          <TabsContent value="activity" className="space-y-6">
+            <Suspense fallback={<Skeleton className="h-[400px] w-full" />}>
+              <RecentActivity userId={user.id} />
+            </Suspense>
+          </TabsContent>
+
+          <TabsContent value="discover" className="space-y-6">
+            <Suspense fallback={<Skeleton className="h-[300px] w-full" />}>
+              <FeaturedShops />
+            </Suspense>
+
+            <Suspense fallback={<Skeleton className="h-[100px] w-full" />}>
+              <ExploreShopsBanner />
+            </Suspense>
+          </TabsContent>
+        </Tabs>
       </div>
     )
   } catch (error) {
