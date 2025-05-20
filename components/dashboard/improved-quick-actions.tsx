@@ -5,8 +5,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { LogFlavorForm } from "@/components/flavor/log-flavor-form"
+import { LogFlavorModal } from "@/components/flavor/log-flavor-modal"
 import { Icons } from "@/components/ui/icons"
 
 interface ImprovedQuickActionsProps {
@@ -162,15 +161,8 @@ export function ImprovedQuickActions({ userRole = "explorer" }: ImprovedQuickAct
         </CardContent>
       </Card>
 
-      {/* Log Flavor Dialog */}
-      <Dialog open={isLogFlavorOpen} onOpenChange={setIsLogFlavorOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Log a New Flavor</DialogTitle>
-          </DialogHeader>
-          <LogFlavorForm onSuccess={() => setIsLogFlavorOpen(false)} />
-        </DialogContent>
-      </Dialog>
+      {/* Log Flavor Modal */}
+      <LogFlavorModal isOpen={isLogFlavorOpen} onClose={() => setIsLogFlavorOpen(false)} />
     </>
   )
 }

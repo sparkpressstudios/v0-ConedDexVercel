@@ -1,5 +1,6 @@
 "use client"
 
+// Import only SendGrid, no nodemailer
 import sgMail from "@sendgrid/mail"
 
 // Initialize SendGrid with API key
@@ -134,6 +135,12 @@ export class EmailService {
    */
   public async sendEmail(emailData: EmailData): Promise<boolean> {
     try {
+      // For v0.dev preview, just log the email
+      if (typeof window !== "undefined") {
+        console.log("Sending email:", emailData)
+        return true
+      }
+
       const msg = {
         to: emailData.to,
         from: process.env.SENDGRID_FROM_EMAIL || "noreply@conedex.com",
@@ -153,48 +160,6 @@ export class EmailService {
       return false
     }
   }
-
-  /**
-   * Send a welcome email to new users
-   */
-  // public async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
-  //   const loginUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/login`
-  //   const html = generateWelcomeEmailHtml(name, loginUrl)
-
-  //   return this.sendEmail({
-  //     to: email,
-  //     subject: "Welcome to ConeDex!",
-  //     html,
-  //   })
-  // }
-
-  /**
-   * Send a password reset email
-   */
-  // public async sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
-  //   const resetUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password?token=${resetToken}`
-  //   const html = generatePasswordResetEmailHtml(resetUrl)
-
-  //   return this.sendEmail({
-  //     to: email,
-  //     subject: "Reset Your ConeDex Password",
-  //     html,
-  //   })
-  // }
-
-  /**
-   * Send a verification email
-   */
-  // public async sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
-  //   const verificationUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/verify-email?token=${verificationToken}`
-  //   const html = generateVerificationEmailHtml(verificationUrl)
-
-  //   return this.sendEmail({
-  //     to: email,
-  //     subject: "Verify Your ConeDex Email",
-  //     html,
-  //   })
-  // }
 
   /**
    * Send a notification email
@@ -255,6 +220,12 @@ export class EmailService {
     const html = generateNewsletterEmailHtml(subject, content)
 
     try {
+      // For v0.dev preview, just log the email
+      if (typeof window !== "undefined") {
+        console.log(`Sending newsletter to ${recipients.length} recipients:`, { subject, content })
+        return true
+      }
+
       // Split recipients into batches of 1000 to avoid SendGrid limits
       const batchSize = 1000
       const batches = []
@@ -317,23 +288,6 @@ export class EmailService {
   }
 }
 
-// For backward compatibility
-// export async function sendEmail(emailData: EmailData): Promise<boolean> {
-//   return EmailService.getInstance().sendEmail(emailData)
-// }
-
-// export async function sendWelcomeEmail(email: string, name: string): Promise<boolean> {
-//   return EmailService.getInstance().sendWelcomeEmail(email, name)
-// }
-
-// export async function sendPasswordResetEmail(email: string, resetToken: string): Promise<boolean> {
-//   return EmailService.getInstance().sendPasswordResetEmail(email, resetToken)
-// }
-
-// export async function sendVerificationEmail(email: string, verificationToken: string): Promise<boolean> {
-//   return EmailService.getInstance().sendVerificationEmail(email, verificationToken)
-// }
-
 export async function sendNotificationEmail(
   email: string,
   subject: string,
@@ -367,236 +321,6 @@ export async function sendShopClaimApprovedEmail(email: string, shopName: string
 
 export async function sendShopClaimRejectedEmail(email: string, shopName: string, reason: string): Promise<boolean> {
   return EmailService.getInstance().sendShopClaimRejectedEmail(email, shopName, reason)
-}
-
-/**
- * Generate HTML for welcome email
- */
-function generateWelcomeEmailHtml(name: string, loginUrl: string): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>Welcome to ConeDex!</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          line-height: 1.6; 
-          color: #333; 
-          max-width: 600px; 
-          margin: 0 auto; 
-          padding: 20px; 
-        }
-        .header { 
-          background-color: #f8a100; 
-          padding: 20px; 
-          text-align: center; 
-          border-radius: 5px 5px 0 0; 
-        }
-        .content { 
-          padding: 20px; 
-          background-color: #fff; 
-          border: 1px solid #ddd; 
-          border-top: none; 
-          border-radius: 0 0 5px 5px; 
-        }
-        .button {
-          display: inline-block;
-          background-color: #f8a100;
-          color: white;
-          text-decoration: none;
-          padding: 10px 20px;
-          border-radius: 5px;
-          margin: 20px 0;
-        }
-        .footer { 
-          text-align: center; 
-          margin-top: 20px; 
-          font-size: 12px; 
-          color: #999; 
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Welcome to ConeDex!</h1>
-      </div>
-      <div class="content">
-        <p>Hi ${name},</p>
-        <p>Welcome to ConeDex, the ultimate platform for ice cream enthusiasts! We're excited to have you join our community.</p>
-        <p>With ConeDex, you can:</p>
-        <ul>
-          <li>Discover new ice cream shops and flavors</li>
-          <li>Track your favorite flavors</li>
-          <li>Connect with other ice cream lovers</li>
-          <li>Earn badges and climb the leaderboard</li>
-        </ul>
-        <p>Ready to start your ice cream adventure?</p>
-        <a href="${loginUrl}" class="button">Log In to Your Account</a>
-        <p>If you have any questions, feel free to contact our support team.</p>
-        <p>Happy scooping!</p>
-        <p>The ConeDex Team</p>
-      </div>
-      <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
-        <p>This email was sent to you because you signed up for ConeDex.</p>
-      </div>
-    </body>
-    </html>
-  `
-}
-
-/**
- * Generate HTML for password reset email
- */
-function generatePasswordResetEmailHtml(resetUrl: string): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>Reset Your ConeDex Password</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          line-height: 1.6; 
-          color: #333; 
-          max-width: 600px; 
-          margin: 0 auto; 
-          padding: 20px; 
-        }
-        .header { 
-          background-color: #f8a100; 
-          padding: 20px; 
-          text-align: center; 
-          border-radius: 5px 5px 0 0; 
-        }
-        .content { 
-          padding: 20px; 
-          background-color: #fff; 
-          border: 1px solid #ddd; 
-          border-top: none; 
-          border-radius: 0 0 5px 5px; 
-        }
-        .button {
-          display: inline-block;
-          background-color: #f8a100;
-          color: white;
-          text-decoration: none;
-          padding: 10px 20px;
-          border-radius: 5px;
-          margin: 20px 0;
-        }
-        .footer { 
-          text-align: center; 
-          margin-top: 20px; 
-          font-size: 12px; 
-          color: #999; 
-        }
-        .warning {
-          color: #cc0000;
-          font-size: 14px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Reset Your Password</h1>
-      </div>
-      <div class="content">
-        <p>Hello,</p>
-        <p>We received a request to reset your password for your ConeDex account. If you didn't make this request, you can safely ignore this email.</p>
-        <p>To reset your password, click the button below:</p>
-        <a href="${resetUrl}" class="button">Reset Password</a>
-        <p class="warning">This link will expire in 1 hour for security reasons.</p>
-        <p>If the button doesn't work, copy and paste this URL into your browser:</p>
-        <p>${resetUrl}</p>
-        <p>If you have any questions, please contact our support team.</p>
-        <p>Best regards,</p>
-        <p>The ConeDex Team</p>
-      </div>
-      <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
-      </div>
-    </body>
-    </html>
-  `
-}
-
-/**
- * Generate HTML for verification email
- */
-function generateVerificationEmailHtml(verificationUrl: string): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>Verify Your ConeDex Email</title>
-      <style>
-        body { 
-          font-family: Arial, sans-serif; 
-          line-height: 1.6; 
-          color: #333; 
-          max-width: 600px; 
-          margin: 0 auto; 
-          padding: 20px; 
-        }
-        .header { 
-          background-color: #f8a100; 
-          padding: 20px; 
-          text-align: center; 
-          border-radius: 5px 5px 0 0; 
-        }
-        .content { 
-          padding: 20px; 
-          background-color: #fff; 
-          border: 1px solid #ddd; 
-          border-top: none; 
-          border-radius: 0 0 5px 5px; 
-        }
-        .button {
-          display: inline-block;
-          background-color: #f8a100;
-          color: white;
-          text-decoration: none;
-          padding: 10px 20px;
-          border-radius: 5px;
-          margin: 20px 0;
-        }
-        .footer { 
-          text-align: center; 
-          margin-top: 20px; 
-          font-size: 12px; 
-          color: #999; 
-        }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Verify Your Email</h1>
-      </div>
-      <div class="content">
-        <p>Hello,</p>
-        <p>Thanks for signing up for ConeDex! Please verify your email address to complete your registration.</p>
-        <p>Click the button below to verify your email:</p>
-        <a href="${verificationUrl}" class="button">Verify Email</a>
-        <p>If the button doesn't work, copy and paste this URL into your browser:</p>
-        <p>${verificationUrl}</p>
-        <p>If you didn't create an account with ConeDex, you can safely ignore this email.</p>
-        <p>Best regards,</p>
-        <p>The ConeDex Team</p>
-      </div>
-      <div class="footer">
-        <p>&copy; ${new Date().getFullYear()} ConeDex. All rights reserved.</p>
-      </div>
-    </body>
-    </html>
-  `
 }
 
 /**

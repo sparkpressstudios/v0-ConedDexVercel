@@ -1,42 +1,45 @@
 "use client"
 
-import type React from "react"
-
-import { useEffect } from "react"
-import { usePathname } from "next/navigation"
-import { InstallPrompt } from "@/components/ui/install-prompt"
-import { OfflineIndicator } from "@/components/ui/offline-indicator"
+import { useState, useEffect, type ReactNode } from "react"
 import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
-import { AnalyticsTracker } from "@/components/analytics/analytics-tracker"
-import { KeyboardNavigation } from "@/components/ui/keyboard-navigation"
 
-export function ClientLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
+export function ClientLayout({ children }: { children: ReactNode }) {
+  const [hasHydrated, setHasHydrated] = useState(false)
 
-  // Register service worker
+  // Mark when hydration has completed
   useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      const swPath = "/sw-register.js"
-      navigator.serviceWorker
-        .register(swPath)
-        .then((registration) => {
-          console.log("Service Worker registered with scope:", registration.scope)
-        })
-        .catch((error) => {
-          console.error("Service Worker registration failed:", error)
-        })
+    setHasHydrated(true)
+  }, [])
+
+  // Add some diagnostic logging
+  useEffect(() => {
+    console.log("Client layout mounted")
+
+    // Report any unhandled errors
+    const originalOnError = window.onerror
+    window.onerror = function (message, source, lineno, colno, error) {
+      console.error("Unhandled error:", { message, source, lineno, colno, error })
+      if (originalOnError) {
+        return originalOnError.apply(this, [message, source, lineno, colno, error])
+      }
+      return false
+    }
+
+    return () => {
+      window.onerror = originalOnError
     }
   }, [])
 
   return (
     <GlobalErrorBoundary>
-      <AnalyticsTracker pathname={pathname}>
-        <KeyboardNavigation>
-          {children}
-          <InstallPrompt />
-          <OfflineIndicator />
-        </KeyboardNavigation>
-      </AnalyticsTracker>
+      {!hasHydrated ? (
+        <div className="flex min-h-screen flex-col items-center justify-center p-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-pink-600 border-t-transparent"></div>
+          <p className="mt-4 text-lg font-medium">Loading ConeDex...</p>
+        </div>
+      ) : (
+        children
+      )}
     </GlobalErrorBoundary>
   )
 }

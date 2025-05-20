@@ -154,3 +154,39 @@ export const reverseGeocode = async (latitude: number, longitude: number): Promi
     throw error
   }
 }
+
+// Handle location errors in a user-friendly way
+export const handleLocationError = (error: any): string => {
+  console.error("Location error:", error)
+
+  if (error.code) {
+    // GeolocationPositionError
+    switch (error.code) {
+      case 1: // PERMISSION_DENIED
+        return "Location access denied. Please enable location services in your browser settings."
+      case 2: // POSITION_UNAVAILABLE
+        return "Your location is currently unavailable. Please try again later."
+      case 3: // TIMEOUT
+        return "Location request timed out. Please try again."
+      default:
+        return "An unknown location error occurred."
+    }
+  }
+
+  return error.message || "Failed to access your location."
+}
+
+// Check if geolocation is supported and permission is granted
+export const checkLocationPermission = async (): Promise<boolean> => {
+  if (!navigator.geolocation) {
+    return false
+  }
+
+  try {
+    const result = await navigator.permissions.query({ name: "geolocation" as PermissionName })
+    return result.state === "granted" || result.state === "prompt"
+  } catch (error) {
+    console.error("Error checking location permission:", error)
+    return false
+  }
+}

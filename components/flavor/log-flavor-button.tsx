@@ -24,11 +24,12 @@ export function LogFlavorButton({ children, variant = "default", className }: Lo
   return (
     <>
       <Button onClick={openModal} variant={variant} className={className}>
-        {children}
+        {children || "Log Flavor"}
       </Button>
       <LogFlavorModal isOpen={isModalOpen} onClose={closeModal} />
     </>
   )
 }
 
+// Add default export
 export default LogFlavorButton

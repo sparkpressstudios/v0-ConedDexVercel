@@ -8,7 +8,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['api.dicebear.com', 'lh3.googleusercontent.com', 'avatars.githubusercontent.com'],
+    domains: ['localhost', 'conedex.app', 'images.unsplash.com'],
     unoptimized: true,
   },
   experimental: {
@@ -25,6 +25,24 @@ const nextConfig = {
       }
     }
     return config
+  },
+  transpilePackages: ['@sendgrid/mail'],
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+        ],
+      },
+    ]
   },
 }
 

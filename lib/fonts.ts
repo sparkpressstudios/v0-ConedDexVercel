@@ -15,9 +15,5 @@ export const fonts = {
   mono: fontMono.variable,
 }
 
-// Add the missing named export
-export const lib = {
-  fonts,
-  fontSans,
-  fontMono,
-}
+// Add the lib export that was referenced elsewhere
+export const lib = fontSans

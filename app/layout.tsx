@@ -1,45 +1,38 @@
 import type React from "react"
-import { cookies } from "next/headers"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "@/lib/database.types"
-import "./globals.css"
-import { ClientLayout } from "./client-layout"
-import { ThemeProvider } from "@/components/providers/theme-provider"
-import { SupabaseProvider } from "@/components/providers/supabase-provider"
-import { QueryProvider } from "@/components/providers/query-provider"
-import { Toaster } from "@/components/ui/toaster"
-import { lib } from "@/lib/fonts"
+import type { Metadata, Viewport } from "next"
+import { initEnvironment } from "./init-env"
+import ClientRootLayout from "./client-layout"
+
+// Initialize environment on server startup
+initEnvironment().catch((error) => {
+  console.error("Environment initialization failed:", error)
+})
+
+export const metadata: Metadata = {
+  title: "ConeDex - Ice Cream Explorer",
+  description: "Discover and track your ice cream adventure with ConeDex. The ultimate platform for ice cream lovers.",
+  manifest: "/manifest.json",
+  icons: [
+    { rel: "icon", url: "/icons/icon-192x192.png" },
+    { rel: "apple-touch-icon", url: "/icons/icon-192x192.png" },
+  ],
+    generator: 'v0.dev'
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#ffffff",
+  viewportFit: "cover",
+}
 
 export const dynamic = "force-dynamic"
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Create the Supabase client directly in the component
-  const supabase = createServerComponentClient<Database>({ cookies })
-
-  let session = null
-  try {
-    const { data } = await supabase.auth.getSession()
-    session = data.session
-  } catch (error) {
-    console.error("Error getting session:", error)
-  }
-
-  return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={lib.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SupabaseProvider session={session}>
-            <QueryProvider>
-              <ClientLayout>{children}</ClientLayout>
-              <Toaster />
-            </QueryProvider>
-          </SupabaseProvider>
-        </ThemeProvider>
-      </body>
-    </html>
-  )
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <ClientRootLayout>{children}</ClientRootLayout>
 }
 
-export const metadata = {
-      generator: 'v0.dev'
-    };
+
+import './globals.css'
