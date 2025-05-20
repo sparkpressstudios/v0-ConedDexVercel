@@ -32,7 +32,7 @@ export function DashboardSidebar() {
   const supabase = createClient()
   const userRole = user?.role || "explorer"
 
-  // Navigation items - reintegrated "Shops" item
+  // Navigation items - consolidated Shops items
   const navItems = [
     {
       icon: <LayoutDashboard className="h-5 w-5" />,
@@ -58,6 +58,7 @@ export function DashboardSidebar() {
       icon: <Store className="h-5 w-5" />,
       href: "/dashboard/shops",
       label: "Shops",
+      highlight: true,
     },
     {
       icon: <Map className="h-5 w-5" />,

@@ -27,7 +27,10 @@ export default function ShopsPageSkeleton() {
               </div>
             </CardContent>
             <CardFooter className="flex items-center justify-between p-4 pt-0">
-              <Skeleton className="h-9 w-28" />
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-16" />
+                <Skeleton className="h-9 w-24" />
+              </div>
               <Skeleton className="h-9 w-24" />
             </CardFooter>
           </Card>

@@ -58,6 +58,7 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
       icon: <Store className="h-5 w-5" />,
       href: "/dashboard/shops",
       label: "Shops",
+      highlight: true,
     },
     {
       icon: <Map className="h-5 w-5" />,
@@ -153,7 +154,9 @@ export function MobileNav({ isOpen, onClose, user }: MobileNavProps) {
                   "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
                   pathname === item.href
                     ? "bg-purple-800 text-white"
-                    : "text-purple-300 hover:bg-purple-800 hover:text-white",
+                    : item.highlight
+                      ? "text-white bg-purple-700 hover:bg-purple-800"
+                      : "text-purple-300 hover:bg-purple-800 hover:text-white",
                 )}
               >
                 {item.icon}

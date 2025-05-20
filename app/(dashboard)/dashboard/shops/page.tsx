@@ -34,8 +34,7 @@ export default async function ShopsPage({
         latitude,
         longitude,
         rating,
-        mainImage,
-        thumbnailImage,
+        image_url,
         website,
         phone,
         is_active,
@@ -60,15 +59,14 @@ export default async function ShopsPage({
         ...shop,
         check_in_count: shop.shop_checkins?.[0]?.count || 0,
         flavor_count: shop.shop_flavors?.[0]?.count || 0,
+        mainImage: shop.image_url, // Ensure consistent property naming
       })) || []
 
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-purple-900">Ice Cream Shops</h1>
-          <p className="mt-2 text-lg text-muted-foreground">
-            Discover delicious ice cream shops, track your visits, and share your experiences
-          </p>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Ice Cream Shops</h1>
+          <p className="text-muted-foreground">Discover and explore ice cream shops in your area</p>
         </div>
 
         <Suspense fallback={<ShopsPageSkeleton />}>
@@ -79,12 +77,10 @@ export default async function ShopsPage({
   } catch (error) {
     console.error("Error in ShopsPage:", error)
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-purple-900">Ice Cream Shops</h1>
-          <p className="mt-2 text-lg text-muted-foreground">
-            Discover delicious ice cream shops, track your visits, and share your experiences
-          </p>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">Ice Cream Shops</h1>
+          <p className="text-muted-foreground">Discover and explore ice cream shops in your area</p>
         </div>
         <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
           <h2 className="text-xl font-semibold text-red-700">Unable to load shops</h2>

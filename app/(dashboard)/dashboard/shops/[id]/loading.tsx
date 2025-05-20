@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
 export default function ShopDetailLoading() {
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2">
           <Skeleton className="w-full h-[300px] rounded-lg" />
@@ -122,6 +122,7 @@ export default function ShopDetailLoading() {
               <Skeleton className="h-6 w-20" />
             </CardHeader>
             <CardContent className="space-y-2">
+              <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </CardContent>

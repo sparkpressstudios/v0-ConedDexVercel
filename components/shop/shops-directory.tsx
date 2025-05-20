@@ -2,20 +2,21 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/contexts/auth-context"
-import { CheckCircle, Search, Star, Store, List, Filter, MapPin } from "lucide-react"
+import { CheckCircle, Star, Store, List, Filter, MapPin, Plus } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet"
 import { ShopFilters } from "@/components/shop/shop-filters"
+import { AddFlavorModal } from "@/components/shop/add-flavor-modal"
+import { useToast } from "@/hooks/use-toast"
+import { ShopSearchForm } from "./shop-search-form"
 
 interface Shop {
   id: string
@@ -30,7 +31,7 @@ interface Shop {
   longitude: number | null
   rating: number | null
   mainImage: string | null
-  thumbnailImage: string | null
+  image_url: string | null
   website: string | null
   phone: string | null
   is_active: boolean
@@ -56,11 +57,25 @@ export default function ShopsDirectory({
     rating: 0,
     verifiedOnly: false,
     hasSpecials: false,
+    sortBy: "popular",
   })
+  const [selectedShop, setSelectedShop] = useState<Shop | null>(null)
+  const [isAddFlavorModalOpen, setIsAddFlavorModalOpen] = useState(false)
+
   const router = useRouter()
   const searchParamsObj = useSearchParams()
   const { user } = useAuth()
   const supabase = createClient()
+  const { toast } = useToast()
+
+  // Initialize search query from URL params
+  useEffect(() => {
+    const query = searchParamsObj.get("q")
+    if (query) {
+      setSearchQuery(query)
+      searchShops(null, query)
+    }
+  }, [searchParamsObj])
 
   // Load more shops
   const loadMoreShops = async () => {
@@ -82,8 +97,7 @@ export default function ShopsDirectory({
           latitude,
           longitude,
           rating,
-          mainImage,
-          thumbnailImage,
+          image_url,
           website,
           phone,
           is_active,
@@ -104,21 +118,29 @@ export default function ShopsDirectory({
           ...shop,
           check_in_count: shop.shop_checkins?.[0]?.count || 0,
           flavor_count: shop.shop_flavors?.[0]?.count || 0,
+          mainImage: shop.image_url,
         })) || []
 
       setShops((prev) => [...prev, ...processedData])
     } catch (error) {
       console.error("Error loading more shops:", error)
+      toast({
+        title: "Error loading shops",
+        description: "Failed to load additional shops. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
   // Search shops
-  const searchShops = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const searchShops = async (e: React.FormEvent | null, query?: string) => {
+    if (e) e.preventDefault()
 
-    if (!searchQuery.trim()) {
+    const searchTerm = query || searchQuery
+
+    if (!searchTerm.trim()) {
       setShops(initialShops)
       return
     }
@@ -139,8 +161,7 @@ export default function ShopsDirectory({
           latitude,
           longitude,
           rating,
-          mainImage,
-          thumbnailImage,
+          image_url,
           website,
           phone,
           is_active,
@@ -151,7 +172,7 @@ export default function ShopsDirectory({
           shop_flavors(count)
         `)
         .eq("is_active", true)
-        .or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`)
+        .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%`)
         .order("created_at", { ascending: false })
         .limit(20)
 
@@ -162,11 +183,17 @@ export default function ShopsDirectory({
           ...shop,
           check_in_count: shop.shop_checkins?.[0]?.count || 0,
           flavor_count: shop.shop_flavors?.[0]?.count || 0,
+          mainImage: shop.image_url,
         })) || []
 
       setShops(processedData)
     } catch (error) {
       console.error("Error searching shops:", error)
+      toast({
+        title: "Search failed",
+        description: "Failed to search shops. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -196,8 +223,7 @@ export default function ShopsDirectory({
           latitude,
           longitude,
           rating,
-          mainImage,
-          thumbnailImage,
+          image_url,
           website,
           phone,
           is_active,
@@ -221,7 +247,22 @@ export default function ShopsDirectory({
         query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`)
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false }).limit(20)
+      // Apply sorting
+      switch (activeFilters.sortBy) {
+        case "rating":
+          query = query.order("rating", { ascending: false })
+          break
+        case "newest":
+          query = query.order("created_at", { ascending: false })
+          break
+        case "popular":
+        default:
+          // We'll sort by check-ins after fetching the data
+          query = query.order("created_at", { ascending: false })
+          break
+      }
+
+      const { data, error } = await query.limit(20)
 
       if (error) throw error
 
@@ -230,33 +271,83 @@ export default function ShopsDirectory({
           ...shop,
           check_in_count: shop.shop_checkins?.[0]?.count || 0,
           flavor_count: shop.shop_flavors?.[0]?.count || 0,
+          mainImage: shop.image_url,
         })) || []
+
+      // If sorting by popularity, sort by check-in count
+      if (activeFilters.sortBy === "popular") {
+        processedData.sort((a, b) => b.check_in_count - a.check_in_count)
+      }
 
       setShops(processedData)
     } catch (error) {
       console.error("Error filtering shops:", error)
+      toast({
+        title: "Filter failed",
+        description: "Failed to apply filters. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Handle adding a new flavor
+  const handleAddFlavor = (shop: Shop) => {
+    setSelectedShop(shop)
+    setIsAddFlavorModalOpen(true)
+  }
+
+  // Handle check-in
+  const handleCheckIn = async (shopId: string) => {
+    if (!user) {
+      toast({
+        title: "Login required",
+        description: "Please log in to check in to shops",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const { error } = await supabase.from("shop_checkins").insert({
+        shop_id: shopId,
+        user_id: user.id,
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "Checked in!",
+        description: "You've successfully checked in to this shop",
+      })
+
+      // Update the local state to reflect the new check-in
+      setShops(
+        shops.map((shop) => {
+          if (shop.id === shopId) {
+            return {
+              ...shop,
+              check_in_count: shop.check_in_count + 1,
+            }
+          }
+          return shop
+        }),
+      )
+    } catch (error) {
+      console.error("Error checking in:", error)
+      toast({
+        title: "Check-in failed",
+        description: "There was an error checking in to this shop",
+        variant: "destructive",
+      })
     }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <form onSubmit={searchShops} className="flex w-full max-w-lg gap-2">
-          <Input
-            type="search"
-            placeholder="Search shops by name, description, or city..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full"
-          />
-          <Button type="submit" size="icon">
-            <Search className="h-4 w-4" />
-            <span className="sr-only">Search</span>
-          </Button>
-        </form>
-
+        <ShopSearchForm />
         <div className="flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild>
@@ -299,11 +390,14 @@ export default function ShopsDirectory({
                 {shops.map((shop) => (
                   <Card key={shop.id} className="overflow-hidden">
                     <div className="aspect-video w-full overflow-hidden bg-muted">
-                      <Image
-                        src={shop.mainImage || "/placeholder.svg?height=200&width=400&query=ice cream shop"}
+                      <img
+                        src={
+                          shop.mainImage ||
+                          shop.image_url ||
+                          "/placeholder.svg?height=200&width=400&query=ice cream shop" ||
+                          "/placeholder.svg"
+                        }
                         alt={shop.name}
-                        width={400}
-                        height={200}
                         className="h-full w-full object-cover transition-transform hover:scale-105"
                       />
                     </div>
@@ -316,16 +410,24 @@ export default function ShopsDirectory({
                             {shop.state ? `, ${shop.state}` : ""}
                           </p>
                         </div>
-                        {shop.rating && (
-                          <Badge variant="outline" className="flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                            <span>{shop.rating.toFixed(1)}</span>
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {shop.is_verified && (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Verified
+                            </Badge>
+                          )}
+                          {shop.rating && (
+                            <Badge variant="outline" className="flex items-center gap-1">
+                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                              <span>{shop.rating.toFixed(1)}</span>
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Badge variant="secondary" className="flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3" />
+                          <MapPin className="h-3 w-3" />
                           <span>{shop.check_in_count} check-ins</span>
                         </Badge>
                         <Badge variant="secondary" className="flex items-center gap-1">
@@ -335,12 +437,18 @@ export default function ShopsDirectory({
                       </div>
                     </CardContent>
                     <CardFooter className="flex items-center justify-between p-4 pt-0">
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/dashboard/shops/${shop.id}`}>View Details</Link>
-                      </Button>
-                      <Button size="sm" className="gap-1">
-                        <MapPin className="h-3 w-3" />
-                        <span>Check In</span>
+                      <div className="flex gap-2">
+                        <Button asChild variant="outline" size="sm">
+                          <Link href={`/dashboard/shops/${shop.id}`}>View</Link>
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleAddFlavor(shop)}>
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add Flavor
+                        </Button>
+                      </div>
+                      <Button size="sm" onClick={() => handleCheckIn(shop.id)}>
+                        <MapPin className="h-3 w-3 mr-1" />
+                        Check In
                       </Button>
                     </CardFooter>
                   </Card>
@@ -362,11 +470,14 @@ export default function ShopsDirectory({
                   <Card key={shop.id} className="overflow-hidden">
                     <div className="flex flex-col md:flex-row">
                       <div className="aspect-video w-full md:w-48 overflow-hidden bg-muted">
-                        <Image
-                          src={shop.mainImage || "/placeholder.svg?height=200&width=400&query=ice cream shop"}
+                        <img
+                          src={
+                            shop.mainImage ||
+                            shop.image_url ||
+                            "/placeholder.svg?height=200&width=400&query=ice cream shop" ||
+                            "/placeholder.svg"
+                          }
                           alt={shop.name}
-                          width={200}
-                          height={150}
                           className="h-full w-full object-cover"
                         />
                       </div>
@@ -379,17 +490,25 @@ export default function ShopsDirectory({
                               {shop.state ? `, ${shop.state}` : ""}
                             </p>
                           </div>
-                          {shop.rating && (
-                            <Badge variant="outline" className="flex items-center gap-1">
-                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                              <span>{shop.rating.toFixed(1)}</span>
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {shop.is_verified && (
+                              <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Verified
+                              </Badge>
+                            )}
+                            {shop.rating && (
+                              <Badge variant="outline" className="flex items-center gap-1">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span>{shop.rating.toFixed(1)}</span>
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         <p className="mt-2 text-sm line-clamp-2">{shop.description || "No description available."}</p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           <Badge variant="secondary" className="flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
+                            <MapPin className="h-3 w-3" />
                             <span>{shop.check_in_count} check-ins</span>
                           </Badge>
                           <Badge variant="secondary" className="flex items-center gap-1">
@@ -398,12 +517,18 @@ export default function ShopsDirectory({
                           </Badge>
                         </div>
                         <div className="mt-auto flex items-center justify-between pt-4">
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/dashboard/shops/${shop.id}`}>View Details</Link>
-                          </Button>
-                          <Button size="sm" className="gap-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>Check In</span>
+                          <div className="flex gap-2">
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/dashboard/shops/${shop.id}`}>View Details</Link>
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleAddFlavor(shop)}>
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add Flavor
+                            </Button>
+                          </div>
+                          <Button size="sm" onClick={() => handleCheckIn(shop.id)}>
+                            <MapPin className="h-3 w-3 mr-1" />
+                            Check In
                           </Button>
                         </div>
                       </div>
@@ -434,6 +559,15 @@ export default function ShopsDirectory({
             {loading ? "Loading..." : "Load More"}
           </Button>
         </div>
+      )}
+
+      {/* Add Flavor Modal */}
+      {selectedShop && (
+        <AddFlavorModal
+          isOpen={isAddFlavorModalOpen}
+          onClose={() => setIsAddFlavorModalOpen(false)}
+          shop={selectedShop}
+        />
       )}
     </div>
   )

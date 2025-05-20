@@ -7,6 +7,7 @@ import { cookies } from "next/headers"
  * This is a server-side only function
  */
 export async function getMapsApiKey(): Promise<string> {
+  // Use the non-public environment variable
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
 
   if (!apiKey) {
@@ -56,4 +57,16 @@ export async function getUserLocation(): Promise<{ lat: number; lng: number } | 
     lat: Number.parseFloat(lat.value),
     lng: Number.parseFloat(lng.value),
   }
+}
+
+export async function loadGoogleMapsScript() {
+  // Use the non-public environment variable
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY
+
+  if (!apiKey) {
+    throw new Error("Google Maps API key is not configured")
+  }
+
+  // Return success without exposing the key
+  return { success: true }
 }

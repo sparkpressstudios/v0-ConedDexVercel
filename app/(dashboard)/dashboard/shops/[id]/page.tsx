@@ -6,8 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Star, MapPin, Globe, Phone, Clock, Store, CheckCircle } from "lucide-react"
+import { Star, MapPin, Globe, Phone, Clock, Store, CheckCircle, Plus } from "lucide-react"
 import Link from "next/link"
+import ShopReviews from "@/components/shop/shop-reviews"
+import { ShopCheckInButton } from "@/components/shop/shop-check-in-button"
+import { ShopFlavors } from "@/components/shop/shop-flavors"
+import { ClaimShopButton } from "@/components/shop/claim-shop-button"
+import { NearbyShops } from "@/components/shop/nearby-shops"
+import { ShopStatistics } from "@/components/shop/shop-statistics"
 
 export async function generateMetadata({ params }: { params: { id: string } }) {
   const cookieStore = cookies()
@@ -36,7 +42,9 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
           id,
           name,
           description,
-          image_url
+          base_type,
+          image_url,
+          rating
         )
       `)
       .eq("id", params.id)
@@ -63,13 +71,19 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
       .order("created_at", { ascending: false })
       .limit(5)
 
+    // Get current user session
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    const userId = session?.user?.id
+
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="space-y-6">
         <div className="grid gap-6 md:grid-cols-3">
           <div className="md:col-span-2">
             <div className="rounded-lg overflow-hidden">
               <Image
-                src={shop.mainImage || "/placeholder.svg?height=400&width=800&query=ice cream shop"}
+                src={shop.image_url || "/placeholder.svg?height=400&width=800&query=ice cream shop"}
                 alt={shop.name}
                 width={800}
                 height={400}
@@ -88,7 +102,7 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
                 </div>
                 <div className="flex items-center gap-2">
                   {shop.is_verified && (
-                    <Badge className="bg-purple-600">
+                    <Badge className="bg-green-100 text-green-800 border-green-200">
                       <CheckCircle className="mr-1 h-3 w-3" />
                       Verified
                     </Badge>
@@ -148,12 +162,12 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
                   </div>
                 )}
 
-                {shop.openingHours && (
+                {shop.opening_hours && (
                   <div className="flex items-start gap-2">
                     <Clock className="h-5 w-5 text-purple-600 mt-0.5" />
                     <div>
                       <p className="font-medium">Hours</p>
-                      <p className="text-sm text-muted-foreground whitespace-pre-line">{shop.openingHours}</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-line">{shop.opening_hours}</p>
                     </div>
                   </div>
                 )}
@@ -161,32 +175,29 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
 
               <div className="mt-8">
                 <Tabs defaultValue="flavors">
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="flavors">Flavors</TabsTrigger>
+                    <TabsTrigger value="reviews">Reviews</TabsTrigger>
                     <TabsTrigger value="about">About</TabsTrigger>
                   </TabsList>
+
                   <TabsContent value="flavors" className="mt-4">
-                    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-                      {shop.shop_flavors && shop.shop_flavors.length > 0 ? (
-                        shop.shop_flavors.map((flavor) => (
-                          <Card key={flavor.id}>
-                            <CardHeader className="pb-2">
-                              <CardTitle className="text-base">{flavor.name}</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {flavor.description || "No description available."}
-                              </p>
-                            </CardContent>
-                          </Card>
-                        ))
-                      ) : (
-                        <div className="col-span-full py-8 text-center">
-                          <p className="text-muted-foreground">No flavors available for this shop yet.</p>
-                        </div>
-                      )}
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-semibold">Available Flavors</h2>
+                      <Button asChild>
+                        <Link href={`/dashboard/shops/${params.id}/add-flavor`}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Flavor
+                        </Link>
+                      </Button>
                     </div>
+                    <ShopFlavors shopId={params.id} initialFlavors={shop.shop_flavors || []} />
                   </TabsContent>
+
+                  <TabsContent value="reviews" className="mt-4">
+                    <ShopReviews shopId={params.id} shopName={shop.name} />
+                  </TabsContent>
+
                   <TabsContent value="about" className="mt-4">
                     <Card>
                       <CardHeader>
@@ -200,10 +211,10 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
                             {shop.description || "No description available."}
                           </p>
                         </div>
-                        {shop.additionalInfo && (
+                        {shop.additional_info && (
                           <div>
                             <h3 className="font-medium">Additional Information</h3>
-                            <p className="text-sm text-muted-foreground mt-1">{shop.additionalInfo}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{shop.additional_info}</p>
                           </div>
                         )}
                         <div>
@@ -227,10 +238,7 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
                 <CardDescription>Record your visit to this shop</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Check In Now
-                </Button>
+                <ShopCheckInButton shopId={params.id} shopName={shop.name} userId={userId} />
                 <p className="mt-2 text-xs text-center text-muted-foreground">
                   {shop.shop_checkins?.[0]?.count || 0} people have checked in here
                 </p>
@@ -271,33 +279,7 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Shop Stats</CardTitle>
-                <CardDescription>Information about this shop</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm">Check-ins:</span>
-                    <span className="font-medium">{shop.shop_checkins?.[0]?.count || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm">Flavors:</span>
-                    <span className="font-medium">{shop.shop_flavors?.length || 0}</span>
-                  </div>
-                  {shop.rating && (
-                    <div className="flex justify-between">
-                      <span className="text-sm">Rating:</span>
-                      <span className="font-medium flex items-center">
-                        {shop.rating.toFixed(1)}
-                        <Star className="ml-1 h-3 w-3 fill-yellow-400 text-yellow-400" />
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <ShopStatistics shopId={params.id} />
 
             <Card>
               <CardHeader>
@@ -314,8 +296,17 @@ export default async function ShopDetailPage({ params }: { params: { id: string 
                   <Store className="mr-2 h-4 w-4" />
                   Save to Favorites
                 </Button>
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href={`/dashboard/shops/${params.id}/add-flavor`}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add New Flavor
+                  </Link>
+                </Button>
+                <ClaimShopButton shopId={params.id} shopName={shop.name} userId={userId} />
               </CardContent>
             </Card>
+
+            <NearbyShops currentShopId={params.id} latitude={shop.latitude} longitude={shop.longitude} />
           </div>
         </div>
       </div>

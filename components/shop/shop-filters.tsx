@@ -11,6 +11,7 @@ interface ShopFiltersProps {
   onApplyFilters?: (filters: any) => void
 }
 
+// Named export
 export function ShopFilters({ onApplyFilters }: ShopFiltersProps) {
   const [rating, setRating] = useState(0)
   const [verifiedOnly, setVerifiedOnly] = useState(false)
@@ -120,4 +121,5 @@ export function ShopFilters({ onApplyFilters }: ShopFiltersProps) {
   )
 }
 
+// Default export (same component)
 export default ShopFilters
