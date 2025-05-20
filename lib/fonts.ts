@@ -14,3 +14,10 @@ export const fonts = {
   sans: fontSans.variable,
   mono: fontMono.variable,
 }
+
+// Add the missing named export
+export const lib = {
+  fonts,
+  fontSans,
+  fontMono,
+}

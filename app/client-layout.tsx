@@ -1,57 +1,44 @@
 "use client"
 
 import type React from "react"
-import { AuthProvider } from "@/contexts/auth-context"
-import { ThemeProvider } from "@/components/theme-provider"
-import { SupabaseProvider } from "@/components/providers/supabase-provider"
-import { Toaster } from "@/components/ui/toaster"
-import Script from "next/script"
-import { checkEnvironmentVariables } from "@/lib/utils/env-validator"
+
 import { useEffect } from "react"
+import { usePathname } from "next/navigation"
+import { InstallPrompt } from "@/components/ui/install-prompt"
+import { OfflineIndicator } from "@/components/ui/offline-indicator"
+import { GlobalErrorBoundary } from "@/components/ui/global-error-boundary"
+import { AnalyticsTracker } from "@/components/analytics/analytics-tracker"
+import { KeyboardNavigation } from "@/components/ui/keyboard-navigation"
 
-import "./globals.css"
+export function ClientLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
 
-export default function ClientLayout({ children }: { children: React.ReactNode }) {
-  // Client-side check for environment variables
+  // Register service worker
   useEffect(() => {
-    checkEnvironmentVariables()
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const swPath = "/sw-register.js"
+      navigator.serviceWorker
+        .register(swPath)
+        .then((registration) => {
+          console.log("Service Worker registered with scope:", registration.scope)
+        })
+        .catch((error) => {
+          console.error("Service Worker registration failed:", error)
+        })
+    }
   }, [])
 
   return (
-    <html lang="en">
-      <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="ConeDex" />
-      </head>
-      <body>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-          <SupabaseProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </SupabaseProvider>
-          <Toaster />
-        </ThemeProvider>
-        <Script
-          id="service-worker-registration"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-                      console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                    })
-                    .catch(function(err) {
-                      console.error('ServiceWorker registration failed: ', err);
-                    });
-                });
-              }
-            `,
-          }}
-        />
-      </body>
-    </html>
+    <GlobalErrorBoundary>
+      <AnalyticsTracker pathname={pathname}>
+        <KeyboardNavigation>
+          {children}
+          <InstallPrompt />
+          <OfflineIndicator />
+        </KeyboardNavigation>
+      </AnalyticsTracker>
+    </GlobalErrorBoundary>
   )
 }
+
+export default ClientLayout
