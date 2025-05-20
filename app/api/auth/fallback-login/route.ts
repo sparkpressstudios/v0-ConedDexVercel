@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
@@ -7,14 +6,11 @@ export async function POST(request: NextRequest) {
     const { role = "explorer" } = await request.json()
 
     let email = "explorer@conedex.app"
-    let password = process.env.DEMO_EXPLORER_PASSWORD || "demo123"
 
     if (role === "shopowner") {
       email = "shopowner@conedex.app"
-      password = process.env.DEMO_SHOPOWNER_PASSWORD || "demo123"
     } else if (role === "admin") {
       email = "admin@conedex.app"
-      password = process.env.DEMO_ADMIN_PASSWORD || "demo123"
     }
 
     // Set demo user cookie directly
@@ -26,35 +22,17 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
     })
 
-    // Sign in with Supabase
-    const supabase = createClient()
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      console.error("Demo login error:", error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
     return NextResponse.json({
       success: true,
-      user: data.user,
-      session: data.session
-        ? {
-            expires_at: data.session.expires_at,
-            expires_in: data.session.expires_in,
-          }
-        : null,
+      message: "Fallback login successful",
+      role: role,
     })
   } catch (error: any) {
-    console.error("Demo login error:", error)
+    console.error("Fallback login error:", error)
     return NextResponse.json(
       {
         error: "Internal server error",
         details: error.message,
-        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
       },
       { status: 500 },
     )

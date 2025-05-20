@@ -3,9 +3,8 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-
   try {
+    const res = NextResponse.next()
     const supabase = createMiddlewareClient({ req, res })
 
     const {
@@ -44,7 +43,7 @@ export async function middleware(req: NextRequest) {
 
     // If there's an error in the middleware, we should still allow the request to continue
     // This prevents the middleware from breaking the entire application
-    return res
+    return NextResponse.next()
   }
 }
 

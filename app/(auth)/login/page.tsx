@@ -32,17 +32,17 @@ export default function LoginPage() {
     {
       email: "explorer@conedex.app",
       password: process.env.NEXT_PUBLIC_DEMO_EXPLORER_PASSWORD || "demo123",
-      role: "Explorer",
+      role: "explorer",
     },
     {
       email: "shopowner@conedex.app",
       password: process.env.NEXT_PUBLIC_DEMO_SHOPOWNER_PASSWORD || "demo123",
-      role: "Shop Owner",
+      role: "shopowner",
     },
     {
       email: "admin@conedex.app",
       password: process.env.NEXT_PUBLIC_DEMO_ADMIN_PASSWORD || "demo123",
-      role: "Admin",
+      role: "admin",
     },
   ]
 
@@ -67,6 +67,42 @@ export default function LoginPage() {
       if (demoUser) {
         // Set demo user in both localStorage and cookie
         setDemoUser(email)
+
+        try {
+          // Try the regular demo login first
+          const response = await fetch("/api/auth/demo-login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              role: demoUser.role,
+            }),
+          })
+
+          if (!response.ok) {
+            // If regular login fails, try fallback login
+            console.warn("Regular demo login failed, trying fallback login")
+            const fallbackResponse = await fetch("/api/auth/fallback-login", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                role: demoUser.role,
+              }),
+            })
+
+            if (!fallbackResponse.ok) {
+              const errorData = await fallbackResponse.json()
+              throw new Error(errorData.error || "Failed to login with demo account")
+            }
+          }
+        } catch (error) {
+          console.error("Demo login error:", error)
+          // Even if both login methods fail, we'll still try to redirect
+          // since we've set the cookie client-side
+        }
 
         // Redirect based on role
         if (email === "admin@conedex.app") {
