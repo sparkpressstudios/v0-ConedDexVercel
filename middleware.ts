@@ -7,11 +7,12 @@ export async function middleware(req: NextRequest) {
     const res = NextResponse.next()
     const supabase = createMiddlewareClient({ req, res })
 
+    // Get the session from Supabase
     const {
       data: { session },
     } = await supabase.auth.getSession()
 
-    // Check for demo user cookie as a fallback
+    // Check for demo user cookie
     const demoUserCookie = req.cookies.get("conedex_demo_user")
     const hasDemoUser = !!demoUserCookie?.value
 
@@ -40,7 +41,6 @@ export async function middleware(req: NextRequest) {
     return res
   } catch (error) {
     console.error("Middleware error:", error)
-
     // If there's an error in the middleware, we should still allow the request to continue
     // This prevents the middleware from breaking the entire application
     return NextResponse.next()

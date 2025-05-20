@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
 
 export async function POST(request: NextRequest) {
@@ -17,7 +16,7 @@ export async function POST(request: NextRequest) {
       password = process.env.DEMO_ADMIN_PASSWORD || "demo123"
     }
 
-    // Set demo user cookie directly
+    // Set demo user cookie
     cookies().set("conedex_demo_user", email, {
       path: "/",
       maxAge: 86400, // 24 hours in seconds
@@ -26,28 +25,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
     })
 
-    // Sign in with Supabase
-    const supabase = createClient()
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      console.error("Demo login error:", error)
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      user: data.user,
-      session: data.session
-        ? {
-            expires_at: data.session.expires_at,
-            expires_in: data.session.expires_in,
-          }
-        : null,
-    })
+    return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error("Demo login error:", error)
     return NextResponse.json(

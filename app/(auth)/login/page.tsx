@@ -2,11 +2,10 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client-browser"
-import { setDemoUser } from "@/lib/auth/demo-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,6 +20,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectPath = searchParams?.get("redirect") || "/dashboard"
   const [verificationNeeded, setVerificationNeeded] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState("")
 
@@ -55,6 +56,55 @@ export default function LoginPage() {
     }
   }, [])
 
+  const handleDemoLogin = async (role: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Set the demo user cookie directly
+      const demoUser = demoUsers.find((user) => user.role === role)
+      if (!demoUser) {
+        throw new Error("Invalid demo user role")
+      }
+
+      // Set the cookie directly
+      document.cookie = `conedex_demo_user=${demoUser.email}; path=/; max-age=86400; samesite=lax;`
+
+      // Try to use the API for additional setup
+      try {
+        const response = await fetch("/api/auth/demo-login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            role,
+          }),
+        })
+
+        if (!response.ok) {
+          console.warn("Demo login API failed, but continuing with cookie auth")
+        }
+      } catch (apiError) {
+        console.warn("Demo login API error, but continuing with cookie auth:", apiError)
+      }
+
+      // Redirect based on role
+      if (role === "admin") {
+        router.push("/dashboard/admin")
+      } else if (role === "shopowner") {
+        router.push("/dashboard/shop")
+      } else {
+        router.push(redirectPath)
+      }
+    } catch (error: any) {
+      console.error("Demo login error:", error)
+      setError(error.message || "Failed to login with demo account")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -65,54 +115,7 @@ export default function LoginPage() {
       const demoUser = demoUsers.find((user) => user.email === email && user.password === password)
 
       if (demoUser) {
-        // Set demo user in both localStorage and cookie
-        setDemoUser(email)
-
-        try {
-          // Try the regular demo login first
-          const response = await fetch("/api/auth/demo-login", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              role: demoUser.role,
-            }),
-          })
-
-          if (!response.ok) {
-            // If regular login fails, try fallback login
-            console.warn("Regular demo login failed, trying fallback login")
-            const fallbackResponse = await fetch("/api/auth/fallback-login", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                role: demoUser.role,
-              }),
-            })
-
-            if (!fallbackResponse.ok) {
-              const errorData = await fallbackResponse.json()
-              throw new Error(errorData.error || "Failed to login with demo account")
-            }
-          }
-        } catch (error) {
-          console.error("Demo login error:", error)
-          // Even if both login methods fail, we'll still try to redirect
-          // since we've set the cookie client-side
-        }
-
-        // Redirect based on role
-        if (email === "admin@conedex.app") {
-          router.push("/dashboard/admin")
-        } else if (email === "shopowner@conedex.app") {
-          router.push("/dashboard/shop")
-        } else {
-          router.push("/dashboard")
-        }
-        return
+        return handleDemoLogin(demoUser.role)
       }
 
       // Regular Supabase authentication
@@ -131,7 +134,7 @@ export default function LoginPage() {
         throw new Error(error.message)
       }
 
-      router.push("/dashboard")
+      router.push(redirectPath)
       router.refresh()
     } catch (error: any) {
       setError(error.message)
@@ -258,34 +261,13 @@ export default function LoginPage() {
               <p>Contact an administrator for demo account access or create a new account.</p>
               <p>For testing purposes, you can use the demo buttons below:</p>
               <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEmail("explorer@conedex.app")
-                    setPassword(process.env.NEXT_PUBLIC_DEMO_EXPLORER_PASSWORD || "demo123")
-                  }}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleDemoLogin("explorer")} disabled={loading}>
                   Try as Explorer
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEmail("shopowner@conedex.app")
-                    setPassword(process.env.NEXT_PUBLIC_DEMO_SHOPOWNER_PASSWORD || "demo123")
-                  }}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleDemoLogin("shopowner")} disabled={loading}>
                   Try as Shop Owner
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEmail("admin@conedex.app")
-                    setPassword(process.env.NEXT_PUBLIC_DEMO_ADMIN_PASSWORD || "demo123")
-                  }}
-                >
+                <Button variant="outline" size="sm" onClick={() => handleDemoLogin("admin")} disabled={loading}>
                   Try as Admin
                 </Button>
               </div>

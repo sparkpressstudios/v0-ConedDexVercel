@@ -12,6 +12,7 @@ type AuthContextType = {
   refreshProfile: () => Promise<void>
   isAuthenticated: boolean
   error: string | null
+  isDemoUser: boolean
 }
 
 export const AuthContext = createContext<AuthContextType>({
@@ -21,6 +22,7 @@ export const AuthContext = createContext<AuthContextType>({
   refreshProfile: async () => {},
   isAuthenticated: false,
   error: null,
+  isDemoUser: false,
 })
 
 export const useAuth = () => useContext(AuthContext)
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isDemoUser, setIsDemoUser] = useState(false)
   const router = useRouter()
 
   // Create the Supabase client
@@ -95,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     : "Mint Chocolate Chip",
             })
             setIsAuthenticated(true)
+            setIsDemoUser(true)
             setLoading(false)
             return
           }
@@ -112,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (currentUser) {
           setUser(currentUser)
           setIsAuthenticated(true)
+          setIsDemoUser(false)
 
           // Get user profile
           const { data: profileData, error: profileError } = await supabase
@@ -137,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null)
           setProfile(null)
           setIsAuthenticated(false)
+          setIsDemoUser(false)
         }
       } catch (error: any) {
         console.error("Error fetching user:", error)
@@ -144,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null)
         setProfile(null)
         setIsAuthenticated(false)
+        setIsDemoUser(false)
       } finally {
         setLoading(false)
       }
@@ -160,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === "SIGNED_IN" && session?.user) {
           setUser(session.user)
           setIsAuthenticated(true)
+          setIsDemoUser(false)
 
           // Get user profile
           try {
@@ -186,9 +194,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.error("Error fetching profile:", error)
           }
         } else if (event === "SIGNED_OUT") {
-          setUser(null)
-          setProfile(null)
-          setIsAuthenticated(false)
+          // Check if we have a demo user before clearing everything
+          const demoUserCookie = document.cookie.split("; ").find((row) => row.startsWith("conedex_demo_user="))
+
+          if (!demoUserCookie) {
+            setUser(null)
+            setProfile(null)
+            setIsAuthenticated(false)
+            setIsDemoUser(false)
+          }
         }
       })
 
@@ -224,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null)
         setProfile(null)
         setIsAuthenticated(false)
+        setIsDemoUser(false)
         router.push("/")
         return
       }
@@ -233,6 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null)
       setProfile(null)
       setIsAuthenticated(false)
+      setIsDemoUser(false)
       router.push("/")
     } catch (error) {
       console.error("Error signing out:", error)
@@ -249,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshProfile,
         isAuthenticated,
         error,
+        isDemoUser,
       }}
     >
       {children}
