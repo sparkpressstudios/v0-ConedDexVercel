@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import type React from "react"
-import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
 import { ImprovedDashboardSidebar } from "@/components/layout/improved-dashboard-sidebar"
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav"
 import { DashboardHeader } from "@/components/layout/dashboard-header"
@@ -13,7 +13,8 @@ import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Shell } from "@/components/shell"
 import { createServerClient } from "@/lib/supabase/server"
 import ClientLayout from "../client-layout"
-import { cookies } from "next/headers"
+import { LoginPanel } from "@/components/auth/login-panel"
+import { IceCream } from "lucide-react"
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   try {
@@ -21,6 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     const cookieStore = cookies()
     const demoUserEmail = cookieStore.get("conedex_demo_user")?.value
     let profile = null
+    let isAuthenticated = false
 
     // If we have a demo user, use that
     if (demoUserEmail) {
@@ -66,7 +68,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 ? "Vanilla Bean"
                 : "Mint Chocolate Chip",
         }
-
+        isAuthenticated = true
         return renderDashboardLayout(children, profile)
       }
     }
@@ -77,7 +79,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       supabase = createServerClient()
     } catch (error) {
       console.error("Failed to create Supabase client:", error)
-      return renderErrorLayout(children, "Database connection error")
+      return renderLoginLayout()
     }
 
     // Check if user is authenticated with Supabase
@@ -88,12 +90,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
       session = data.session
     } catch (error) {
       console.error("Failed to get session:", error)
-      return renderErrorLayout(children, "Authentication error")
+      return renderLoginLayout()
     }
 
-    // If no session, redirect to login
+    // If no session, show login
     if (!session) {
-      return redirect("/login")
+      return renderLoginLayout()
     }
 
     // Get user profile from Supabase
@@ -107,6 +109,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role: "explorer",
         avatar_url: null,
       }
+      isAuthenticated = true
     } catch (error) {
       console.error("Error fetching profile:", error)
       // Don't throw the error, provide a fallback profile instead
@@ -117,12 +120,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         role: "explorer",
         avatar_url: null,
       }
+      isAuthenticated = true
     }
 
     return renderDashboardLayout(children, profile)
   } catch (error) {
     console.error("Dashboard layout error:", error)
-    return renderErrorLayout(children, "Unexpected error")
+    return renderLoginLayout()
   }
 }
 
@@ -149,8 +153,8 @@ function renderDashboardLayout(children: React.ReactNode, profile: any) {
   )
 }
 
-// Helper function to render the error layout
-function renderErrorLayout(children: React.ReactNode, errorMessage = "Dashboard error") {
+// Helper function to render the login layout
+function renderLoginLayout() {
   return (
     <Shell layout="full">
       <ClientLayout>
@@ -164,33 +168,14 @@ function renderErrorLayout(children: React.ReactNode, errorMessage = "Dashboard 
             </div>
           </header>
           <main className="flex-1 overflow-auto p-4 md:p-6">
-            <div className="max-w-md mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
-              <h2 className="text-xl font-bold text-red-600 mb-4">{errorMessage}</h2>
-              <p className="mb-4 text-gray-600">
-                We encountered an issue with the dashboard. This might be due to missing environment variables or a
-                connection issue.
-              </p>
-              <div className="bg-gray-50 p-4 rounded-md mb-4">
-                <p className="text-sm font-medium mb-2">Required environment variables:</p>
-                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                  <li>NEXT_PUBLIC_SUPABASE_URL</li>
-                  <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
-                </ul>
-              </div>
-              <div className="flex justify-between">
-                <a
-                  href="/"
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                >
-                  Return Home
-                </a>
-                <a
-                  href="/login"
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                >
-                  Try Login Again
-                </a>
-              </div>
+            <div className="max-w-md mx-auto mt-8">
+              <LoginPanel
+                redirectPath="/dashboard"
+                showSignupLink={true}
+                showForgotPassword={true}
+                showDemoAccess={true}
+                className="w-full"
+              />
             </div>
           </main>
         </div>
@@ -198,6 +183,3 @@ function renderErrorLayout(children: React.ReactNode, errorMessage = "Dashboard 
     </Shell>
   )
 }
-
-// Import the IceCream icon
-import { IceCream } from "lucide-react"

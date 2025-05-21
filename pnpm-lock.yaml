@@ -208,7 +208,7 @@ importers:
         version: 3.6.7
       zod:
         specifier: latest
-        version: 3.25.8
+        version: 3.25.9
     devDependencies:
       '@types/node':
         specifier: ^22
@@ -3159,8 +3159,8 @@ packages:
   zimmerframe@1.1.2:
     resolution: {integrity: sha512-rAbqEGa8ovJy4pyBxZM70hg4pE6gDgaQ0Sl9M3enG3I0d6H4XSAM3GeNGLKnsBpuijUow064sf7ww1nutC5/3w==}
 
-  zod@3.25.8:
-    resolution: {integrity: sha512-iJPWX8HoZ2VE21VrhHGU9jVo/kVDUQyqM9vF0MxDhW/fp2sAl1eVwGJgiYZdHGiMwQJImXIW80lKk0MnfDxqiQ==}
+  zod@3.25.9:
+    resolution: {integrity: sha512-ho97WAF12mhTHd6/1lBbAPJP0cWKvWra6Stl2Tw93EBsIMoHME3bhGUGBXT0AaVmIWtOB1cFh98T+wb9RClo7g==}
 
 snapshots:
 
@@ -5975,4 +5975,4 @@ snapshots:
 
   zimmerframe@1.1.2: {}
 
-  zod@3.25.8: {}
+  zod@3.25.9: {}

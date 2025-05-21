@@ -6,20 +6,17 @@ export async function POST(request: NextRequest) {
     const { role = "explorer" } = await request.json()
 
     let email = "explorer@conedex.app"
-    let password = process.env.DEMO_EXPLORER_PASSWORD || "demo123"
 
     if (role === "shopowner") {
       email = "shopowner@conedex.app"
-      password = process.env.DEMO_SHOPOWNER_PASSWORD || "demo123"
     } else if (role === "admin") {
       email = "admin@conedex.app"
-      password = process.env.DEMO_ADMIN_PASSWORD || "demo123"
     }
 
-    // Set demo user cookie
+    // Set demo user cookie with a long expiration (30 days)
     cookies().set("conedex_demo_user", email, {
       path: "/",
-      maxAge: 86400, // 24 hours in seconds
+      maxAge: 2592000, // 30 days in seconds
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
