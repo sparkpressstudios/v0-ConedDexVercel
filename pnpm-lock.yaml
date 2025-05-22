@@ -100,13 +100,13 @@ importers:
         version: 8.1.5
       '@supabase/auth-helpers-nextjs':
         specifier: latest
-        version: 0.10.0(@supabase/supabase-js@2.49.7)
+        version: 0.10.0(@supabase/supabase-js@2.49.8)
       '@supabase/auth-helpers-react':
         specifier: latest
-        version: 0.5.0(@supabase/supabase-js@2.49.7)
+        version: 0.5.0(@supabase/supabase-js@2.49.8)
       '@supabase/supabase-js':
         specifier: latest
-        version: 2.49.7
+        version: 2.49.8
       '@sveltejs/kit':
         specifier: latest
         version: 2.21.1(@sveltejs/vite-plugin-svelte@5.0.3(svelte@5.32.1)(vite@6.3.5(@types/node@22.0.0)(jiti@1.21.7)(yaml@2.8.0)))(svelte@5.32.1)(vite@6.3.5(@types/node@22.0.0)(jiti@1.21.7)(yaml@2.8.0))
@@ -208,7 +208,7 @@ importers:
         version: 3.6.7
       zod:
         specifier: latest
-        version: 3.25.9
+        version: 3.25.20
     devDependencies:
       '@types/node':
         specifier: ^22
@@ -1743,8 +1743,8 @@ packages:
   '@supabase/storage-js@2.7.1':
     resolution: {integrity: sha512-asYHcyDR1fKqrMpytAS1zjyEfvxuOIp1CIXX7ji4lHHcJKqyk+sLl/Vxgm4sN6u8zvuUtae9e4kDxQP2qrwWBA==}
 
-  '@supabase/supabase-js@2.49.7':
-    resolution: {integrity: sha512-hx6khHHC9GherCxTaRF91Sp3uiRtlgo8Aw+MUC5hck/DLdsIIZfbBbLzXqiiDUdGDeERagmFVanI93QDZe+Nww==}
+  '@supabase/supabase-js@2.49.8':
+    resolution: {integrity: sha512-zzBQLgS/jZs7btWcIAc7V5yfB+juG7h0AXxKowMJuySsO5vK+F7Vp+HCa07Z+tu9lZtr3sT9fofkc86bdylmtw==}
 
   '@sveltejs/acorn-typescript@1.0.5':
     resolution: {integrity: sha512-IwQk4yfwLdibDlrXVE04jTZYlLnwsTT2PIOQQGNLWfjavGifnk1JD1LcZjZaBTRcxZu2FfPfNLOE04DSu9lqtQ==}
@@ -3159,8 +3159,8 @@ packages:
   zimmerframe@1.1.2:
     resolution: {integrity: sha512-rAbqEGa8ovJy4pyBxZM70hg4pE6gDgaQ0Sl9M3enG3I0d6H4XSAM3GeNGLKnsBpuijUow064sf7ww1nutC5/3w==}
 
-  zod@3.25.9:
-    resolution: {integrity: sha512-ho97WAF12mhTHd6/1lBbAPJP0cWKvWra6Stl2Tw93EBsIMoHME3bhGUGBXT0AaVmIWtOB1cFh98T+wb9RClo7g==}
+  zod@3.25.20:
+    resolution: {integrity: sha512-z03fqpTMDF1G02VLKUMt6vyACE7rNWkh3gpXVHgPTw28NPtDFRGvcpTtPwn2kMKtQ0idtYJUTxchytmnqYswcw==}
 
 snapshots:
 
@@ -4498,19 +4498,19 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@supabase/auth-helpers-nextjs@0.10.0(@supabase/supabase-js@2.49.7)':
+  '@supabase/auth-helpers-nextjs@0.10.0(@supabase/supabase-js@2.49.8)':
     dependencies:
-      '@supabase/auth-helpers-shared': 0.7.0(@supabase/supabase-js@2.49.7)
-      '@supabase/supabase-js': 2.49.7
+      '@supabase/auth-helpers-shared': 0.7.0(@supabase/supabase-js@2.49.8)
+      '@supabase/supabase-js': 2.49.8
       set-cookie-parser: 2.7.1
 
-  '@supabase/auth-helpers-react@0.5.0(@supabase/supabase-js@2.49.7)':
+  '@supabase/auth-helpers-react@0.5.0(@supabase/supabase-js@2.49.8)':
     dependencies:
-      '@supabase/supabase-js': 2.49.7
+      '@supabase/supabase-js': 2.49.8
 
-  '@supabase/auth-helpers-shared@0.7.0(@supabase/supabase-js@2.49.7)':
+  '@supabase/auth-helpers-shared@0.7.0(@supabase/supabase-js@2.49.8)':
     dependencies:
-      '@supabase/supabase-js': 2.49.7
+      '@supabase/supabase-js': 2.49.8
       jose: 4.15.9
 
   '@supabase/auth-js@2.69.1':
@@ -4543,7 +4543,7 @@ snapshots:
     dependencies:
       '@supabase/node-fetch': 2.6.15
 
-  '@supabase/supabase-js@2.49.7':
+  '@supabase/supabase-js@2.49.8':
     dependencies:
       '@supabase/auth-js': 2.69.1
       '@supabase/functions-js': 2.4.4
@@ -5975,4 +5975,4 @@ snapshots:
 
   zimmerframe@1.1.2: {}
 
-  zod@3.25.9: {}
+  zod@3.25.20: {}
